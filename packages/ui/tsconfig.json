@@ -1,0 +1,11 @@
+{
+    "extends": "@lyceum/typescript-config/react-library.json",
+    "compilerOptions": {
+      "baseUrl": ".",
+      "paths": {
+        "@lyceum/ui/*": ["./src/*"]
+      }
+    },
+    "include": ["."],
+    "exclude": ["node_modules", "dist"]
+  }
