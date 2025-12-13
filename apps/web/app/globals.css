@@ -1,0 +1,9 @@
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@import "@lyceum/ui/globals.css";
+
+@source "./**/*.{ts,tsx}";
+@source "../components/**/*.{ts,tsx}";
+@source "../mock-data/**/*.{ts,tsx}";
+@source "../store/**/*.{ts,tsx}";
