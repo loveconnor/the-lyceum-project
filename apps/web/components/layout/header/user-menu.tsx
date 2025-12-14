@@ -17,13 +17,17 @@ import { useUserProfile } from "@/components/providers/user-provider";
 import { getInitials } from "@/lib/user-profile";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { useUserSettings } from "@/components/providers/settings-provider";
 
 export default function UserMenu() {
   const user = useUserProfile();
+  const { settings } = useUserSettings();
   const router = useRouter();
   const supabase = createClient();
-  const initials = getInitials(user?.name, user?.email);
-  const avatarSrc = user?.avatarUrl ?? "/images/avatars/01.png";
+  const displayName = settings.account.name || settings.profile.username || user?.name;
+  const displayEmail = settings.profile.email || user?.email;
+  const avatarSrc = settings.profile.avatarUrl || user?.avatarUrl || "/images/avatars/01.png";
+  const initials = getInitials(displayName, displayEmail);
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/login");
@@ -34,7 +38,7 @@ export default function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Avatar>
-          <AvatarImage src={avatarSrc} alt={user?.name ?? "User avatar"} />
+          <AvatarImage src={avatarSrc} alt={displayName ?? "User avatar"} />
           <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
@@ -42,12 +46,12 @@ export default function UserMenu() {
         <DropdownMenuLabel className="p-0">
           <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
             <Avatar>
-              <AvatarImage src={avatarSrc} alt={user?.name ?? "User avatar"} />
+              <AvatarImage src={avatarSrc} alt={displayName ?? "User avatar"} />
               <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold">{user?.name}</span>
-              <span className="text-muted-foreground truncate text-xs">{user?.email}</span>
+              <span className="truncate font-semibold">{displayName}</span>
+              <span className="text-muted-foreground truncate text-xs">{displayEmail}</span>
             </div>
           </div>
         </DropdownMenuLabel>

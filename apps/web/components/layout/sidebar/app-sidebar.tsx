@@ -2,18 +2,6 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Bell,
-  Clock3,
-  Compass,
-  FlaskConical,
-  LayoutDashboard,
-  Link as LinkIcon,
-  NotebookPen,
-  Sparkles,
-  Target,
-  Users
-} from "lucide-react";
 
 import {
   Sidebar,
@@ -38,12 +26,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { NavUser } from "./nav-user";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
+import { SIDEBAR_ITEMS } from "@/lib/settings";
+import { useUserSettings } from "@/components/providers/settings-provider";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { setOpen, setOpenMobile, isMobile } = useSidebar();
   const isTablet = useIsTablet();
   const user = useUserProfile();
+  const { settings } = useUserSettings();
   const router = useRouter();
   const supabase = createClient();
 
@@ -56,6 +47,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, [isTablet, setOpen]);
 
   const userInitial = getInitials(user?.name, user?.email);
+  const visibleItems = SIDEBAR_ITEMS.filter((item) =>
+    settings.display.sidebarItems.includes(item.id)
+  );
+  const primaryItems = visibleItems.filter((item) => item.group === "primary");
+  const quickLinks = visibleItems.filter((item) => item.group === "quick_links");
+  const hasAssistant = primaryItems.some((item) => item.id === "ai_assistant");
+  const otherPrimary = primaryItems.filter((item) => item.id !== "ai_assistant");
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -80,97 +78,99 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <ScrollArea className="h-full">
           <div className="space-y-4 p-3">
-            <SidebarGroup>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton className={menuButtonClass}>
-                      <Sparkles className="size-4" />
-                      <span>AI Assistant</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            {hasAssistant && (
+              <SidebarGroup>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {primaryItems
+                      .filter((item) => item.id === "ai_assistant")
+                      .map((item) => (
+                        <SidebarMenuItem key={item.id}>
+                          <SidebarMenuButton
+                            className={menuButtonClass}
+                            asChild={Boolean(item.href)}>
+                            {item.href ? (
+                              <Link href={item.href}>
+                                <item.icon className="size-4" />
+                                <span>{item.label}</span>
+                              </Link>
+                            ) : (
+                              <>
+                                <item.icon className="size-4" />
+                                <span>{item.label}</span>
+                              </>
+                            )}
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
 
-            <SidebarSeparator />
+            {hasAssistant && <SidebarSeparator />}
 
-            <SidebarGroup>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton isActive className={menuButtonClass}>
-                      <LayoutDashboard className="size-4" />
-                      <span>Dashboard</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton className={menuButtonClass}>
-                      <Compass className="size-4" />
-                      <span>Learning Paths</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton className={menuButtonClass}>
-                      <FlaskConical className="size-4" />
-                      <span>Labs</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton className={menuButtonClass}>
-                      <NotebookPen className="size-4" />
-                      <span>Reflections</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton className={menuButtonClass}>
-                      <Clock3 className="size-4" />
-                      <span>Planner / Time Coach</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton className={menuButtonClass}>
-                      <Target className="size-4" />
-                      <span>Relevance Explorer</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton className={menuButtonClass}>
-                      <Users className="size-4" />
-                      <span>Community</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            {otherPrimary.length > 0 && (
+              <SidebarGroup>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {otherPrimary.map((item) => (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton
+                          isActive={item.href ? pathname === item.href : false}
+                          className={menuButtonClass}
+                          asChild={Boolean(item.href)}>
+                          {item.href ? (
+                            <Link href={item.href}>
+                              <item.icon className="size-4" />
+                              <span>{item.label}</span>
+                            </Link>
+                          ) : (
+                            <>
+                              <item.icon className="size-4" />
+                              <span>{item.label}</span>
+                            </>
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
 
-            <SidebarSeparator />
+            {otherPrimary.length > 0 && quickLinks.length > 0 && <SidebarSeparator />}
 
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-muted-foreground h-4 pb-2 pt-1 text-xs">Quick Links</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton className={menuButtonClass}>
-                      <LinkIcon className="size-4" />
-                      <span>Start New Lab</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton className={menuButtonClass}>
-                      <LinkIcon className="size-4" />
-                      <span>Continue Reflection</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton className={menuButtonClass}>
-                      <LinkIcon className="size-4" />
-                      <span>View Goals</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
+            {quickLinks.length > 0 && (
+              <SidebarGroup>
+                <SidebarGroupLabel className="text-muted-foreground h-4 pb-2 pt-1 text-xs">
+                  Quick Links
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {quickLinks.map((item) => (
+                      <SidebarMenuItem key={item.id}>
+                        <SidebarMenuButton
+                          className={menuButtonClass}
+                          asChild={Boolean(item.href)}>
+                          {item.href ? (
+                            <Link href={item.href}>
+                              <item.icon className="size-4" />
+                              <span>{item.label}</span>
+                            </Link>
+                          ) : (
+                            <>
+                              <item.icon className="size-4" />
+                              <span>{item.label}</span>
+                            </>
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            )}
           </div>
         </ScrollArea>
       </SidebarContent>
@@ -185,9 +185,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </CardHeader>
           <CardContent className="px-3">
             <Button className="w-full" asChild>
-              <Link href="/dashboard/onboarding" target="_blank">
-                Go to Onboarding
-              </Link>
+              <Link href="/onboarding">Go to Onboarding</Link>
             </Button>
           </CardContent>
         </Card>

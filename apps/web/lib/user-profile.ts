@@ -8,6 +8,16 @@ export const DEFAULT_USER_PROFILE: UserProfile = {
   avatarUrl: "/images/avatars/01.png"
 };
 
+export function splitFullName(name?: string | null): [string | null, string | null] {
+  if (!name) return [null, null];
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 0) return [null, null];
+  if (parts.length === 1) return [parts[0], null];
+  const first = parts.shift() ?? null;
+  const last = parts.join(" ") || null;
+  return [first, last];
+}
+
 export function mapUserToProfile(user?: User | null): UserProfile {
   if (!user) {
     return DEFAULT_USER_PROFILE;
