@@ -1,21 +1,17 @@
 import { cn } from "@/lib/utils";
-import { marked } from "marked";
-import { memo, useId, useMemo } from "react";
+import React, { memo, useMemo } from "react";
 import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 import { CodeBlock, CodeBlockCode } from "./code-block";
 
 export type MarkdownProps = {
   children: string;
-  id?: string;
   className?: string;
   components?: Partial<Components>;
 };
-
-function parseMarkdownIntoBlocks(markdown: string): string[] {
-  const tokens = marked.lexer(markdown);
-  return tokens.map((token) => token.raw);
-}
 
 function extractLanguage(className?: string): string {
   if (!className) return "plaintext";
@@ -23,75 +19,56 @@ function extractLanguage(className?: string): string {
   return match ? match[1] : "plaintext";
 }
 
-const INITIAL_COMPONENTS: Partial<Components> = {
-  code: function CodeComponent({ className, children, ...props }) {
-    const isInline =
-      !props.node?.position?.start.line ||
-      props.node?.position?.start.line === props.node?.position?.end.line;
-
-    if (isInline) {
+const DEFAULT_COMPONENTS: Partial<Components> = {
+  p: ({ children }) => {
+    const hasBlockChild = React.Children.toArray(children).some(
+      (child) =>
+        React.isValidElement(child) &&
+        (child.type === "div" || child.type === "pre" || child.type === CodeBlock)
+    );
+    if (hasBlockChild) {
+      return <div className="space-y-2">{children}</div>;
+    }
+    return <p className="mb-2 leading-7">{children}</p>;
+  },
+  code: ({ className, inline, children }) => {
+    if (inline) {
       return (
-        <span
-          className={cn("bg-background rounded-sm px-1 font-mono text-sm", className)}
-          {...props}>
+        <code className={cn("bg-muted rounded-sm px-1 font-mono text-sm", className)}>
           {children}
-        </span>
+        </code>
       );
     }
 
     const language = extractLanguage(className);
+    const code = String(children ?? "").replace(/\n$/, "");
 
     return (
       <CodeBlock className={className}>
-        <CodeBlockCode code={children as string} language={language} />
+        <CodeBlockCode code={code} language={language} />
       </CodeBlock>
     );
   },
-  pre: function PreComponent({ children }) {
-    return <>{children}</>;
-  }
+  pre: ({ children }) => <>{children}</>
 };
 
-const MemoizedMarkdownBlock = memo(
-  function MarkdownBlock({
-    content,
-    components = INITIAL_COMPONENTS
-  }: {
-    content: string;
-    components?: Partial<Components>;
-  }) {
-    return (
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {content}
-      </ReactMarkdown>
-    );
-  },
-  function propsAreEqual(prevProps, nextProps) {
-    return prevProps.content === nextProps.content;
-  }
-);
-
-MemoizedMarkdownBlock.displayName = "MemoizedMarkdownBlock";
-
-function MarkdownComponent({
-  children,
-  id,
-  className,
-  components = INITIAL_COMPONENTS
-}: MarkdownProps) {
-  const generatedId = useId();
-  const blockId = id ?? generatedId;
-  const blocks = useMemo(() => parseMarkdownIntoBlocks(children), [children]);
+function MarkdownComponent({ children, className, components = DEFAULT_COMPONENTS }: MarkdownProps) {
+  const mergedComponents = useMemo(
+    () => ({
+      ...DEFAULT_COMPONENTS,
+      ...components
+    }),
+    [components]
+  );
 
   return (
-    <div className={className}>
-      {blocks.map((block, index) => (
-        <MemoizedMarkdownBlock
-          key={`${blockId}-block-${index}`}
-          content={block}
-          components={components}
-        />
-      ))}
+    <div className={cn("prose prose-neutral max-w-none", className)}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={mergedComponents}>
+        {children}
+      </ReactMarkdown>
     </div>
   );
 }

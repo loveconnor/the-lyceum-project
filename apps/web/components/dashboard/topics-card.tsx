@@ -1,5 +1,6 @@
 import { ChevronRight } from "lucide-react";
 
+import { EmptyState } from "./empty-state";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,7 +43,11 @@ export function TopicsCard({ topics = [] }: { topics?: Topic[] }) {
             ))}
           </div>
         ) : (
-          <div className="text-muted-foreground text-sm">No topics yet. Complete an activity to see recommendations.</div>
+          <EmptyState
+            icon={ChevronRight}
+            title="No topics yet"
+            description="Complete an activity and we will surface your top strengths and focus areas."
+          />
         )}
       </CardContent>
     </Card>

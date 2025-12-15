@@ -1,9 +1,6 @@
+import './loadEnv';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-
-// Load env vars before importing auth which uses them
-dotenv.config();
 
 import { requireAuth } from './auth';
 import aiRouter from './routes/ai';

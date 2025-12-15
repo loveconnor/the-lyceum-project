@@ -1,4 +1,5 @@
-import { GoogleGenerativeAI, type Content, type GenerativeModel } from '@google/generative-ai';
+import OpenAI from 'openai';
+import type { ChatCompletionMessageParam } from 'openai/resources';
 
 export type ChatRole = 'user' | 'assistant' | 'system';
 
@@ -63,34 +64,25 @@ export interface TopicRecommendation {
   progress?: number;
 }
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-exp';
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
-let genAI: GoogleGenerativeAI | null = null;
+let openai: OpenAI | null = null;
 
 const baseSystemInstruction =
   'You are Lyceum, an education-focused assistant. Provide concise, actionable responses and avoid fluff. ' +
+  'Use rich Markdown structure: clear headings, short paragraphs, bullet/numbered lists, and bold/italic for emphasis. ' +
+  'Wrap code in fenced blocks with language tags. Render inline math with $...$ and block math with $$...$$ when helpful. ' +
   'When creating learning plans, be specific about outcomes, duration, and next steps.';
 
 const ensureClient = () => {
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured');
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not configured');
   }
-
-  if (!genAI) {
-    genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  if (!openai) {
+    openai = new OpenAI({ apiKey: OPENAI_API_KEY });
   }
-
-  return genAI;
-};
-
-const getModel = (systemInstruction?: string): GenerativeModel => {
-  const client = ensureClient();
-
-  return client.getGenerativeModel({
-    model: GEMINI_MODEL,
-    systemInstruction: systemInstruction || baseSystemInstruction,
-  });
+  return openai;
 };
 
 const stripCodeFences = (text: string): string => {
@@ -112,12 +104,8 @@ const tryParseJson = <T>(text: string): T | null => {
 export const generateOnboardingRecommendations = async (
   onboardingData: unknown,
 ): Promise<OnboardingRecommendations> => {
-  const model = getModel(
-    'You are a course curator for Lyceum. Use onboarding inputs to suggest 3-5 course recommendations.',
-  );
-
   const prompt = [
-    'Use the onboarding inputs to propose concise course recommendations tailored to the learner.',
+    'You are a course curator for Lyceum. Use onboarding inputs to suggest exactly 6 course recommendations.',
     'Return JSON with shape:',
     '{',
     '  "recommendations": [',
@@ -132,21 +120,23 @@ export const generateOnboardingRecommendations = async (
     '  ],',
     '  "suggested_learning_style": string',
     '}',
+    'Return exactly 6 recommendations.',
     'Avoid markdown. Keep summaries short but specific.',
     '',
     'Onboarding data:',
     JSON.stringify(onboardingData, null, 2),
   ].join('\n');
 
-  const result = await model.generateContent({
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.4,
-      topP: 0.9,
-    },
+  const client = ensureClient();
+  const completion = await client.chat.completions.create({
+    model: OPENAI_MODEL,
+    messages: [
+      { role: 'system', content: baseSystemInstruction },
+      { role: 'user', content: prompt },
+    ],
   });
 
-  const text = result.response.text().trim();
+  const text = completion.choices[0]?.message?.content?.trim() || '';
   const parsed = tryParseJson<OnboardingRecommendations>(text);
 
   return {
@@ -159,11 +149,8 @@ export const generateOnboardingRecommendations = async (
 export const generateTopicRecommendations = async (
   onboardingData: unknown,
 ): Promise<TopicRecommendation[]> => {
-  const model = getModel(
-    'You are a topic recommender for Lyceum. Provide 6 concise topics with categories and confidence notes.',
-  );
-
   const prompt = [
+    'You are a topic recommender for Lyceum. Provide 6 concise topics with categories and confidence notes.',
     'Based on the onboarding data, return 6 recommended topics.',
     'Respond with JSON only, shape:',
     '{ "topics": [ { "name": string, "category": string, "confidence": string } ] }',
@@ -173,15 +160,16 @@ export const generateTopicRecommendations = async (
     JSON.stringify(onboardingData, null, 2),
   ].join('\n');
 
-  const result = await model.generateContent({
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.4,
-      topP: 0.9,
-    },
+  const client = ensureClient();
+  const completion = await client.chat.completions.create({
+    model: OPENAI_MODEL,
+    messages: [
+      { role: 'system', content: baseSystemInstruction },
+      { role: 'user', content: prompt },
+    ],
   });
 
-  const text = result.response.text().trim();
+  const text = completion.choices[0]?.message?.content?.trim() || '';
   const parsed = tryParseJson<{ topics: TopicRecommendation[] }>(text);
 
   return parsed?.topics || [];
@@ -191,10 +179,6 @@ export const generateCourseOutline = async (
   payload: CourseOutlineRequest,
 ): Promise<CourseOutlineResponse> => {
   const { course, audienceProfile, modulesCount = 5 } = payload;
-
-  const model = getModel(
-    'You are an expert curriculum designer for Lyceum. Build tight outlines with measurable outcomes.',
-  );
 
   const prompt = [
     'Create a concise course outline.',
@@ -233,15 +217,16 @@ export const generateCourseOutline = async (
     .filter(Boolean)
     .join('\n');
 
-  const result = await model.generateContent({
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: 0.45,
-      topP: 0.9,
-    },
+  const client = ensureClient();
+  const completion = await client.chat.completions.create({
+    model: OPENAI_MODEL,
+    messages: [
+      { role: 'system', content: baseSystemInstruction },
+      { role: 'user', content: prompt },
+    ],
   });
 
-  const text = result.response.text().trim();
+  const text = completion.choices[0]?.message?.content?.trim() || '';
   const parsed = tryParseJson<CourseOutlineResponse>(text);
 
   return {
@@ -250,31 +235,73 @@ export const generateCourseOutline = async (
   };
 };
 
+type AssistantChatOptions = {
+  context?: string;
+  systemPrompt?: string;
+};
+
 export const runAssistantChat = async (
   messages: ChatMessage[],
-  context?: string,
+  options: AssistantChatOptions = {},
 ): Promise<AssistantReply> => {
-  const model = getModel(
-    context
-      ? `${baseSystemInstruction} Ground answers in the provided context.`
-      : baseSystemInstruction,
-  );
+  const systemPrompt = options.systemPrompt
+    ? `${options.systemPrompt}\n\n${baseSystemInstruction}`
+    : baseSystemInstruction;
 
-  const history: Content[] = messages.slice(0, -1).map((message) => ({
-    role: message.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: message.role === 'system' ? `System: ${message.content}` : message.content }],
-  }));
+  const client = ensureClient();
 
-  const latest = messages[messages.length - 1];
-  const chat = model.startChat({ history });
+  const chatMessages: ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
+    ...(options.context ? [{ role: 'system', content: `Context: ${options.context}` }] : []),
+    ...messages.map((m) => ({ role: m.role, content: m.content } as ChatCompletionMessageParam)),
+  ];
 
-  const prompt = [context ? `Context: ${context}` : '', latest.content].filter(Boolean).join('\n\n');
+  const completion = await client.chat.completions.create({
+    model: OPENAI_MODEL,
+    messages: chatMessages,
+  });
 
-  const result = await chat.sendMessage(prompt);
-  const text = result.response.text().trim();
+  const text = completion.choices[0]?.message?.content?.trim() || '';
 
-  return {
-    reply: text,
-    raw: text,
-  };
+  return { reply: text, raw: text };
+};
+
+export const runAssistantChatStream = async (
+  messages: ChatMessage[],
+  options: AssistantChatOptions = {},
+): Promise<AsyncGenerator<string>> => {
+  const systemPrompt = options.systemPrompt
+    ? `${options.systemPrompt}\n\n${baseSystemInstruction}`
+    : baseSystemInstruction;
+
+  const client = ensureClient();
+
+  const chatMessages: ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
+    ...(options.context ? [{ role: 'system', content: `Context: ${options.context}` }] : []),
+    ...messages.map((m) => ({ role: m.role, content: m.content } as ChatCompletionMessageParam)),
+  ];
+
+  const stream = await client.chat.completions.create({
+    model: OPENAI_MODEL,
+    messages: chatMessages,
+    stream: true,
+  });
+
+  async function* generator() {
+    for await (const part of stream) {
+      const delta = part.choices?.[0]?.delta?.content;
+      if (!delta) continue;
+      if (typeof delta === 'string') {
+        yield delta;
+      } else if (Array.isArray(delta)) {
+        const text = delta
+          .map((d) => (typeof d === 'string' ? d : (d as any).text || ''))
+          .join('');
+        if (text) yield text;
+      }
+    }
+  }
+
+  return generator();
 };

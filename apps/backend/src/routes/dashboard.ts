@@ -43,7 +43,11 @@ const defaultState = (userId: string): DashboardState => ({
 
 const normalizeTopics = (
   topics: Array<TopicRecommendation | OnboardingRecommendations['recommendations'][number]> = [],
-  { forceConfidence, progress }: { forceConfidence?: string; progress?: number } = {},
+  {
+    forceConfidence,
+    progress,
+    padToSix = true,
+  }: { forceConfidence?: string; progress?: number; padToSix?: boolean } = {},
 ): DashboardTopic[] => {
   const normalized = topics.slice(0, 6).map((t) => ({
     name: (t as any).name || (t as any).title || 'Topic',
@@ -61,14 +65,15 @@ const normalizeTopics = (
     progress: typeof progress === 'number' ? progress : (t as any).progress ?? 0,
   }));
 
-  // If fewer than 6, pad with placeholders to avoid empty state
-  while (normalized.length < 6) {
-    normalized.push({
-      name: `Topic ${normalized.length + 1}`,
-      category: 'General',
-      confidence: forceConfidence || 'Complete an activity',
-      progress: typeof progress === 'number' ? progress : 0,
-    });
+  if (padToSix) {
+    while (normalized.length < 6) {
+      normalized.push({
+        name: `Topic ${normalized.length + 1}`,
+        category: 'General',
+        confidence: forceConfidence || 'Complete an activity',
+        progress: typeof progress === 'number' ? progress : 0,
+      });
+    }
   }
 
   return normalized;
@@ -174,18 +179,27 @@ const ensureRecommendations = async (
   try {
     const recs = await generateOnboardingRecommendations(onboarding || {});
     if (recs?.recommendations?.length) {
-      recommendedTopics = normalizeTopics(recs.recommendations, { forceConfidence, progress: 0 });
+      recommendedTopics = normalizeTopics(recs.recommendations, {
+        forceConfidence,
+        progress: 0,
+        padToSix: false,
+      });
     }
   } catch (err) {
     console.error('Onboarding recommendations failed, falling back to topics', err);
   }
 
   // Secondary: Topic recommendations
-  if (!recommendedTopics.length) {
+  if (recommendedTopics.length < 6) {
     try {
       const topics = await generateTopicRecommendations(onboarding || {});
-      if (topics.length) {
-        recommendedTopics = normalizeTopics(topics, { forceConfidence, progress: 0 });
+      if (topics?.length) {
+        const more = normalizeTopics(topics, { forceConfidence, progress: 0, padToSix: false });
+        const existingNames = new Set(recommendedTopics.map((t) => (t.name || '').toLowerCase()));
+        recommendedTopics = [
+          ...recommendedTopics,
+          ...more.filter((t) => !existingNames.has((t.name || '').toLowerCase())),
+        ].slice(0, 6);
       }
     } catch (err) {
       console.error('Topic recommendations failed, falling back to interests', err);
@@ -193,15 +207,24 @@ const ensureRecommendations = async (
   }
 
   // Tertiary: Interest-based fallback
-  if (!recommendedTopics.length) {
-    recommendedTopics = normalizeTopics(fallbackTopicsFromInterests(onboarding, forceConfidence), {
-      forceConfidence,
-      progress: 0,
-    });
+  if (recommendedTopics.length < 6) {
+    const interestTopics = normalizeTopics(
+      fallbackTopicsFromInterests(onboarding, forceConfidence),
+      {
+        forceConfidence,
+        progress: 0,
+        padToSix: false,
+      },
+    );
+    const existingNames = new Set(recommendedTopics.map((t) => (t.name || '').toLowerCase()));
+    recommendedTopics = [
+      ...recommendedTopics,
+      ...interestTopics.filter((t) => !existingNames.has((t.name || '').toLowerCase())),
+    ].slice(0, 6);
   }
 
   // Final safety net
-  if (!recommendedTopics.length) {
+  if (recommendedTopics.length < 6) {
     recommendedTopics = normalizeTopics(
       [
         { name: 'Learning Skills', category: 'General', confidence: forceConfidence || 'Suggested' },
@@ -211,8 +234,13 @@ const ensureRecommendations = async (
         { name: 'Communication', category: 'General', confidence: forceConfidence || 'Suggested' },
         { name: 'Project Execution', category: 'General', confidence: forceConfidence || 'Suggested' },
       ],
-      { forceConfidence, progress: 0 },
+      { forceConfidence, progress: 0, padToSix: false },
     );
+  }
+
+  // If still short, pad to 6 with placeholders
+  if (recommendedTopics.length < 6) {
+    recommendedTopics = normalizeTopics(recommendedTopics, { forceConfidence, progress: 0 });
   }
 
   const supabase = getSupabaseAdmin();

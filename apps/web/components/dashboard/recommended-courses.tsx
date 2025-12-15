@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable
 } from "@tanstack/react-table";
-import { ChevronLeft, ChevronRight, Loader2, MoreHorizontalIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, GraduationCap, Loader2, MoreHorizontalIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +34,7 @@ import {
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { createClient } from "@/utils/supabase/client";
+import { EmptyState } from "./empty-state";
 
 export type Course = {
   id: number;
@@ -277,8 +278,15 @@ export function RecommendedCoursesTable({
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No results.
+                  <TableCell colSpan={columns.length} className="h-36 text-center">
+                    <EmptyState
+                      icon={GraduationCap}
+                      title="No recommendations yet"
+                      description="Generate courses tailored to you. Click regenerate to get your first set."
+                      actionLabel="Regenerate"
+                      actionIcon={Loader2}
+                      onAction={handleRegenerate}
+                    />
                   </TableCell>
                 </TableRow>
               )}

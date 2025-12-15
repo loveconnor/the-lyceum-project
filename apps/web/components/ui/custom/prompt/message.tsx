@@ -2,6 +2,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./markdown";
+import { useState } from "react";
+import { CheckIcon, CopyIcon } from "@radix-ui/react-icons";
 
 export type MessageProps = {
   children: React.ReactNode;
@@ -74,8 +76,10 @@ const MessageActions = ({ children, className, ...props }: MessageActionsProps) 
 export type MessageActionProps = {
   className?: string;
   tooltip: React.ReactNode;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   side?: "top" | "bottom" | "left" | "right";
+  onCopy?: () => Promise<void> | void;
+  copied?: boolean;
 } & React.ComponentProps<typeof Tooltip>;
 
 const MessageAction = ({
@@ -83,12 +87,39 @@ const MessageAction = ({
   children,
   className,
   side = "top",
+  onCopy,
+  copied,
   ...props
 }: MessageActionProps) => {
+  const [localCopied, setLocalCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!onCopy) return;
+    await onCopy();
+    setLocalCopied(true);
+    setTimeout(() => setLocalCopied(false), 1500);
+  };
+
+  const showCheck = copied || localCopied;
+
   return (
     <TooltipProvider>
       <Tooltip {...props}>
-        <TooltipTrigger asChild>{children}</TooltipTrigger>
+        <TooltipTrigger asChild>
+          {onCopy ? (
+            <button
+              type="button"
+              onClick={handleCopy}
+              className={cn(
+                "inline-flex items-center justify-center rounded-full border px-2 py-1 text-sm",
+                className
+              )}>
+              {showCheck ? <CheckIcon /> : <CopyIcon />}
+            </button>
+          ) : (
+            children
+          )}
+        </TooltipTrigger>
         <TooltipContent side={side} className={className}>
           {tooltip}
         </TooltipContent>

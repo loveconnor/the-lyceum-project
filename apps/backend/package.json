@@ -12,7 +12,8 @@
     "@supabase/supabase-js": "^2.86.0",
     "cors": "^2.8.5",
     "dotenv": "^16.0.3",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "openai": "^4.76.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

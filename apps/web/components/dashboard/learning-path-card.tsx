@@ -1,7 +1,7 @@
-import { ChevronRight, GitBranch } from "lucide-react";
+import { BookOpenCheck, GitBranch } from "lucide-react";
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
+import { EmptyState } from "./empty-state";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
@@ -20,13 +20,7 @@ export function LearningPathCard({
   progress?: number;
 }) {
   const hasPath = learningPath.length > 0;
-  const fallbackItem = {
-    title: "No learning path yet",
-    progress,
-    completed: 0,
-    total: 0
-  };
-  const items = hasPath ? learningPath : [fallbackItem];
+  const items = hasPath ? learningPath : [];
 
   return (
     <Card className="h-full">
@@ -54,9 +48,11 @@ export function LearningPathCard({
           </Link>
         ))}
         {!hasPath && (
-          <Button variant="outline" className="w-full" asChild>
-            <Link href="#">Start onboarding to generate a path</Link>
-          </Button>
+          <EmptyState
+            icon={BookOpenCheck}
+            title="No learning path yet"
+            description="Complete an activity to unlock your personalized path. Your steps will appear here.">
+          </EmptyState>
         )}
       </CardContent>
     </Card>

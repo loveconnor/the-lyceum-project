@@ -1,6 +1,7 @@
 "use client";
 
 import { Area, AreaChart, CartesianGrid } from "recharts";
+import { BarChart3 } from "lucide-react";
 
 import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/chart";
 import { Badge } from "@/components/ui/badge";
 import CalendarDateRangePicker from "@/components/date-range-picker";
+import { EmptyState } from "./empty-state";
 
 const chartConfig = {
   desktop: {
@@ -83,9 +85,12 @@ export function CourseProgressByMonth({
           </AreaChart>
         </ChartContainer>
       ) : (
-        <div className="px-4 pb-4 text-sm text-muted-foreground">
-          No monthly progress yet. Complete an activity to see your trend.
-        </div>
+        <EmptyState
+          icon={BarChart3}
+          className="mx-auto mb-6 flex h-[360px] max-w-md items-center justify-center"
+          title="No monthly progress yet"
+          description="Track at least one activity to spark your trendline and see momentum build."
+        />
       )}
     </Card>
   );

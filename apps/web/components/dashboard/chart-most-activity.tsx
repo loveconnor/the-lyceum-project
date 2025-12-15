@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Activity } from "lucide-react";
 import { Pie, PieChart } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -9,6 +10,7 @@ import {
   ChartTooltip,
   ChartTooltipContent
 } from "@/components/ui/chart";
+import { EmptyState } from "./empty-state";
 
 const chartConfig = {
   mentoring: {
@@ -101,9 +103,11 @@ export function ChartMostActivity({
             </div>
           </>
         ) : (
-          <div className="text-muted-foreground text-sm">
-            No activity yet. Complete an activity to see chart data.
-          </div>
+          <EmptyState
+            icon={Activity}
+            title="No activity yet"
+            description="Log your first study session or course to light up this activity map."
+          />
         )}
       </CardContent>
     </Card>

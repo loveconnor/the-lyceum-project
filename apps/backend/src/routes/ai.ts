@@ -4,11 +4,58 @@ import {
   generateCourseOutline,
   generateOnboardingRecommendations,
   runAssistantChat,
+  runAssistantChatStream,
   type ChatMessage,
   type CourseOutlineRequest,
 } from '../ai';
+import {
+  appendAssistantMessages,
+  ensureConversation,
+  getAssistantMessages,
+  listAssistantConversations,
+  updateConversationTitle,
+  deleteConversation,
+} from '../assistantStore';
+import { getSupabaseAdmin } from '../supabaseAdmin';
 
 const aiRouter = Router();
+const assistantSystemPrompt =
+  process.env.ASSISTANT_SYSTEM_PROMPT ||
+  'You are Lyceum, a concise AI study partner. Prioritize clarity, short sentences, and actionable next steps. Show code and examples in the user’s requested stack. If unsure, ask a brief clarifying question before continuing.';
+
+const buildAssistantContext = async (userId: string) => {
+  const supabase = getSupabaseAdmin();
+
+  const [{ data: profile }, { data: dashboard }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('full_name, first_name, last_name, onboarding_data')
+      .eq('id', userId)
+      .maybeSingle(),
+    supabase.from('dashboard_state').select('recommended_topics, top_topics, stats').eq('user_id', userId).maybeSingle(),
+  ]);
+
+  const name =
+    profile?.full_name ||
+    [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') ||
+    'learner';
+
+  const onboardingSummary = profile?.onboarding_data
+    ? `Onboarding: ${JSON.stringify(profile.onboarding_data)}`
+    : '';
+  const recommended = dashboard?.recommended_topics?.length
+    ? `Recommended topics: ${dashboard.recommended_topics
+        .map((t: any) => `${t.name || t.title || 'Topic'} (${t.category || 'General'})`)
+        .join('; ')}`
+    : '';
+  const topTopics = dashboard?.top_topics?.length
+    ? `Top topics: ${dashboard.top_topics.map((t: any) => t.name).join(', ')}`
+    : '';
+
+  return [`User: ${name}`, onboardingSummary, recommended, topTopics]
+    .filter(Boolean)
+    .join('\n');
+};
 
 aiRouter.post('/onboarding/recommendations', async (req, res) => {
   const { onboardingData } = req.body as { onboardingData?: unknown };
@@ -45,18 +92,243 @@ aiRouter.post('/courses/outline', async (req, res) => {
 });
 
 aiRouter.post('/assistant/chat', async (req, res) => {
-  const { messages, context } = req.body as { messages?: ChatMessage[]; context?: string };
+  const {
+    messages,
+    message,
+    conversationId,
+    context,
+    systemPrompt,
+  } = req.body as {
+    messages?: ChatMessage[];
+    message?: string;
+    conversationId?: string;
+    context?: string;
+    systemPrompt?: string;
+  };
+  const stream = req.query.stream === 'true';
 
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return res.status(400).json({ error: 'messages array is required' });
+  const userId = (req as any).user?.id as string | undefined;
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const userMessage = message || messages?.[messages.length - 1]?.content;
+  if (!userMessage) {
+    return res.status(400).json({ error: 'message is required' });
   }
 
   try {
-    const result = await runAssistantChat(messages, context);
-    res.json(result);
+    const contextString = await buildAssistantContext(userId);
+    const conversation = await ensureConversation(userId, conversationId, userMessage);
+    const history = await getAssistantMessages(conversation.id, userId);
+
+    const chatMessages: ChatMessage[] = [
+      ...history.map((m) => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content })),
+      ...(messages || []),
+    ];
+
+    if (!messages?.length) {
+      chatMessages.push({ role: 'user', content: userMessage });
+    }
+
+    if (stream) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders?.();
+
+      let full = '';
+      try {
+        const generator = await runAssistantChatStream(chatMessages, {
+          context: [contextString, context].filter(Boolean).join('\n\n') || undefined,
+          systemPrompt: systemPrompt || assistantSystemPrompt,
+        });
+
+        for await (const chunk of generator) {
+          full += chunk;
+          res.write(`data: ${chunk}\n\n`);
+        }
+
+        await appendAssistantMessages(
+          conversation.id,
+          userId,
+          [
+            { role: 'user', content: userMessage, conversation_id: conversation.id },
+            { role: 'assistant', content: full, conversation_id: conversation.id },
+          ],
+          full.slice(0, 200),
+        );
+
+        res.write(`event: end\ndata: done\n\n`);
+        res.end();
+      } catch (err: any) {
+        console.error('AI assistant stream error', err);
+        res.write(`event: error\ndata: ${JSON.stringify({ error: err?.message || 'stream error' })}\n\n`);
+        res.end();
+      }
+    } else {
+      const result = await runAssistantChat(chatMessages, {
+        context: [contextString, context].filter(Boolean).join('\n\n') || undefined,
+        systemPrompt: systemPrompt || assistantSystemPrompt,
+      });
+
+      await appendAssistantMessages(
+        conversation.id,
+        userId,
+        [
+          { role: 'user', content: userMessage, conversation_id: conversation.id },
+          { role: 'assistant', content: result.reply, conversation_id: conversation.id },
+        ],
+        result.reply.slice(0, 200),
+      );
+
+      const updatedMessages = await getAssistantMessages(conversation.id, userId);
+
+      res.json({
+        conversationId: conversation.id,
+        reply: result.reply,
+        messages: updatedMessages,
+      });
+    }
   } catch (error: any) {
     console.error('AI assistant error', error);
     res.status(500).json({ error: 'Failed to generate assistant response', details: error?.message });
+  }
+});
+
+aiRouter.get('/assistant/conversations', async (req, res) => {
+  const userId = (req as any).user?.id as string | undefined;
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    const conversations = await listAssistantConversations(userId);
+    res.json({ conversations });
+  } catch (error: any) {
+    console.error('AI assistant conversations error', error);
+    res
+      .status(500)
+      .json({ error: 'Failed to fetch conversations', details: error?.message });
+  }
+});
+
+aiRouter.post('/assistant/conversations', async (req, res) => {
+  const userId = (req as any).user?.id as string | undefined;
+  const { title } = req.body as { title?: string };
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const conversation = await ensureConversation(userId, undefined, title);
+    res.json({ conversation });
+  } catch (error: any) {
+    console.error('AI assistant create conversation error', error);
+    res
+      .status(500)
+      .json({ error: 'Failed to create conversation', details: error?.message });
+  }
+});
+
+aiRouter.patch('/assistant/conversations/:id', async (req, res) => {
+  const userId = (req as any).user?.id as string | undefined;
+  const conversationId = req.params.id;
+  const { title } = req.body as { title?: string };
+
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!title) return res.status(400).json({ error: 'title is required' });
+
+  try {
+    await updateConversationTitle(conversationId, userId, title);
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error('AI assistant rename conversation error', error);
+    const status = error?.status || 500;
+    res.status(status).json({ error: 'Failed to rename conversation', details: error?.message });
+  }
+});
+
+aiRouter.delete('/assistant/conversations/:id', async (req, res) => {
+  const userId = (req as any).user?.id as string | undefined;
+  const conversationId = req.params.id;
+
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    await deleteConversation(conversationId, userId);
+    res.json({ ok: true });
+  } catch (error: any) {
+    console.error('AI assistant delete conversation error', error);
+    const status = error?.status || 500;
+    res.status(status).json({ error: 'Failed to delete conversation', details: error?.message });
+  }
+});
+
+aiRouter.get('/assistant/conversations/:id/messages', async (req, res) => {
+  const userId = (req as any).user?.id as string | undefined;
+  const conversationId = req.params.id;
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const messages = await getAssistantMessages(conversationId, userId);
+    res.json({ messages });
+  } catch (error: any) {
+    console.error('AI assistant messages error', error);
+    const status = error?.status || 500;
+    res
+      .status(status)
+      .json({ error: 'Failed to fetch messages', details: error?.message });
+  }
+});
+
+aiRouter.post('/assistant/suggestions', async (req, res) => {
+  const userId = (req as any).user?.id as string | undefined;
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const contextString = await buildAssistantContext(userId);
+    const prompt = [
+      'Generate concise, personalized chat starter ideas based on the user context.',
+      'Return JSON only in this shape:',
+      '{',
+      '  "summary": [string, string, string],',
+      '  "code": [string, string, string],',
+      '  "design": [string, string, string],',
+      '  "research": [string, string, string]',
+      '}',
+      'Each string should be a short, 6-10 word prompt the user can tap to start a chat.',
+      'Do not include numbering or markdown.',
+    ].join('\n');
+
+    const result = await runAssistantChat(
+      [{ role: 'user', content: prompt }],
+      { context: contextString, systemPrompt: assistantSystemPrompt },
+    );
+
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(result.reply);
+    } catch {
+      parsed = null;
+    }
+
+    const fallback = {
+      summary: ['Summarize my recent study notes', 'Create a one-page recap for me', 'Pull key insights from my topics'],
+      code: ['Help me debug this snippet', 'Explain this algorithm step by step', 'Refactor my code for clarity'],
+      design: ['Brainstorm a UI for my project', 'Give feedback on my layout idea', 'Create a quick wireframe outline'],
+      research: ['Find resources to learn this topic', 'Compare two tools for my needs', 'Draft a quick study plan'],
+    };
+
+    res.json(parsed || fallback);
+  } catch (error: any) {
+    console.error('AI assistant suggestions error', error);
+    res.status(500).json({ error: 'Failed to generate suggestions', details: error?.message });
   }
 });
 
