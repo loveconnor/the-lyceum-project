@@ -12,14 +12,15 @@ interface StudentSuccessCardProps {
 }
 
 export function StudentSuccessCard({
-  currentSuccessRate = 86,
-  previousSuccessRate = 82,
-  totalStudents = 1250,
-  passingStudents = 1075
+  currentSuccessRate = 0,
+  previousSuccessRate = 0,
+  totalStudents = 0,
+  passingStudents = 0
 }: StudentSuccessCardProps) {
   const successRateChange = currentSuccessRate - previousSuccessRate;
   const isPositiveChange = successRateChange >= 0;
-  const passingPercentage = (passingStudents / totalStudents) * 100;
+  const passingPercentage =
+    totalStudents > 0 ? (passingStudents / totalStudents) * 100 : 0;
 
   return (
     <Card>

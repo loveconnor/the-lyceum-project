@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { requireAuth } from './auth';
+import aiRouter from './routes/ai';
+import dashboardRouter from './routes/dashboard';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -20,6 +22,10 @@ app.get('/', (req, res) => {
 app.get('/protected', requireAuth, (req, res) => {
   res.json({ message: 'Hello from protected route!', user: (req as any).user });
 });
+
+// AI routes (Gemini Flash 2.x)
+app.use('/ai', requireAuth, aiRouter);
+app.use('/dashboard', requireAuth, dashboardRouter);
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);

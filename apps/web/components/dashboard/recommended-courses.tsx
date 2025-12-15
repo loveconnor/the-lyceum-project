@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -14,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable
 } from "@tanstack/react-table";
-import { ChevronLeft, ChevronRight, MoreHorizontalIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, MoreHorizontalIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -34,98 +33,23 @@ import {
 } from "@/components/ui/table";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-
-const data: Course[] = [
-  {
-    id: 1,
-    name: "Introduction to React",
-    category: "Web Development",
-    image: `/images/tech/react.svg`,
-    confidence: 0.92,
-    progress: 60,
-    started: true,
-    levelFit: "Intermediate"
-  },
-  {
-    id: 2,
-    name: "Machine Learning Basics",
-    category: "Data Science",
-    image: `/images/tech/angular.svg`,
-    confidence: 0.88,
-    progress: 0,
-    started: false,
-    levelFit: "Beginner"
-  },
-  {
-    id: 3,
-    name: "Digital Marketing Fundamentals",
-    category: "Marketing",
-    image: `/images/tech/vue.svg`,
-    confidence: 0.84,
-    progress: 45,
-    started: true,
-    levelFit: "Beginner"
-  },
-  {
-    id: 4,
-    name: "Python for Beginners",
-    category: "Programming",
-    image: `/images/tech/html.svg`,
-    confidence: 0.9,
-    progress: 0,
-    started: false,
-    levelFit: "Beginner"
-  },
-  {
-    id: 5,
-    name: "UX Design Principles",
-    category: "Design",
-    image: `/images/tech/css.svg`,
-    confidence: 0.8,
-    progress: 0,
-    started: false,
-    levelFit: "Intermediate"
-  },
-  {
-    id: 5,
-    name: "Svelte Project Development",
-    category: "Programming",
-    image: `/images/tech/svelte.svg`,
-    confidence: 0.79,
-    progress: 0,
-    started: false,
-    levelFit: "Advanced"
-  }
-];
+import { createClient } from "@/utils/supabase/client";
 
 export type Course = {
   id: number;
   name: string;
   category: string;
-  image: string;
-  confidence: number; // 0-1 model confidence
+  confidence: string; // string from AI ("Complete an activity", etc.)
   progress: number;
   started: boolean;
-  levelFit: "Beginner" | "Intermediate" | "Advanced";
+  levelFit: string;
 };
 
 export const columns: ColumnDef<Course>[] = [
   {
     accessorKey: "name",
     header: "Course name",
-    cell: ({ row }) => (
-      <div className="flex items-center gap-4">
-        <Image
-          width={30}
-          height={30}
-          className="size-8"
-          src={row.original.image}
-          unoptimized
-          alt="shadcn/ui"
-        />
-        <div className="capitalize">{row.getValue("name")}</div>
-      </div>
-    )
+    cell: ({ row }) => <div className="capitalize">{row.getValue("name")}</div>
   },
   {
     accessorKey: "category",
@@ -135,14 +59,7 @@ export const columns: ColumnDef<Course>[] = [
   {
     accessorKey: "confidence",
     header: "Confidence",
-    cell: ({ row }) => (
-      <div className="flex flex-col">
-        <span className="font-medium">
-          {Math.round((row.getValue("confidence") as number) * 100)}% match
-        </span>
-        <span className="text-muted-foreground text-xs">{row.original.levelFit} fit</span>
-      </div>
-    )
+    cell: ({ row }) => <div className="font-medium">{row.getValue("confidence")}</div>
   },
   {
     accessorKey: "progress",
@@ -168,7 +85,6 @@ export const columns: ColumnDef<Course>[] = [
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem>Start Course</DropdownMenuItem>
-                <DropdownMenuItem>Add to Wishlist</DropdownMenuItem>
                 <DropdownMenuItem>View Details</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -179,11 +95,96 @@ export const columns: ColumnDef<Course>[] = [
   }
 ];
 
-export function RecommendedCoursesTable() {
+type Topic = { name: string; category: string; confidence: string; progress?: number };
+
+export function RecommendedCoursesTable({
+  topics = [],
+  userId
+}: {
+  topics?: Topic[];
+  userId?: string;
+}) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
+  const [isRegenerating, setIsRegenerating] = React.useState(false);
+  const [recommended, setRecommended] = React.useState<Topic[]>(topics);
+  const [status, setStatus] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setRecommended(topics);
+    setIsRegenerating(false);
+    setStatus(null);
+  }, [topics, userId]);
+
+  const data: Course[] = (recommended || []).map((t, idx) => ({
+    id: idx + 1,
+    name: t.name || "Recommended topic",
+    category: t.category || "General",
+    confidence: t.confidence || "Unknown",
+    progress: t.progress ?? 0,
+    started: false,
+    levelFit: "Fit"
+  }));
+
+  const handleRegenerate = async () => {
+    if (isRegenerating) return;
+    setIsRegenerating(true);
+    setStatus("Requesting new recommendations...");
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        console.warn("No session found for regenerate");
+        setIsRegenerating(false);
+        setStatus("Sign in required to regenerate.");
+        return;
+      }
+
+      const baseUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL ||
+        process.env.BACKEND_URL ||
+        "http://localhost:3001";
+
+      const res = await fetch(`${baseUrl}/dashboard/recommendations/regenerate`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        cache: "no-store",
+        signal: controller.signal
+      });
+
+      if (!res.ok) {
+        console.warn("Failed to regenerate recommendations", res.status);
+        setStatus("Unable to regenerate right now. Please try again.");
+      } else {
+        const json = await res.json();
+        const refreshed = (json?.recommended_topics || []) as Topic[];
+        setRecommended(refreshed.length ? refreshed : topics);
+        setStatus("Recommendations refreshed.");
+      }
+    } catch (error) {
+      console.error("Regenerate recommendations error", error);
+      setStatus(
+        error instanceof DOMException && error.name === "AbortError"
+          ? "Request timed out. Try again."
+          : "Request failed. Please try again."
+      );
+    } finally {
+      clearTimeout(timeout);
+      setIsRegenerating(false);
+      setTimeout(() => setStatus(null), 3000);
+    }
+  };
 
   const table = useReactTable({
     data,
@@ -208,16 +209,44 @@ export function RecommendedCoursesTable() {
     <Card>
       <CardHeader>
         <CardTitle>Recommended Courses</CardTitle>
-        <CardAction className="col-start-auto row-start-auto mt-2 justify-self-start lg:col-start-2 lg:row-start-1 lg:mt-0 lg:justify-self-end">
+        <CardAction className="col-start-auto row-start-auto mt-2 flex items-center gap-2 justify-self-start lg:col-start-2 lg:row-start-1 lg:mt-0 lg:justify-self-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleRegenerate}
+            disabled={isRegenerating}
+            aria-busy={isRegenerating}>
+            {isRegenerating ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                Regenerating
+              </>
+            ) : (
+              "Regenerate"
+            )}
+          </Button>
           <Input
             placeholder="Search courses"
             value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
             onChange={(event) => table.getColumn("name")?.setFilterValue(event.target.value)}
             className="w-full sm:w-52"
+            disabled={isRegenerating}
           />
         </CardAction>
       </CardHeader>
       <CardContent>
+        {isRegenerating && (
+          <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
+            <Loader2 className="size-4 animate-spin" />
+            Refreshing recommendations...
+          </div>
+        )}
+        {status && !isRegenerating && (
+          <div className="mb-3 text-sm text-muted-foreground" aria-live="polite">
+            {status}
+          </div>
+        )}
         <div className="rounded-md border">
           <Table>
             <TableHeader>

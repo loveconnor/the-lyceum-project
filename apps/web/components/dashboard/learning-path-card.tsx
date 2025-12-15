@@ -5,10 +5,28 @@ import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
-export function LearningPathCard() {
-  const pathProgress = 40;
-  const totalModules = 10;
-  const completedModules = 4;
+type LearningPathItem = {
+  title?: string;
+  progress?: number;
+  completed?: number;
+  total?: number;
+};
+
+export function LearningPathCard({
+  learningPath = [],
+  progress = 0
+}: {
+  learningPath?: LearningPathItem[];
+  progress?: number;
+}) {
+  const hasPath = learningPath.length > 0;
+  const fallbackItem = {
+    title: "No learning path yet",
+    progress,
+    completed: 0,
+    total: 0
+  };
+  const items = hasPath ? learningPath : [fallbackItem];
 
   return (
     <Card className="h-full">
@@ -19,26 +37,27 @@ export function LearningPathCard() {
         </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Link href="#" className="hover:bg-muted block rounded-md border p-4 transition-colors">
-          <div className="space-y-2">
-            <div className="text-xl font-semibold">Full-Stack Developer</div>
-            <Progress value={pathProgress} indicatorColor="bg-green-600" />
-            <p className="text-muted-foreground text-xs">
-              {completedModules} of {totalModules} modules completed
-            </p>
-          </div>
-        </Link>
-        <Link
-          href="#"
-          className="hover:bg-muted block space-y-4 rounded-md border p-4 transition-colors">
-          <div className="space-y-2">
-            <div className="text-xl font-semibold">Full-Stack Developer</div>
-            <Progress value={pathProgress} indicatorColor="bg-orange-600" />
-            <p className="text-muted-foreground text-xs">
-              {completedModules} of {totalModules} modules completed
-            </p>
-          </div>
-        </Link>
+        {items.map((item, idx) => (
+          <Link
+            key={`${item.title}-${idx}`}
+            href="#"
+            className="hover:bg-muted block rounded-md border p-4 transition-colors">
+            <div className="space-y-2">
+              <div className="text-xl font-semibold">
+                {item.title || "Learning path coming soon"}
+              </div>
+              <Progress value={item.progress ?? 0} indicatorColor="bg-green-600" />
+              <p className="text-muted-foreground text-xs">
+                {item.completed ?? 0} of {item.total ?? 0} modules completed
+              </p>
+            </div>
+          </Link>
+        ))}
+        {!hasPath && (
+          <Button variant="outline" className="w-full" asChild>
+            <Link href="#">Start onboarding to generate a path</Link>
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

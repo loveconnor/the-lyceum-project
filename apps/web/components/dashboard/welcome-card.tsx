@@ -35,7 +35,9 @@ export function WelcomeCard() {
               width={100}
               height={50}
               src={`/academy-dashboard-light.svg`}
-              className="block w-full dark:hidden"
+              className="block h-auto w-full dark:hidden"
+              loading="eager"
+              style={{ width: "auto", height: "auto" }}
               unoptimized
               alt="shadcn/ui"
             />
@@ -43,16 +45,20 @@ export function WelcomeCard() {
               width={100}
               height={50}
               src={`/academy-dashboard-dark.svg`}
-              className="hidden w-full dark:block"
+              className="hidden h-auto w-full dark:block"
+              loading="eager"
+              style={{ width: "auto", height: "auto" }}
               unoptimized
               alt="shadcn/ui"
             />
           </figure>
           <Image
-            width={800}
-            height={300}
+            fill
             src={`/star-shape.png`}
-            className="pointer-events-none absolute inset-0 aspect-auto"
+            className="pointer-events-none absolute inset-0 object-contain"
+            priority
+            loading="eager"
+            sizes="100vw"
             unoptimized
             alt="shadcn/ui"
           />

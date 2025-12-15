@@ -46,7 +46,11 @@ Create a `.env` file in `apps/backend/`:
 # apps/backend/.env
 SUPABASE_URL=http://127.0.0.1:54321
 SUPABASE_ANON_KEY=your_anon_key_from_step_2
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_from_step_2
 PORT=3001
+GEMINI_API_KEY=your_google_ai_key
+# Optional override, defaults to Flash 2.x experimental
+GEMINI_MODEL=gemini-2.0-flash-exp
 ```
 
 ## 4. Run the Application
@@ -74,3 +78,13 @@ npm run dev -w apps/web
 npm run dev -w apps/backend
 # Access at http://localhost:3001
 ```
+
+## AI Endpoints (backend)
+- `POST /ai/onboarding/recommendations` with `{ onboardingData }` → returns recommended courses after onboarding.
+- `POST /ai/courses/outline` with `{ course: { title, summary?, goals?, prerequisites?, level? }, audienceProfile?, modulesCount? }` → returns a course outline.
+- `POST /ai/assistant/chat` with `{ messages: [{ role: 'user'|'assistant'|'system', content: string }], context? }` → general AI assistant reply.
+All AI routes require the `Authorization: Bearer <access_token>` header and a configured `GEMINI_API_KEY`.
+
+## Dashboard Endpoints (backend)
+- `GET /dashboard` → returns the user’s dashboard state; if missing, initializes with zeros and requests 6 topic recommendations from onboarding data (confidence will read "Complete an activity" when no courses exist).
+- `POST /dashboard/activity` with `{ activityType?, minutes?, topic?, successRate? }` → tracks usage, updates stats/top topics, and keeps values persisted.

@@ -4,21 +4,17 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-type Topic = {
-  id: number;
+export type Topic = {
   name: string;
-  mastery: number; // percentage
-  hours: number; // hours studied
+  category?: string;
+  confidence?: string;
+  progress?: number; // percentage
+  hours?: number; // hours studied
+  count?: number;
 };
 
-export function TopicsCard() {
-  const topTopics: Topic[] = [
-    { id: 1, name: "Linear Algebra", mastery: 92, hours: 46 },
-    { id: 2, name: "Python for Data", mastery: 88, hours: 53 },
-    { id: 3, name: "Algorithms", mastery: 84, hours: 41 },
-    { id: 4, name: "Probabilities", mastery: 81, hours: 38 }
-  ];
-
+export function TopicsCard({ topics = [] }: { topics?: Topic[] }) {
+  const hasTopics = topics.length > 0;
   return (
     <Card className="h-full">
       <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
@@ -30,18 +26,24 @@ export function TopicsCard() {
         </CardAction>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {topTopics.map((topic, index) => (
-            <li key={topic.id} className="flex items-center space-x-4">
-              <span className="text-muted-foreground">{index + 1}.</span>
-              <div className="flex-1">
-                <div className="font-medium">{topic.name}</div>
-                <div className="text-muted-foreground text-xs">~{topic.hours} hrs studied</div>
-              </div>
-              <Badge variant="outline">{topic.mastery}% mastery</Badge>
-            </li>
-          ))}
-        </div>
+        {hasTopics ? (
+          <div className="space-y-4">
+            {topics.map((topic, index) => (
+              <li key={`${topic.name}-${index}`} className="flex items-center space-x-4">
+                <span className="text-muted-foreground">{index + 1}.</span>
+                <div className="flex-1">
+                  <div className="font-medium">{topic.name}</div>
+                  <div className="text-muted-foreground text-xs">
+                    {topic.category || "General"} • {topic.confidence || "Unknown confidence"}
+                  </div>
+                </div>
+                <Badge variant="outline">{Math.round(topic.progress ?? 0)}% progress</Badge>
+              </li>
+            ))}
+          </div>
+        ) : (
+          <div className="text-muted-foreground text-sm">No topics yet. Complete an activity to see recommendations.</div>
+        )}
       </CardContent>
     </Card>
   );
