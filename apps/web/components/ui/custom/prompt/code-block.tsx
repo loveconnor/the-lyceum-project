@@ -22,6 +22,7 @@ function CodeBlock({ children, className, ...props }: CodeBlockProps) {
     </div>
   );
 }
+CodeBlock.displayName = "CodeBlock";
 
 export type CodeBlockCodeProps = {
   code: string;

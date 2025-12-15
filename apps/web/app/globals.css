@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @plugin "tailwindcss-animate";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -196,5 +197,21 @@
 
   [data-slot="dialog-overlay"], [data-slot="sheet-overlay"], [data-slot="drawer-overlay"] {
     @apply bg-black/20! backdrop-blur-sm;
+  }
+
+  /* KaTeX math overflow handling */
+  .katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.5rem 0;
+  }
+
+  .katex-display > .katex {
+    white-space: normal;
+  }
+
+  /* Ensure inline math doesn't break layout */
+  .katex {
+    font-size: 1.05em;
   }
 }

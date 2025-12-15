@@ -223,6 +223,16 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
           buffer = parts.pop() ?? "";
 
           for (const part of parts) {
+            if (!part.trim()) continue;
+            
+            // Handle event messages
+            if (part.startsWith("event:")) {
+              const eventType = part.replace(/^event:\s*/, "").trim();
+              if (eventType === "end") break;
+              if (eventType === "error") continue;
+              continue;
+            }
+            
             if (!part.startsWith("data:")) continue;
             const payload = part.replace(/^data:\s*/, "").trim();
             if (!payload || payload === "done" || payload === "[DONE]") continue;
@@ -233,32 +243,13 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
               setMessages((prev) => [...prev, { id: tempAssistantId, role: "assistant", content: "" }]);
             }
 
-            try {
-              const parsed = JSON.parse(payload);
-              const delta = parsed?.choices?.[0]?.delta?.content;
-              let tokenText = "";
-              if (typeof delta === "string") {
-                tokenText = delta;
-              } else if (Array.isArray(delta)) {
-                tokenText = delta
-                  .map((d) =>
-                    typeof d === "string" ? d : (d as any)?.text || ""
-                  )
-                  .join("");
-              }
-
-              if (tokenText) {
-                assistantText += tokenText;
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === tempAssistantId ? { ...m, content: assistantText } : m
-                  )
-                );
-              }
-            } catch (e) {
-              // ignore malformed chunks
-              console.warn("Stream parse error", e);
-            }
+            // Backend sends raw text chunks, not JSON
+            assistantText += payload;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === tempAssistantId ? { ...m, content: assistantText } : m
+              )
+            );
           }
         }
 

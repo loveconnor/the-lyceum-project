@@ -123,8 +123,8 @@ export const ensureConversation = async (
     const supabase = getSupabaseAdmin();
     return ensureConversationOwnership(supabase, conversationId, userId);
   }
-  const title = fallbackTitle ? fallbackTitle.slice(0, 120) : 'New chat';
-  return createAssistantConversation(userId, title);
+  // Always use "New chat" as initial title - will be updated by AI after first message
+  return createAssistantConversation(userId, 'New chat');
 };
 
 export const updateConversationTitle = async (conversationId: string, userId: string, title: string) => {

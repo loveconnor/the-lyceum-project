@@ -45,13 +45,13 @@ export const SidebarContent = () => {
   }, [searchQuery, conversations]);
 
   return (
-    <div className="flex h-full flex-col border-e lg:w-72">
-      <div className="border-b px-4 py-2">
+    <div className="flex h-full flex-col lg:w-72">
+      <div className="border-b px-4 py-3">
         <div className="relative">
           <Search className="text-muted-foreground absolute top-1/2 left-0 h-4 w-4 -translate-y-1/2 transform" />
           <Input
             placeholder="Search chats..."
-            className="bg-background border-transparent pl-6 text-sm shadow-none focus:border-transparent! focus:shadow-none focus:ring-0!"
+            className="!bg-transparent border-none pl-6 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:!bg-transparent"
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
           />
@@ -59,7 +59,7 @@ export const SidebarContent = () => {
       </div>
 
       {/* Navigation */}
-      <div className="grow space-y-4 overflow-y-auto p-4 lg:space-y-8">
+      <div className="grow space-y-4 overflow-y-auto px-4 py-3 lg:space-y-8">
         <div className="space-y-0.5">
           {filteredConversations.map((conversation) => (
             <div className="group flex items-center" key={conversation.id}>
@@ -113,13 +113,11 @@ export const SidebarContent = () => {
         )}
       </div>
 
-      <div>
-        <div className="border-t p-4">
-          <Button className="w-full" onClick={() => startNewConversation()}>
-            <Plus />
-            New Chat
-          </Button>
-        </div>
+      <div className="border-t px-4 py-3">
+        <Button className="w-full" onClick={() => startNewConversation()}>
+          <Plus />
+          New Chat
+        </Button>
       </div>
     </div>
   );

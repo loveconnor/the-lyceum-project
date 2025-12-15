@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { ArrowUpIcon, MicIcon, Paperclip, X, BrainIcon, CodeIcon, DribbbleIcon, GlobeIcon } from "lucide-react";
+import { ArrowUpIcon,Paperclip, X } from "lucide-react";
 import { CopyIcon } from "@radix-ui/react-icons";
 import Lottie from "lottie-react";
 
@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/custom/prompt/message";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
 import { PromptLoader } from "@/components/ui/custom/prompt/loader";
-import { PromptScrollButton } from "@/components/ui/custom/prompt/scroll-button";
 
 import aiSphereAnimation from "@/app/(main)/assistant/ai-sphere-animation.json";
 import { useAssistantChat } from "./assistant-chat-provider";
@@ -66,9 +65,10 @@ export default function AIChatInterface() {
 
   const handleSend = async () => {
     if (!prompt.trim()) return;
-    await sendMessage(prompt);
+    const messageToSend = prompt;
     setPrompt("");
     setFiles([]);
+    await sendMessage(messageToSend);
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,9 +114,9 @@ export default function AIChatInterface() {
   );
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-4xl flex-col items-center justify-center space-y-4 lg:p-4">
+    <div className="relative mx-auto flex h-full w-full max-w-4xl flex-col items-center justify-center space-y-4 lg:p-4">
       <ChatContainer
-        className={cn("relative w-full flex-1 space-y-4 pe-2 pt-10 md:pt-0", {
+        className={cn("relative w-full flex-1 space-y-4 pe-8 pt-10 md:pt-0", {
           hidden: !isFirstResponse
         })}
         ref={containerRef}
@@ -131,8 +131,10 @@ export default function AIChatInterface() {
               key={message.id ?? index}
               className={message.role === "user" ? "justify-end" : "justify-start"}>
               <div
-                className={cn("max-w-[85%] flex-1 sm:max-w-[75%]", {
-                  "justify-end text-end": !isAssistant
+                className={cn("max-w-[85%] flex-1", {
+                  "justify-end text-end": !isAssistant,
+                  "sm:max-w-[85%]": isAssistant,
+                  "sm:max-w-[75%]": !isAssistant
                 })}>
                 {isAssistant ? (
                   <div className="space-y-2">
@@ -141,8 +143,8 @@ export default function AIChatInterface() {
                         <PromptLoader variant="pulse-dot" />
                       </div>
                     ) : (
-                      <div className="bg-muted text-foreground prose rounded-lg border p-4">
-                        <Markdown className={"space-y-4"}>{message.content}</Markdown>
+                      <div className="bg-muted text-foreground prose rounded-lg border p-4 overflow-x-auto overflow-y-hidden">
+                        <Markdown key={message.id ?? `msg-${index}`} className={"space-y-4"}>{message.content}</Markdown>
                       </div>
                     )}
                     <MessageActions
@@ -192,14 +194,6 @@ export default function AIChatInterface() {
         )}
       </ChatContainer>
 
-      <div className="fixed right-4 bottom-4">
-        <PromptScrollButton
-          containerRef={containerRef}
-          scrollRef={bottomRef}
-          className="shadow-sm"
-        />
-      </div>
-
       {/* Welcome message */}
       {!isFirstResponse && (
         <div className="mb-10">
@@ -209,7 +203,7 @@ export default function AIChatInterface() {
 
           <h1 className="text-center text-2xl leading-normal font-medium lg:text-4xl">
             {greeting}, {displayName} <br /> How Can I{" "}
-            <span className="bg-gradient-to-r from-purple-400 to-indigo-300 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent font-semibold">
               Assist You Today?
             </span>
           </h1>
@@ -217,12 +211,12 @@ export default function AIChatInterface() {
       )}
       {/* Welcome message */}
 
-      <div className="bg-primary/10 w-full rounded-2xl p-2">
+      <div className="w-full">
         <Input
           value={prompt}
           onValueChange={setPrompt}
           onSubmit={handleSend}
-          className="w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white/80 p-1 shadow-sm">
+          className="w-full overflow-hidden rounded-2xl border border-border bg-background dark:bg-background p-1 shadow-sm">
           {files.length > 0 && (
             <div className="flex flex-wrap gap-2 pb-2">
               {files.map((file, index) => (
@@ -233,7 +227,7 @@ export default function AIChatInterface() {
 
           <PromptInputTextarea
             placeholder="Ask me anything..."
-            className="min-h-[92px] rounded-xl border border-neutral-200 bg-white p-4 pt-5"
+            className="min-h-[92px] rounded-xl border border-border bg-background dark:bg-background p-4 pt-5"
           />
 
           <PromptInputActions className="flex items-center justify-between gap-2 p-3">
@@ -256,9 +250,6 @@ export default function AIChatInterface() {
 
             <div className="flex gap-2">
               <PromptInputAction tooltip="Voice input">
-                <Button variant="outline" size="icon" className="size-9 rounded-full">
-                  <MicIcon size={18} />
-                </Button>
               </PromptInputAction>
               <PromptInputAction tooltip={isSending ? "Stop generation" : "Send message"}>
                 <Button

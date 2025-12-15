@@ -5,6 +5,7 @@ import {
   generateOnboardingRecommendations,
   runAssistantChat,
   runAssistantChatStream,
+  generateChatTitle,
   type ChatMessage,
   type CourseOutlineRequest,
 } from '../ai';
@@ -21,7 +22,10 @@ import { getSupabaseAdmin } from '../supabaseAdmin';
 const aiRouter = Router();
 const assistantSystemPrompt =
   process.env.ASSISTANT_SYSTEM_PROMPT ||
-  'You are Lyceum, a concise AI study partner. Prioritize clarity, short sentences, and actionable next steps. Show code and examples in the user’s requested stack. If unsure, ask a brief clarifying question before continuing.';
+  'You are Lyceum, a concise AI study partner. Prioritize clarity, short sentences, and actionable next steps. ' +
+  'For math topics: explain concepts clearly using proper LaTeX notation (wrap all math in $...$ or $$...$$). ' +
+  'For programming topics: show code examples in the user\'s requested stack. ' +
+  'If unsure whether the user wants mathematical theory or code implementation, ask a brief clarifying question.';
 
 const buildAssistantContext = async (userId: string) => {
   const supabase = getSupabaseAdmin();
@@ -121,6 +125,9 @@ aiRouter.post('/assistant/chat', async (req, res) => {
     const contextString = await buildAssistantContext(userId);
     const conversation = await ensureConversation(userId, conversationId, userMessage);
     const history = await getAssistantMessages(conversation.id, userId);
+    
+    // Check if this is the first message (no history, or only the current message)
+    const isFirstMessage = history.length === 0;
 
     const chatMessages: ChatMessage[] = [
       ...history.map((m) => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content })),
@@ -159,6 +166,12 @@ aiRouter.post('/assistant/chat', async (req, res) => {
           full.slice(0, 200),
         );
 
+        // Generate title for new conversations after first exchange
+        if (isFirstMessage) {
+          const title = await generateChatTitle(userMessage, full);
+          await updateConversationTitle(conversation.id, userId, title);
+        }
+
         res.write(`event: end\ndata: done\n\n`);
         res.end();
       } catch (err: any) {
@@ -181,6 +194,12 @@ aiRouter.post('/assistant/chat', async (req, res) => {
         ],
         result.reply.slice(0, 200),
       );
+
+      // Generate title for new conversations after first exchange
+      if (isFirstMessage) {
+        const title = await generateChatTitle(userMessage, result.reply);
+        await updateConversationTitle(conversation.id, userId, title);
+      }
 
       const updatedMessages = await getAssistantMessages(conversation.id, userId);
 

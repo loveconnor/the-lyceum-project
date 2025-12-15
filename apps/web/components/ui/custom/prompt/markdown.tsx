@@ -4,7 +4,6 @@ import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import "katex/dist/katex.min.css";
 import { CodeBlock, CodeBlockCode } from "./code-block";
 
 export type MarkdownProps = {
@@ -20,18 +19,70 @@ function extractLanguage(className?: string): string {
 }
 
 const DEFAULT_COMPONENTS: Partial<Components> = {
-  p: ({ children }) => {
+  h1: ({ children }) => <h1 className="text-2xl font-bold mt-6 mb-4">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-xl font-bold mt-5 mb-3">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-lg font-semibold mt-4 mb-2">{children}</h3>,
+  h4: ({ children }) => <h4 className="text-base font-semibold mt-3 mb-2">{children}</h4>,
+  h5: ({ children }) => <h5 className="text-sm font-semibold mt-3 mb-2">{children}</h5>,
+  h6: ({ children }) => <h6 className="text-sm font-semibold mt-3 mb-2">{children}</h6>,
+  strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+  ul: ({ children }) => <ul className="list-disc list-inside my-3 space-y-1">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal list-inside my-3 space-y-1">{children}</ol>,
+  li: ({ children }) => <li className="leading-7">{children}</li>,
+  blockquote: ({ children }) => (
+    <blockquote className="border-l-4 border-muted-foreground/20 pl-4 italic my-4">
+      {children}
+    </blockquote>
+  ),
+  a: ({ href, children }) => (
+    <a href={href} className="text-primary underline hover:text-primary/80" target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  ),
+  hr: () => <hr className="my-6 border-border" />,
+  table: ({ children }) => (
+    <div className="my-4 overflow-x-auto">
+      <table className="min-w-full border-collapse border border-border">
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-muted">{children}</thead>,
+  tbody: ({ children }) => <tbody>{children}</tbody>,
+  tr: ({ children }) => <tr className="border-b border-border">{children}</tr>,
+  th: ({ children }) => (
+    <th className="border border-border px-4 py-2 text-left font-semibold">
+      {children}
+    </th>
+  ),
+  td: ({ children }) => (
+    <td className="border border-border px-4 py-2">
+      {children}
+    </td>
+  ),
+  p: ({ children, node }) => {
+    // Check if paragraph contains block-level elements
     const hasBlockChild = React.Children.toArray(children).some(
-      (child) =>
-        React.isValidElement(child) &&
-        (child.type === "div" || child.type === "pre" || child.type === CodeBlock)
+      (child) => {
+        if (!React.isValidElement(child)) return false;
+        // Check for common block-level component types
+        const childType = child.type;
+        if (typeof childType === 'function') {
+          const displayName = (childType as any).displayName || childType.name || '';
+          return displayName.includes('CodeBlock') || displayName.includes('Table');
+        }
+        // Check for HTML block elements
+        return ['div', 'pre', 'table', 'blockquote', 'ul', 'ol', 'hr'].includes(String(childType));
+      }
     );
+    
     if (hasBlockChild) {
-      return <div className="space-y-2">{children}</div>;
+      return <div className="my-2">{children}</div>;
     }
     return <p className="mb-2 leading-7">{children}</p>;
   },
-  code: ({ className, inline, children }) => {
+  code: ({ className, inline, children, node }) => {
     if (inline) {
       return (
         <code className={cn("bg-muted rounded-sm px-1 font-mono text-sm", className)}>
@@ -43,6 +94,7 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
     const language = extractLanguage(className);
     const code = String(children ?? "").replace(/\n$/, "");
 
+    // Return the CodeBlock directly without wrapper to avoid nesting issues
     return (
       <CodeBlock className={className}>
         <CodeBlockCode code={code} language={language} />
@@ -62,7 +114,7 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
   );
 
   return (
-    <div className={cn("prose prose-neutral max-w-none", className)}>
+    <div className={cn("prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:overflow-x-auto break-words", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}

@@ -13,44 +13,45 @@ export default function AssistantChatShell() {
 
   return (
     <AssistantChatProvider>
-      <div className="relative h-[calc(100vh-var(--header-height)-3rem)] rounded-md">
+      <div className="relative h-[calc(100vh-var(--header-height))] -mt-[var(--content-padding)] -mb-[var(--content-padding)]">
         {/* Mobile sheet sidebar */}
         <div className="md:hidden">
           <AIChatSidebar />
         </div>
 
-        <div className="flex h-full">
-          {/* Desktop sliding drawer */}
+        <div className="flex h-full -mx-[var(--content-padding)]">
+          {/* Desktop sliding drawer - seamlessly connected to app sidebar */}
           <div className="relative hidden h-full md:flex">
             <div
               className={cn(
-                "relative h-full overflow-visible transition-[width] duration-300 ease-in-out bg-muted/30",
+                "relative h-full overflow-visible transition-[width] duration-300 ease-in-out bg-sidebar border-r border-sidebar-border shadow-sm",
                 drawerOpen ? "w-72" : "w-0"
               )}>
               <div
                 className={cn(
-                  "h-full w-72 bg-muted/30",
+                  "h-full w-72 bg-sidebar transition-opacity duration-300",
                   drawerOpen ? "opacity-100" : "opacity-0 pointer-events-none"
                 )}>
                 <SidebarContent />
               </div>
+              
+              {/* Toggle button - circular and positioned at edge of sidebar */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="absolute top-1/2 -right-5 z-50 -translate-y-1/2 rounded-full border bg-background shadow-md hover:bg-muted transition-all duration-300"
+                onClick={() => setDrawerOpen((prev) => !prev)}
+                aria-label={drawerOpen ? "Hide chats" : "Show chats"}>
+                {drawerOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
+              </Button>
             </div>
           </div>
 
-          {/* Toggle and main chat area */}
-          <div className="relative flex h-full w-full flex-col md:rounded-none bg-background md:-ml-px">
-            <Button
-              variant="outline"
-              size="icon"
-              className={cn(
-                "hidden md:inline-flex absolute top-1/2 left-0 z-50 -translate-y-1/2 -translate-x-1/2 rounded-full border bg-background shadow-md transition-all duration-300",
-                drawerOpen ? "opacity-100" : "opacity-100"
-              )}
-              onClick={() => setDrawerOpen((prev) => !prev)}
-              aria-label={drawerOpen ? "Hide chats" : "Show chats"}>
-              {drawerOpen ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />}
-            </Button>
-            <AIChatInterface />
+          {/* Main chat area */}
+          <div className="relative flex h-full w-full flex-col">
+            <div className="px-[var(--content-padding)] h-full">
+              <AIChatInterface />
+            </div>
           </div>
         </div>
       </div>
