@@ -1,4 +1,7 @@
+"use client";
+
 import React from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Clock, Eye, MoreVertical, RotateCcw, Star, Trash2, BookOpen } from "lucide-react";
 import { statusClasses, pathStatusNamed } from "@/app/(main)/paths/enum";
@@ -34,6 +37,8 @@ const PathCard: React.FC<PathCardProps> = ({
   onRestart,
   onDelete
 }) => {
+  const router = useRouter();
+
   // Calculate modules completed
   const completedModules = path.modules?.filter((m) => m.completed).length || 0;
   const totalModules = path.modules?.length || 0;
@@ -47,13 +52,18 @@ const PathCard: React.FC<PathCardProps> = ({
   // Path description for overall goal
   const pathGoal = path.description || "Comprehensive curriculum to build expertise in this domain";
 
+  // Navigate to modules page
+  const handleNavigateToModules = () => {
+    router.push(`/paths/${path.id}`);
+  };
+
   if (viewMode === "grid") {
     return (
       <Card
         className={cn(
           "flex h-full flex-col transition-shadow hover:shadow-md cursor-pointer"
         )}
-        onClick={() => onView && onView(path.id)}
+        onClick={handleNavigateToModules}
       >
           <CardContent className="flex h-full flex-col justify-between gap-3 pt-6 pb-4">
             <div className="flex flex-col gap-3">
@@ -154,7 +164,7 @@ const PathCard: React.FC<PathCardProps> = ({
       className={cn(
         "transition-shadow hover:shadow-md cursor-pointer"
       )}
-      onClick={() => onView && onView(path.id)}
+      onClick={handleNavigateToModules}
     >
         <CardContent className="flex items-start gap-4 py-4">
           <div className="flex grow flex-col space-y-3">
@@ -179,11 +189,11 @@ const PathCard: React.FC<PathCardProps> = ({
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (onView) onView(path.id);
+                        handleNavigateToModules();
                       }}
                     >
                       <Eye className="mr-2 h-4 w-4" />
-                      View Path Overview
+                      View Modules
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
