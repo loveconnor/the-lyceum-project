@@ -20,12 +20,8 @@ export function generateMeta({
   return {
     title: `${title}`,
       description: description,
-      metadataBase: new URL(`https://shadcnuikit.com`),
     alternates: {
-      canonical: `/dashboard${canonical}`
+      canonical: `${canonical}`
     },
-    openGraph: {
-      images: [`/images/seo.jpg`]
-    }
   };
 }
