@@ -1,6 +1,5 @@
 import React from "react";
 import { cn } from "@/lib/utils";
-import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 
 import { FilterTab, Lab, LabStatus, Difficulty, LabType } from "@/app/(main)/labs/types";
 
@@ -22,24 +21,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragStartEvent,
-  type DragEndEvent,
-  type DragCancelEvent,
-  DragOverlay
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  rectSortingStrategy
-} from "@dnd-kit/sortable";
 
 interface LabListProps {
   activeTab: FilterTab;
@@ -48,12 +29,10 @@ interface LabListProps {
 }
 
 export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: LabListProps) {
-  const [activeId, setActiveId] = React.useState<string | null>(null);
   const {
     labs,
     updateLab,
     deleteLab,
-    reorderLabs,
     viewMode,
     setViewMode,
     filterDifficulty,
@@ -69,18 +48,6 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
     toggleShowCoreLabsOnly,
     setActiveTab
   } = useLabStore();
-  const [, setReorderedPositions] = React.useState<{ id: string; position: number }[]>([]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 3
-      }
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates
-    })
-  );
 
   const handleTabChange = (tab: FilterTab) => {
     setActiveTab(tab);
@@ -118,46 +85,6 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
   const handleStatusChange = (id: string, status: TodoStatus) => {
     updateLab(id, { status });
     toast.success(`Lab progress updated`);
-  };
-
-  const handleDragStart = (event: DragStartEvent) => {
-    console.log("event.active.id", event.active.id);
-    setActiveId(event.active.id as string);
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = filteredTodos.findIndex((item) => item.id === active.id);
-    const newIndex = filteredTodos.findIndex((item) => item.id === over.id);
-
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const newItems = arrayMove(filteredTodos, oldIndex, newIndex);
-
-    const positions = newItems.map((item, index) => ({
-      id: item.id,
-      position: index
-    }));
-
-    reorderLabs(positions);
-    setReorderedPositions(positions);
-
-    console.log("labs after reordering:", {
-      reorderedTodos: newItems.map((lab) => ({
-        id: lab.id,
-        title: lab.title,
-        position: positions.find((p) => p.id === lab.id)?.position
-      }))
-    });
-
-    toast.success("Labs have been reordered successfully.");
-  };
-
-  const handleDragCancel = (event: DragCancelEvent) => {
-    setActiveId(null);
   };
 
   const clearFilters = () => {
@@ -259,81 +186,42 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
     </div>
   );
 
-  const items = labs.map((v) => v.id);
-
   const renderTodoItems = () => {
     if (viewMode === "grid") {
       return (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          onDragCancel={handleDragCancel}>
-          <SortableContext items={items} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredTodos.map((lab) => (
-                <LabCard
-                  key={lab.id}
-                  lab={lab}
-                  onView={onSelectTodo}
-                  onStatusChange={handleStatusChange}
-                  viewMode="grid"
-                  onCoreToggle={handleCoreToggle}
-                  onRestart={handleRestartLab}
-                  onDelete={handleDeleteLab}
-                />
-              ))}
-            </div>
-          </SortableContext>
-          <DragOverlay>
-            {activeId ? (
-              <LabCard
-                lab={filteredTodos.find((t) => t.id === activeId) as lab}
-                viewMode="grid"
-                isDraggingOverlay
-              />
-            ) : null}
-          </DragOverlay>
-        </DndContext>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredTodos.map((lab) => (
+            <LabCard
+              key={lab.id}
+              lab={lab}
+              onView={onSelectTodo}
+              onStatusChange={handleStatusChange}
+              viewMode="grid"
+              onCoreToggle={handleCoreToggle}
+              onRestart={handleRestartLab}
+              onDelete={handleDeleteLab}
+            />
+          ))}
+        </div>
       );
     }
 
-    // List view with drag and drop
+    // List view
     return (
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-        modifiers={[restrictToVerticalAxis]}>
-        <SortableContext items={items} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-1 space-y-4">
-            {filteredTodos.map((lab) => (
-              <LabCard
-                key={lab.id}
-                lab={lab}
-                onView={onSelectTodo}
-                onStatusChange={handleStatusChange}
-                viewMode="list"
-                onCoreToggle={handleCoreToggle}
-                onRestart={handleRestartLab}
-                onDelete={handleDeleteLab}
-              />
-            ))}
-          </div>
-        </SortableContext>
-        <DragOverlay>
-          {activeId ? (
-            <LabCard
-              lab={filteredTodos.find((t) => t.id === activeId) as lab}
-              viewMode="list"
-              isDraggingOverlay
-            />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      <div className="grid grid-cols-1 space-y-4">
+        {filteredTodos.map((lab) => (
+          <LabCard
+            key={lab.id}
+            lab={lab}
+            onView={onSelectTodo}
+            onStatusChange={handleStatusChange}
+            viewMode="list"
+            onCoreToggle={handleCoreToggle}
+            onRestart={handleRestartLab}
+            onDelete={handleDeleteLab}
+          />
+        ))}
+      </div>
     );
   };
 

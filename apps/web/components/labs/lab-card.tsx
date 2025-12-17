@@ -3,8 +3,6 @@ import { cn } from "@/lib/utils";
 import { Clock, Eye, MoreVertical, RotateCcw, Star, Trash2 } from "lucide-react";
 import { statusClasses } from "@/app/(main)/labs/enum";
 import { Lab, LabStatus } from "@/app/(main)/labs/types";
-import { CSS } from "@dnd-kit/utilities";
-import { useSortable } from "@dnd-kit/sortable";
 
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +23,6 @@ interface LabCardProps {
   onCoreToggle?: (id: string) => void;
   onRestart?: (id: string) => void;
   onDelete?: (id: string) => void;
-  isDraggingOverlay?: boolean;
 }
 
 const LabCard: React.FC<LabCardProps> = ({
@@ -35,23 +32,11 @@ const LabCard: React.FC<LabCardProps> = ({
   viewMode,
   onCoreToggle,
   onRestart,
-  onDelete,
-  isDraggingOverlay = false
+  onDelete
 }) => {
   // Calculate sections/exercises completed (using subtasks as sections)
   const completedSections = lab.subTasks?.filter((st) => st.completed).length || 0;
   const totalSections = lab.subTasks?.length || 0;
-
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: lab.id
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? (!isDraggingOverlay ? 0.4 : 0.8) : 1,
-    zIndex: isDragging ? 100 : 1
-  };
 
   // Map status to learning-focused labels
   const statusLabel = {
@@ -69,11 +54,10 @@ const LabCard: React.FC<LabCardProps> = ({
 
   if (viewMode === "grid") {
     return (
-      <div ref={setNodeRef} {...attributes} {...listeners} style={style}>
-        <Card
-          className={cn(
-            "flex h-full flex-col transition-shadow hover:shadow-md"
-          )}>
+      <Card
+        className={cn(
+          "flex h-full flex-col transition-shadow hover:shadow-md"
+        )}>
           <CardContent className="flex h-full flex-col justify-between gap-3 pt-6 pb-4">
             <div className="flex flex-col gap-3">
               <div className="flex items-start justify-between gap-2">
@@ -160,16 +144,14 @@ const LabCard: React.FC<LabCardProps> = ({
             </div>
           </CardContent>
         </Card>
-      </div>
     );
   }
 
   return (
-    <div ref={setNodeRef} {...attributes} {...listeners} style={style}>
-      <Card
-        className={cn(
-          "transition-shadow hover:shadow-md"
-        )}>
+    <Card
+      className={cn(
+        "transition-shadow hover:shadow-md"
+      )}>
         <CardContent className="flex items-start gap-4 py-4">
           <div className="flex grow flex-col space-y-3">
             <div className="flex flex-col items-start justify-between gap-3 lg:flex-row lg:gap-4">
@@ -256,7 +238,6 @@ const LabCard: React.FC<LabCardProps> = ({
           </div>
         </CardContent>
       </Card>
-    </div>
   );
 };
 
