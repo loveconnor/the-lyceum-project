@@ -1,0 +1,304 @@
+[
+  {
+    "id": "1",
+    "title": "Introduction to React Hooks",
+    "description": "Learn the fundamentals of React Hooks including useState, useEffect, and custom hooks. Build a counter app and a data fetching component to practice.",
+    "assignedTo": [],
+    "comments": [],
+    "status": "completed",
+    "priority": "high",
+    "createdAt": "2024-12-01T00:00:00.000Z",
+    "dueDate": null,
+    "reminderDate": null,
+    "files": [],
+    "subTasks": [
+      { "id": "st1", "title": "Understanding useState", "completed": true },
+      { "id": "st2", "title": "Understanding useEffect", "completed": true },
+      { "id": "st3", "title": "Build a counter app", "completed": true },
+      { "id": "st4", "title": "Create a custom hook", "completed": true }
+    ],
+    "starred": true,
+    "difficulty": "intro",
+    "labType": "concept",
+    "estimatedTime": "30-60 min"
+  },
+  {
+    "id": "2",
+    "title": "Building REST APIs with Express",
+    "description": "Create a full CRUD REST API using Express.js and MongoDB. Implement authentication, error handling, and data validation.",
+    "assignedTo": [],
+    "comments": [
+      {
+        "id": "c1",
+        "text": "Focus on proper error handling patterns",
+        "createdAt": "2024-12-05T00:00:00.000Z"
+      }
+    ],
+    "status": "in-progress",
+    "priority": "high",
+    "createdAt": "2024-12-03T00:00:00.000Z",
+    "dueDate": null,
+    "reminderDate": null,
+    "files": [],
+    "subTasks": [
+      { "id": "st5", "title": "Set up Express server", "completed": true },
+      { "id": "st6", "title": "Create database models", "completed": true },
+      { "id": "st7", "title": "Implement CRUD endpoints", "completed": false },
+      { "id": "st8", "title": "Add JWT authentication", "completed": false },
+      { "id": "st9", "title": "Write API tests", "completed": false }
+    ],
+    "starred": true,
+    "difficulty": "intermediate",
+    "labType": "practice",
+    "estimatedTime": "2+ hours"
+  },
+  {
+    "id": "3",
+    "title": "CSS Grid Layout Mastery",
+    "description": "Master CSS Grid by building responsive layouts. Create a photo gallery, dashboard layout, and magazine-style page.",
+    "assignedTo": [],
+    "comments": [],
+    "status": "pending",
+    "priority": "medium",
+    "createdAt": "2024-12-06T00:00:00.000Z",
+    "dueDate": null,
+    "reminderDate": null,
+    "files": [],
+    "subTasks": [
+      { "id": "st10", "title": "Learn grid basics", "completed": false },
+      { "id": "st11", "title": "Build photo gallery", "completed": false },
+      { "id": "st12", "title": "Create dashboard layout", "completed": false }
+    ],
+    "starred": false,
+    "difficulty": "intro",
+    "labType": "practice",
+    "estimatedTime": "1-2 hours"
+  },
+  {
+    "id": "4",
+    "title": "TypeScript Generics Deep Dive",
+    "description": "Explore advanced TypeScript patterns with generics. Learn to create reusable, type-safe functions and components.",
+    "assignedTo": [],
+    "comments": [
+      {
+        "id": "c2",
+        "text": "Practice with real-world examples",
+        "createdAt": "2024-12-08T00:00:00.000Z"
+      }
+    ],
+    "status": "pending",
+    "priority": "medium",
+    "createdAt": "2024-12-07T00:00:00.000Z",
+    "dueDate": null,
+    "reminderDate": null,
+    "files": [],
+    "subTasks": [
+      { "id": "st13", "title": "Generic functions", "completed": false },
+      { "id": "st14", "title": "Generic interfaces", "completed": false },
+      { "id": "st15", "title": "Generic constraints", "completed": false },
+      { "id": "st16", "title": "Utility types", "completed": false }
+    ],
+    "starred": true,
+    "difficulty": "advanced",
+    "labType": "concept",
+    "estimatedTime": "1-2 hours"
+  },
+  {
+    "id": "5",
+    "title": "Docker Container Orchestration",
+    "description": "Learn Docker basics and container orchestration. Build multi-container applications using Docker Compose.",
+    "assignedTo": [],
+    "comments": [],
+    "status": "pending",
+    "priority": "high",
+    "createdAt": "2024-12-09T00:00:00.000Z",
+    "dueDate": null,
+    "reminderDate": null,
+    "files": [],
+    "subTasks": [
+      { "id": "st17", "title": "Create Dockerfile", "completed": false },
+      { "id": "st18", "title": "Build images", "completed": false },
+      { "id": "st19", "title": "Use Docker Compose", "completed": false }
+    ],
+    "starred": false,
+    "difficulty": "intermediate",
+    "labType": "practice",
+    "estimatedTime": "2+ hours"
+  },
+  {
+    "id": "6",
+    "title": "GraphQL Query Optimization",
+    "description": "Learn to optimize GraphQL queries and mutations. Implement DataLoader for batch loading and caching strategies.",
+    "assignedTo": [],
+    "comments": [
+      {
+        "id": "c3",
+        "text": "Focus on N+1 query problem solutions",
+        "createdAt": "2024-12-10T00:00:00.000Z"
+      }
+    ],
+    "status": "in-progress",
+    "priority": "medium",
+    "createdAt": "2024-12-08T00:00:00.000Z",
+    "dueDate": null,
+    "reminderDate": null,
+    "files": [],
+    "subTasks": [
+      { "id": "st20", "title": "Analyze query performance", "completed": true },
+      { "id": "st21", "title": "Implement DataLoader", "completed": false },
+      { "id": "st22", "title": "Add caching layer", "completed": false }
+    ],
+    "starred": false,
+    "difficulty": "advanced",
+    "labType": "exploration",
+    "estimatedTime": "2+ hours"
+  },
+  {
+    "id": "7",
+    "title": "Web Accessibility Fundamentals",
+    "description": "Make your web apps accessible to everyone. Learn ARIA attributes, semantic HTML, and keyboard navigation patterns.",
+    "assignedTo": [],
+    "comments": [],
+    "status": "pending",
+    "priority": "high",
+    "createdAt": "2024-12-11T00:00:00.000Z",
+    "dueDate": null,
+    "reminderDate": null,
+    "files": [],
+    "subTasks": [
+      { "id": "st23", "title": "Semantic HTML review", "completed": false },
+      { "id": "st24", "title": "ARIA attributes", "completed": false },
+      { "id": "st25", "title": "Keyboard navigation", "completed": false },
+      { "id": "st26", "title": "Screen reader testing", "completed": false }
+    ],
+    "starred": true,
+    "difficulty": "intro",
+    "labType": "concept",
+    "estimatedTime": "1-2 hours"
+  },
+  {
+    "id": "8",
+    "title": "State Management with Zustand",
+    "description": "Explore lightweight state management with Zustand. Build a todo app and shopping cart with persistent state.",
+    "assignedTo": [],
+    "comments": [],
+    "status": "completed",
+    "priority": "medium",
+    "createdAt": "2024-12-05T00:00:00.000Z",
+    "dueDate": null,
+    "reminderDate": null,
+    "files": [],
+    "subTasks": [
+      { "id": "st27", "title": "Create a store", "completed": true },
+      { "id": "st28", "title": "Add actions", "completed": true },
+      { "id": "st29", "title": "Persist state", "completed": true }
+    ],
+    "starred": false,
+    "difficulty": "intermediate",
+    "labType": "practice",
+    "estimatedTime": "30-60 min"
+  },
+  {
+    "id": "9",
+    "title": "Testing React Components with Jest",
+    "description": "Master component testing with Jest and React Testing Library. Learn to write effective unit and integration tests.",
+    "assignedTo": [],
+    "comments": [
+      {
+        "id": "c4",
+        "text": "Use realistic test scenarios",
+        "createdAt": "2024-12-12T00:00:00.000Z"
+      }
+    ],
+    "status": "pending",
+    "priority": "high",
+    "createdAt": "2024-12-12T00:00:00.000Z",
+    "dueDate": null,
+    "reminderDate": null,
+    "files": [],
+    "subTasks": [
+      { "id": "st30", "title": "Setup Jest config", "completed": false },
+      { "id": "st31", "title": "Write component tests", "completed": false },
+      { "id": "st32", "title": "Test user interactions", "completed": false },
+      { "id": "st33", "title": "Mock API calls", "completed": false }
+    ],
+    "starred": true,
+    "difficulty": "intermediate",
+    "labType": "practice",
+    "estimatedTime": "2+ hours"
+  },
+  {
+    "id": "10",
+    "title": "Database Query Performance",
+    "description": "Optimize database queries for better performance. Learn indexing strategies, query planning, and identifying bottlenecks.",
+    "assignedTo": [],
+    "comments": [],
+    "status": "pending",
+    "priority": "low",
+    "createdAt": "2024-12-13T00:00:00.000Z",
+    "dueDate": null,
+    "reminderDate": null,
+    "files": [],
+    "subTasks": [
+      { "id": "st34", "title": "Analyze slow queries", "completed": false },
+      { "id": "st35", "title": "Create indexes", "completed": false },
+      { "id": "st36", "title": "Optimize joins", "completed": false }
+    ],
+    "starred": false,
+    "difficulty": "advanced",
+    "labType": "exploration",
+    "estimatedTime": "2+ hours"
+  },
+  {
+    "id": "11",
+    "title": "Responsive Design Patterns",
+    "description": "Learn mobile-first responsive design patterns. Build layouts that work seamlessly across all device sizes.",
+    "assignedTo": [],
+    "comments": [],
+    "status": "in-progress",
+    "priority": "medium",
+    "createdAt": "2024-12-14T00:00:00.000Z",
+    "dueDate": null,
+    "reminderDate": null,
+    "files": [],
+    "subTasks": [
+      { "id": "st37", "title": "Mobile-first approach", "completed": true },
+      { "id": "st38", "title": "Breakpoint strategy", "completed": true },
+      { "id": "st39", "title": "Flexible grids", "completed": false },
+      { "id": "st40", "title": "Responsive images", "completed": false }
+    ],
+    "starred": false,
+    "difficulty": "intro",
+    "labType": "concept",
+    "estimatedTime": "1-2 hours"
+  },
+  {
+    "id": "12",
+    "title": "WebSocket Real-Time Communication",
+    "description": "Build real-time features using WebSockets. Create a chat application and live notification system.",
+    "assignedTo": [],
+    "comments": [
+      {
+        "id": "c5",
+        "text": "Handle connection failures gracefully",
+        "createdAt": "2024-12-15T00:00:00.000Z"
+      }
+    ],
+    "status": "pending",
+    "priority": "medium",
+    "createdAt": "2024-12-15T00:00:00.000Z",
+    "dueDate": null,
+    "reminderDate": null,
+    "files": [],
+    "subTasks": [
+      { "id": "st41", "title": "Setup WebSocket server", "completed": false },
+      { "id": "st42", "title": "Client connection", "completed": false },
+      { "id": "st43", "title": "Message broadcasting", "completed": false },
+      { "id": "st44", "title": "Error handling", "completed": false }
+    ],
+    "starred": true,
+    "difficulty": "advanced",
+    "labType": "practice",
+    "estimatedTime": "2+ hours"
+  }
+]
