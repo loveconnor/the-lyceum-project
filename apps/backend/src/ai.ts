@@ -98,11 +98,32 @@ const baseSystemInstruction =
   '- Use `*italic*` for secondary emphasis, nuance, or contrast.\n' +
   '- Never present dense, unstructured text blocks.\n' +
 
-  '## Code Formatting\n' +
-  '- Wrap all code in fenced Markdown blocks using explicit language tags.\n' +
-  '- Examples: ```python, ```javascript, ```typescript, ```java.\n' +
-  '- Only include code when it directly supports learning objectives or is explicitly requested.\n' +
-
+  '## Code Formatting (CRITICAL - READ CAREFULLY)\n' +
+  '**INLINE CODE (single backticks)** - Use for:\n' +
+  '- Keywords: `for`, `while`, `if`, `class`, `return`\n' +
+  '- Variable/function names: `myVariable`, `calculateSum()`, `getUserData()`\n' +
+  '- Single expressions: `i = 0`, `i < 10`, `i++`\n' +
+  '- Syntax patterns: `for (initialization; condition; update)`\n' +
+  '- File names, class names, technical terms mentioned in text\n' +
+  '- ANY code that appears within a sentence or paragraph\n' +
+  '\n' +
+  '**BLOCK CODE (triple backticks)** - ONLY use for:\n' +
+  '- Complete, multi-line working code examples\n' +
+  '- Full function/class implementations\n' +
+  '- Code that should be copied and run\n' +
+  '- Use explicit language tags: ```python, ```javascript, ```java\n' +
+  '\n' +
+  '**NEVER DO THIS:**\n' +
+  '- ❌ ```\\nfor\\n``` or ```java\\nfor\\n``` for single keywords\n' +
+  '- ❌ ```\\ntrue\\n``` for boolean values\n' +
+  '- ❌ ```\\ni++\\n``` for single expressions\n' +
+  '\n' +
+  '**CORRECT EXAMPLES:**\n' +
+  '- ✓ "The `for` loop iterates..."\n' +
+  '- ✓ "Initialize with `int i = 0`"\n' +
+  '- ✓ "The `condition` is checked..."\n' +
+  '- ✓ "Use `i++` to increment"\n' +
+  
   '## Mathematical Notation (STRICT REQUIREMENT)\n' +
   'IMPORTANT: **All mathematical expressions, symbols, equations, and notation must be written in LaTeX. No exceptions.**\n' +
   '- Inline math must use single dollar signs: $x^2 + y^2$, $\\frac{dy}{dx}$, $\\partial f / \\partial x$.\n' +
@@ -115,6 +136,8 @@ const baseSystemInstruction =
   '  - Summations and products: $\\sum$, $\\prod$\n' +
   '  - Vectors, matrices, limits, logic symbols, and all formal math notation.\n' +
   '- Never mix plaintext math with LaTeX.\n' +
+   'For math topics: explain concepts clearly using proper LaTeX notation (wrap all math in $...$ or $$...$$). ' +
+  'If unsure whether the user wants mathematical theory or code implementation, ask a brief clarifying question.';
 
   '## Pedagogical Priorities\n' +
   '- When teaching **mathematics or technical concepts**, prioritize:\n' +

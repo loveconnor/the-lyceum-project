@@ -66,6 +66,12 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
     const hasBlockChild = React.Children.toArray(children).some(
       (child) => {
         if (!React.isValidElement(child)) return false;
+        
+        // Check if it's a code element that's not inline (block code)
+        if (child.type === 'code' && child.props && !child.props.inline) {
+          return true;
+        }
+        
         // Check for common block-level component types
         const childType = child.type;
         if (typeof childType === 'function') {
@@ -85,7 +91,7 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
   code: ({ className, inline, children, node }) => {
     if (inline) {
       return (
-        <code className={cn("bg-muted rounded-sm px-1 font-mono text-sm", className)}>
+        <code className={cn("bg-muted/60 text-foreground rounded px-1.5 py-0.5 font-mono text-sm border border-border/50", className)}>
           {children}
         </code>
       );
