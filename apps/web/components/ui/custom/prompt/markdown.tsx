@@ -12,12 +12,6 @@ export type MarkdownProps = {
   components?: Partial<Components>;
 };
 
-function extractLanguage(className?: string): string {
-  if (!className) return "plaintext";
-  const match = className.match(/language-(\w+)/);
-  return match ? match[1] : "plaintext";
-}
-
 const DEFAULT_COMPONENTS: Partial<Components> = {
   h1: ({ children }) => <h1 className="text-2xl font-bold mt-6 mb-4">{children}</h1>,
   h2: ({ children }) => <h2 className="text-xl font-bold mt-5 mb-3">{children}</h2>,
@@ -68,8 +62,11 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
         if (!React.isValidElement(child)) return false;
         
         // Check if it's a code element that's not inline (block code)
-        if (child.type === 'code' && child.props && !child.props.inline) {
-          return true;
+        if (child.type === 'code') {
+          const className = (child.props as any).className || '';
+          const childChildren = (child.props as any).children || '';
+          const isInline = !className.includes('language-') && !String(childChildren).includes('\n');
+          return !isInline;
         }
         
         // Check for common block-level component types
@@ -88,16 +85,21 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
     }
     return <p className="mb-2 leading-7">{children}</p>;
   },
-  code: ({ className, inline, children, node }) => {
-    if (inline) {
+  code: ({ className, children, node, ...props }) => {
+    // In react-markdown v9+, the 'inline' prop is removed.
+    // We use heuristics to determine if it should be rendered inline or as a block.
+    const match = /language-(\w+)/.exec(className || '');
+    const isInline = !match && !String(children).includes('\n');
+
+    if (isInline) {
       return (
-        <code className={cn("bg-muted/60 text-foreground rounded px-1.5 py-0.5 font-mono text-sm border border-border/50", className)}>
+        <code className={cn("bg-muted/60 text-foreground rounded px-1.5 py-0.5 font-mono border border-border/50", className)}>
           {children}
         </code>
       );
     }
 
-    const language = extractLanguage(className);
+    const language = match ? match[1] : "plaintext";
     const code = String(children ?? "").replace(/\n$/, "");
 
     // Return the CodeBlock directly without wrapper to avoid nesting issues
@@ -120,7 +122,7 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
   );
 
   return (
-    <div className={cn("prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:overflow-x-auto break-words", className)}>
+    <div className={cn("prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:overflow-x-auto break-words prose-code:before:content-none prose-code:after:content-none", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}

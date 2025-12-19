@@ -31,7 +31,8 @@ const assistantSystemPrompt =
   '• Expressions: `i = 0` `i < 10` `i++` `true` `false`\n' +
   '• Syntax: `for (init; condition; update)` - write the ENTIRE syntax inline\n' +
   '\n' +
-  'BLOCK CODE (triple backticks ```) - ONLY for complete multi-line programs\n' +
+  'BLOCK CODE (triple backticks ```) - ONLY for complete multi-line programs. ' +
+  'NEVER use triple backticks for single words, keywords, or short expressions.\n' +
   '\n' +
   'EXAMPLES OF CORRECT USAGE:\n' +
   '✓ "The `for` keyword starts a loop"\n' +
