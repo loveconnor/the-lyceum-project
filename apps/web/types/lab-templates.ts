@@ -29,7 +29,7 @@ export interface AnalyzeLabData {
 export interface BuildLabData {
   labTitle: string;
   description: string;
-  problemStatement: string;
+  problemStatement?: string;
   initialCode: string;
   language: "javascript" | "typescript" | "python" | "java" | "cpp";
   testCases: Array<{
@@ -37,17 +37,26 @@ export interface BuildLabData {
     input: string;
     expectedOutput: string;
     description?: string;
+    stepId?: string; // Associates test with a specific step
   }>;
-  hints: Array<{
+  hints?: Array<{
     stepId: string;
     hint: string;
   }>;
-  stepPrompts: {
+  stepPrompts?: {
     understand: string;
     design: string;
     test: string;
     explain: string;
   };
+  // AI-generated structured steps like Explain template
+  steps?: Array<{
+    id: string;
+    title: string;
+    instruction?: string;
+    keyQuestions?: string[];
+    prompt?: string;
+  }>;
 }
 
 // ============= DERIVE TEMPLATE =============

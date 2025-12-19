@@ -70,11 +70,13 @@ const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, a
 
 Available templates:
 1. **analyze** - For data analysis, visualization, statistics, pattern recognition
-2. **build** - For coding projects, software development, algorithms, building applications
+2. **build** - For hands-on coding practice, learning syntax, writing functions, implementing algorithms, practicing programming concepts. Use when someone wants to "learn how to code/write/implement" something.
 3. **derive** - For mathematical proofs, derivations, theoretical reasoning
-4. **explain** - For understanding existing code, explaining concepts, code review
+4. **explain** - For understanding and analyzing EXISTING code that's already written, code review, explaining how specific code works
 5. **explore** - For simulations, experiments, parameter exploration, interactive learning
 6. **revise** - For writing improvement, documentation, essays, technical writing
+
+Key distinction: Use "build" when the learner wants to WRITE code to learn (e.g., "learn how to write X", "practice coding Y"). Use "explain" only when analyzing EXISTING code.
 
 Based on the learning goal, respond with JSON only:
 {
@@ -122,28 +124,49 @@ Include 5-10 realistic data rows and 4-5 analysis steps.`,
   "estimated_duration": number (in minutes),
   "topics": string[],
   "data": {
-    "challenge": {
-      "title": "Challenge title",
-      "description": "What to build",
-      "requirements": ["requirement1", "requirement2", ...],
-      "examples": [
-        {"input": "example input", "output": "expected output", "explanation": "why"}
-      ]
-    },
-    "initialCode": "// Starting code template",
+    "initialCode": "// Starting code template with function signature and comments",
+    "language": "javascript" | "typescript" | "python" | "java" | "cpp",
     "testCases": [
-      {"input": "test input", "expected": "expected output", "hidden": false}
-    ],
-    "stepPrompts": [
       {
-        "step": 1,
-        "prompt": "First step guidance"
+        "id": "test1",
+        "input": "test input",
+        "expectedOutput": "expected output",
+        "description": "What this test checks",
+        "stepId": "implement-solution" (optional - associates test with a specific step)
       }
     ],
-    "hints": ["hint1", "hint2"]
+    "steps": [
+      {
+        "id": "unique-id",
+        "title": "Step title",
+        "instruction": "What the learner should do in this step",
+        "keyQuestions": ["Question 1?", "Question 2?", ...],
+        "prompt": "Specific guidance and hints for this step"
+      }
+    ]
   }
 }
-Include 3-5 test cases and 3-4 step prompts.`,
+Create 4-6 structured steps for the coding process. Each step should have:
+- Unique id (e.g., "understand-problem", "plan-approach", "implement-solution", "test-debug", "analyze-complexity")
+- Clear title and detailed instructions
+- 2-4 key questions to guide thinking
+- Helpful prompts with specific hints
+
+Example step sequence:
+1. Understand the problem (identify inputs, outputs, constraints)
+2. Plan your approach (algorithm design, data structures)
+3. Implement solution (write the code)
+4. Test and debug (run tests, fix issues - MUST include detailed instruction about using print statements, checking edge cases, and debugging strategies)
+5. Analyze complexity (time/space complexity analysis)
+
+IMPORTANT: The test-debug step MUST have detailed instruction, keyQuestions, and prompt fields with specific guidance on:
+- How to add print/debug statements
+- What edge cases to test
+- Common mistakes to check for
+- How to interpret test failures
+
+Include 3-5 test cases with clear descriptions.
+Provide realistic starter code (5-15 lines) with function signature and helpful comments.`,
 
   derive: `Generate a mathematical derivation lab with this JSON structure:
 {
