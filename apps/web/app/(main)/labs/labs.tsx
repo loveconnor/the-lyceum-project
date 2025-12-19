@@ -7,6 +7,9 @@ import LabList from "@/components/labs/lab-list";
 import CreateLabSheet from "@/components/labs/create-lab-sheet";
 import LabDetailSheet from "@/components/labs/lab-detail-sheet";
 import { Lab } from "./types";
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function Labs({ labs }: { labs: Lab[] }) {
   const {
@@ -56,8 +59,28 @@ export default function Labs({ labs }: { labs: Lab[] }) {
 
   return (
     <div className="space-y-4">
-      <header className="mb-4">
+      <header className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Labs</h1>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild className="gap-2">
+            <Link href="/labs/build-demo">
+              <ExternalLink className="h-4 w-4" />
+              Build Demo
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild className="gap-2">
+            <Link href="/labs/explain-demo">
+              <ExternalLink className="h-4 w-4" />
+              Explain Demo
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild className="gap-2">
+            <Link href="/labs/derive-demo">
+              <ExternalLink className="h-4 w-4" />
+              Derive Demo
+            </Link>
+          </Button>
+        </div>
       </header>
 
       <LabList

@@ -67,7 +67,18 @@ export interface TopicRecommendation {
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
+// Ollama configuration (only available in development)
+const USE_OLLAMA = process.env.USE_OLLAMA === 'true';
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
+
 let openai: OpenAI | null = null;
+
+// Validation: Ensure Ollama is only used in development
+if (USE_OLLAMA && NODE_ENV === 'production') {
+  throw new Error('Ollama models are not allowed in production. Set USE_OLLAMA=false or change NODE_ENV.');
+}
 
 const baseSystemInstruction =
   'You are **Lyceum**, an education-focused AI assistant designed to support deep understanding, not superficial answers. ' +
@@ -131,6 +142,19 @@ const baseSystemInstruction =
 
 
 const ensureClient = () => {
+  if (USE_OLLAMA) {
+    // Use Ollama (development only)
+    if (!openai) {
+      console.log(`Using Ollama model: ${OLLAMA_MODEL} at ${OLLAMA_BASE_URL}`);
+      openai = new OpenAI({
+        baseURL: OLLAMA_BASE_URL,
+        apiKey: 'ollama', // Ollama doesn't require a real API key
+      });
+    }
+    return openai;
+  }
+
+  // Use OpenAI (production or when USE_OLLAMA=false)
   if (!OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY is not configured');
   }
@@ -216,8 +240,9 @@ export const generateTopicRecommendations = async (
   ].join('\n');
 
   const client = ensureClient();
+  const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
   const completion = await client.chat.completions.create({
-    model: OPENAI_MODEL,
+    model,
     messages: [
       { role: 'system', content: baseSystemInstruction },
       { role: 'user', content: prompt },
@@ -273,8 +298,9 @@ export const generateCourseOutline = async (
     .join('\n');
 
   const client = ensureClient();
+  const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
   const completion = await client.chat.completions.create({
-    model: OPENAI_MODEL,
+    model,
     messages: [
       { role: 'system', content: baseSystemInstruction },
       { role: 'user', content: prompt },
@@ -311,8 +337,9 @@ export const runAssistantChat = async (
     ...messages.map((m) => ({ role: m.role, content: m.content } as ChatCompletionMessageParam)),
   ];
 
+  const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
   const completion = await client.chat.completions.create({
-    model: OPENAI_MODEL,
+    model,
     messages: chatMessages,
   });
 
@@ -337,8 +364,9 @@ export const runAssistantChatStream = async (
     ...messages.map((m) => ({ role: m.role, content: m.content } as ChatCompletionMessageParam)),
   ];
 
+  const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
   const stream = await client.chat.completions.create({
-    model: OPENAI_MODEL,
+    model,
     messages: chatMessages,
     stream: true,
   });
@@ -375,8 +403,9 @@ export const generateChatTitle = async (userMessage: string, assistantReply: str
     `Generate a short, descriptive title for this conversation:`;
 
   try {
+    const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
     const completion = await client.chat.completions.create({
-      model: OPENAI_MODEL,
+      model,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
