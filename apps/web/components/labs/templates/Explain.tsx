@@ -170,7 +170,7 @@ export default function ExplainTemplate({ data, labId }: ExplainTemplateProps) {
   };
 
   const saveProgress = async (stepId: string, completed: boolean = false) => {
-    if (!labId) return;
+    if (!labId || !stepId) return;
     
     try {
       const { updateLabProgress } = await import("@/lib/api/labs");

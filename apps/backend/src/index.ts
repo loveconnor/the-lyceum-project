@@ -6,6 +6,7 @@ import { requireAuth } from './auth';
 import aiRouter from './routes/ai';
 import dashboardRouter from './routes/dashboard';
 import labsRouter from './routes/labs';
+import pathsRouter from './routes/paths';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -25,6 +26,7 @@ app.get('/protected', requireAuth, (req, res) => {
 app.use('/ai', requireAuth, aiRouter);
 app.use('/dashboard', requireAuth, dashboardRouter);
 app.use('/labs', requireAuth, labsRouter);
+app.use('/paths', requireAuth, pathsRouter);
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);

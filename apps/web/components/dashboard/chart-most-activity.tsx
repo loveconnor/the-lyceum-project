@@ -13,17 +13,21 @@ import {
 import { EmptyState } from "./empty-state";
 
 const chartConfig = {
-  mentoring: {
-    label: "Mentoring",
+  lab_completed: {
+    label: "Labs Completed",
     color: "var(--chart-1)"
   },
-  organization: {
-    label: "Organization",
+  lab_started: {
+    label: "Labs Started",
     color: "var(--chart-2)"
   },
-  planning: {
-    label: "Planning",
+  path_completed: {
+    label: "Paths Completed",
     color: "var(--chart-3)"
+  },
+  path_started: {
+    label: "Paths Started",
+    color: "var(--chart-4)"
   },
   none: {
     label: "No activity yet",
@@ -38,28 +42,16 @@ export function ChartMostActivity({
 }: {
   activityCounts?: Record<string, number>;
 }) {
-  const entries = Object.entries(activityCounts || {});
-  const dynamicConfig =
-    entries.length > 0
-      ? (Object.fromEntries(
-          entries.map(([key], idx) => [
-            key,
-            {
-              label: key,
-              color: `var(--chart-${(idx % 3) + 1})`,
-            },
-          ]),
-        ) as ChartConfig)
-      : chartConfig;
-
+  const entries = Object.entries(activityCounts || {}).filter(([_, value]) => value > 0);
+  
   const chartData =
     entries.length > 0
-      ? entries.map(([key, value]) => ({
-          source: key,
-          leads: value,
-          fill: dynamicConfig[key as ChartConfigKeys]?.color || "var(--chart-1)"
+      ? entries.map(([key, value], idx) => ({
+          activity: chartConfig[key as ChartConfigKeys]?.label || key,
+          count: value,
+          fill: chartConfig[key as ChartConfigKeys]?.color || `var(--chart-${(idx % 4) + 1})`
         }))
-      : [{ source: "none", leads: 1, fill: "var(--chart-1)" }];
+      : [{ activity: "none", count: 1, fill: "var(--chart-1)" }];
 
   const hasData = entries.length > 0;
 
@@ -72,34 +64,33 @@ export function ChartMostActivity({
         {hasData ? (
           <>
             <ChartContainer
-              config={dynamicConfig}
+              config={chartConfig}
               className="mx-auto aspect-square max-h-[250px] min-h-[220px]">
               <PieChart>
-                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
                 <Pie
                   data={chartData}
-                  dataKey="leads"
-                  nameKey="source"
+                  dataKey="count"
+                  nameKey="activity"
                   innerRadius={60}
                   strokeWidth={5}
                 />
               </PieChart>
             </ChartContainer>
-            <div className="flex justify-around">
-              {chartData.map((item) => (
-                <div className="flex flex-col" key={item.source}>
-                  <div className="mb-1 flex items-center gap-2">
+            <div className="flex flex-wrap justify-center gap-6 px-4">
+              {entries.map(([key, value]) => (
+                <div className="flex flex-col items-center" key={key}>
+                  <div className="mb-2 flex items-center gap-2">
                     <span
-                      className="block size-2 rounded-full"
+                      className="block size-3 rounded-full"
                       style={{
-                        backgroundColor: dynamicConfig[item.source as ChartConfigKeys]?.color
+                        backgroundColor: chartConfig[key as ChartConfigKeys]?.color
                       }}></span>
-                    <div>{dynamicConfig[item.source as ChartConfigKeys]?.label}</div>
+                    <div className="text-sm font-medium">{chartConfig[key as ChartConfigKeys]?.label}</div>
                   </div>
-                  <div className="text-center text-xl font-semibold">{item.leads}%</div>
+                  <div className="text-center text-2xl font-bold">{value}</div>
                 </div>
               ))}
-              <div></div>
             </div>
           </>
         ) : (

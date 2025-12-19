@@ -21,6 +21,10 @@ export function StudentSuccessCard({
   const isPositiveChange = successRateChange >= 0;
   const passingPercentage =
     totalStudents > 0 ? (passingStudents / totalStudents) * 100 : 0;
+  
+  // Display as activities instead of students
+  const totalActivities = totalStudents;
+  const completedActivities = passingStudents;
 
   return (
     <Card>
@@ -50,17 +54,17 @@ export function StudentSuccessCard({
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <Users className="mr-2 h-5 w-5 text-blue-500" />
-            <span className="font-medium">Total Students</span>
+            <span className="font-medium">Total Labs & Paths</span>
           </div>
-          <span className="font-bold">{totalStudents}</span>
+          <span className="font-bold">{totalActivities}</span>
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <CheckCircle className="mr-2 h-5 w-5 text-green-500" />
-              <span className="font-medium">Passing Students</span>
+              <span className="font-medium">Completed</span>
             </div>
-            <span className="font-bold">{passingStudents}</span>
+            <span className="font-bold">{completedActivities}</span>
           </div>
           <Progress value={passingPercentage} />
           <div className="text-muted-foreground text-sm">

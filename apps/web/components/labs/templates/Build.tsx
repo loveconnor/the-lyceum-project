@@ -482,7 +482,7 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
   };
 
   const saveProgress = async (stepId: string, completed: boolean = false) => {
-    if (!labId) return;
+    if (!labId || !stepId) return;
     
     try {
       const { updateLabProgress } = await import("@/lib/api/labs");

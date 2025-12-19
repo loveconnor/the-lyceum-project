@@ -49,6 +49,7 @@ type DashboardState = {
     completed?: number;
     previous_success_rate?: number;
   };
+  activities?: Array<{ timestamp: string; type: 'lab' | 'path' }>;
 };
 
 const DEFAULT_STATE: DashboardState = {
@@ -213,7 +214,7 @@ async function DashboardContent({
         <ChartMostActivity activityCounts={dashboard.stats?.activity_counts || {}} />
       </div>
       <div className="mt-4 gap-4 space-y-4 xl:grid xl:grid-cols-2 xl:space-y-0">
-        <CourseProgressByMonth monthlyActivity={dashboard.stats?.monthly_activity || {}} />
+        <CourseProgressByMonth activities={dashboard.activities || []} />
         <RecommendedCoursesTable
           key={dashboard.user_id || "anonymous"}
           userId={dashboard.user_id}

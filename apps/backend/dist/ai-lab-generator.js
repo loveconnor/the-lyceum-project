@@ -1,71 +1,49 @@
-import OpenAI from 'openai';
-
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getLabAIAssistance = exports.generateLab = void 0;
+const openai_1 = __importDefault(require("openai"));
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-
 const USE_OLLAMA = process.env.USE_OLLAMA === 'true';
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
-
-let openai: OpenAI | null = null;
-
+let openai = null;
 const ensureClient = () => {
-  if (USE_OLLAMA) {
+    if (USE_OLLAMA) {
+        if (!openai) {
+            openai = new openai_1.default({
+                baseURL: OLLAMA_BASE_URL,
+                apiKey: 'ollama',
+            });
+        }
+        return openai;
+    }
+    if (!OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY is not configured');
+    }
     if (!openai) {
-      openai = new OpenAI({
-        baseURL: OLLAMA_BASE_URL,
-        apiKey: 'ollama',
-      });
+        openai = new openai_1.default({ apiKey: OPENAI_API_KEY });
     }
     return openai;
-  }
-
-  if (!OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY is not configured');
-  }
-  if (!openai) {
-    openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-  }
-  return openai;
 };
-
-const stripCodeFences = (text: string): string => {
-  return text
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/```$/i, '')
-    .trim();
+const stripCodeFences = (text) => {
+    return text
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```$/i, '')
+        .trim();
 };
-
-const tryParseJson = <T>(text: string): T | null => {
-  try {
-    return JSON.parse(stripCodeFences(text)) as T;
-  } catch {
-    return null;
-  }
+const tryParseJson = (text) => {
+    try {
+        return JSON.parse(stripCodeFences(text));
+    }
+    catch {
+        return null;
+    }
 };
-
-export interface GenerateLabRequest {
-  learningGoal: string;
-  context?: string;
-  userProfile?: {
-    level?: string;
-    interests?: string[];
-    completedTopics?: string[];
-  };
-}
-
-export interface GeneratedLabResponse {
-  title: string;
-  description: string;
-  template_type: 'analyze' | 'build' | 'derive' | 'explain' | 'explore' | 'revise';
-  template_data: any;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  estimated_duration: number;
-  topics: string[];
-  raw: string;
-}
-
 const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, an educational platform. Your job is to choose the best template type for a learning goal.
 
 Available templates:
@@ -83,9 +61,8 @@ Based on the learning goal, respond with JSON only:
   "template_type": "analyze" | "build" | "derive" | "explain" | "explore" | "revise",
   "reasoning": "Brief explanation of why this template fits"
 }`;
-
-const TEMPLATE_GENERATORS: Record<string, string> = {
-  analyze: `Generate a data analysis lab with this JSON structure:
+const TEMPLATE_GENERATORS = {
+    analyze: `Generate a data analysis lab with this JSON structure:
 {
   "labTitle": string,
   "description": string,
@@ -115,8 +92,7 @@ const TEMPLATE_GENERATORS: Record<string, string> = {
   }
 }
 Include 5-10 realistic data rows and 4-5 analysis steps.`,
-
-  build: `Generate a coding challenge lab with this JSON structure:
+    build: `Generate a coding challenge lab with this JSON structure:
 {
   "labTitle": string,
   "description": string,
@@ -167,8 +143,7 @@ IMPORTANT: The test-debug step MUST have detailed instruction, keyQuestions, and
 
 Include 3-5 test cases with clear descriptions.
 Provide realistic starter code (5-15 lines) with function signature and helpful comments.`,
-
-  derive: `Generate a mathematical derivation lab with this JSON structure:
+    derive: `Generate a mathematical derivation lab with this JSON structure:
 {
   "labTitle": string,
   "description": string,
@@ -192,8 +167,7 @@ Provide realistic starter code (5-15 lines) with function signature and helpful 
   }
 }
 Use proper LaTeX notation. Include 5-8 calculus/algebra rules and 3-5 derivation steps.`,
-
-  explain: `Generate a code explanation lab with this JSON structure:
+    explain: `Generate a code explanation lab with this JSON structure:
 {
   "labTitle": string,
   "description": string,
@@ -226,8 +200,7 @@ Create 3-5 steps tailored to the code complexity. Each step should have:
 
 Example step types: analyze structure, predict output, trace execution, identify edge cases, optimize performance, explain complexity.
 Provide working, realistic code (10-30 lines).`,
-
-  explore: `Generate an interactive exploration lab with this JSON structure:
+    explore: `Generate an interactive exploration lab with this JSON structure:
 {
   "labTitle": string,
   "description": string,
@@ -264,8 +237,7 @@ Provide working, realistic code (10-30 lines).`,
   }
 }
 Include 3-5 parameters and 3-4 exploration steps.`,
-
-  revise: `Generate a writing revision lab with this JSON structure:
+    revise: `Generate a writing revision lab with this JSON structure:
 {
   "labTitle": string,
   "description": string,
@@ -305,43 +277,35 @@ Include 3-5 parameters and 3-4 exploration steps.`,
 }
 Include a realistic draft with issues, 4-5 rubric criteria, and 3-4 revision steps.`
 };
-
-export const generateLab = async (request: GenerateLabRequest): Promise<GeneratedLabResponse> => {
-  const client = ensureClient();
-  const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
-
-  // Step 1: Select the best template
-  const selectionPrompt = `${TEMPLATE_SELECTION_PROMPT}
+const generateLab = async (request) => {
+    const client = ensureClient();
+    const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+    // Step 1: Select the best template
+    const selectionPrompt = `${TEMPLATE_SELECTION_PROMPT}
 
 Learning goal: ${request.learningGoal}
 ${request.context ? `Context: ${request.context}` : ''}
 ${request.userProfile?.level ? `User level: ${request.userProfile.level}` : ''}`;
-
-  const selectionCompletion = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: 'system', content: 'You are a lab template selector. Respond with JSON only.' },
-      { role: 'user', content: selectionPrompt },
-    ],
-    temperature: 0.3,
-  });
-
-  const selectionText = selectionCompletion.choices[0]?.message?.content?.trim() || '';
-  const selection = tryParseJson<{ template_type: string; reasoning: string }>(selectionText);
-
-  if (!selection || !selection.template_type) {
-    throw new Error('Failed to select template type');
-  }
-
-  const templateType = selection.template_type;
-  const generatorPrompt = TEMPLATE_GENERATORS[templateType];
-
-  if (!generatorPrompt) {
-    throw new Error(`Unknown template type: ${templateType}`);
-  }
-
-  // Step 2: Generate the lab content
-  const contentPrompt = `${generatorPrompt}
+    const selectionCompletion = await client.chat.completions.create({
+        model,
+        messages: [
+            { role: 'system', content: 'You are a lab template selector. Respond with JSON only.' },
+            { role: 'user', content: selectionPrompt },
+        ],
+        temperature: 0.3,
+    });
+    const selectionText = selectionCompletion.choices[0]?.message?.content?.trim() || '';
+    const selection = tryParseJson(selectionText);
+    if (!selection || !selection.template_type) {
+        throw new Error('Failed to select template type');
+    }
+    const templateType = selection.template_type;
+    const generatorPrompt = TEMPLATE_GENERATORS[templateType];
+    if (!generatorPrompt) {
+        throw new Error(`Unknown template type: ${templateType}`);
+    }
+    // Step 2: Generate the lab content
+    const contentPrompt = `${generatorPrompt}
 
 Learning goal: ${request.learningGoal}
 ${request.context ? `Additional context: ${request.context}` : ''}
@@ -353,92 +317,74 @@ IMPORTANT: The "topics" field must contain 2-5 specific, relevant topic tags (e.
 
 Generate a complete, engaging lab. Make it practical and pedagogically sound.
 Respond with valid JSON only - no markdown, no explanations.`;
-
-  const contentCompletion = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: 'system', content: 'You are a lab content generator for Lyceum. Create educational labs that promote deep learning. Respond with JSON only.' },
-      { role: 'user', content: contentPrompt },
-    ],
-    temperature: 0.7,
-  });
-
-  const contentText = contentCompletion.choices[0]?.message?.content?.trim() || '';
-  const parsed = tryParseJson<any>(contentText);
-
-  if (!parsed || !parsed.labTitle || !parsed.data) {
-    throw new Error('Failed to generate valid lab content');
-  }
-
-  // Ensure topics are present and meaningful
-  let topics = parsed.topics || [];
-  if (!topics.length) {
-    // Fallback: extract topics from the learning goal
-    const goalWords = request.learningGoal.toLowerCase().split(/\s+/);
-    const commonTopics = [
-      'JavaScript', 'Python', 'TypeScript', 'React', 'Node.js',
-      'Algorithms', 'Data Structures', 'Machine Learning', 'AI',
-      'Statistics', 'Data Analysis', 'Calculus', 'Linear Algebra',
-      'Web Development', 'API', 'Database', 'SQL',
-      'CSS', 'HTML', 'Git', 'Testing'
-    ];
-    topics = commonTopics.filter(topic => 
-      goalWords.some(word => topic.toLowerCase().includes(word) || word.includes(topic.toLowerCase()))
-    ).slice(0, 3);
-    
-    // If still empty, use template type as topic
-    if (!topics.length) {
-      topics = [templateType.charAt(0).toUpperCase() + templateType.slice(1)];
+    const contentCompletion = await client.chat.completions.create({
+        model,
+        messages: [
+            { role: 'system', content: 'You are a lab content generator for Lyceum. Create educational labs that promote deep learning. Respond with JSON only.' },
+            { role: 'user', content: contentPrompt },
+        ],
+        temperature: 0.7,
+    });
+    const contentText = contentCompletion.choices[0]?.message?.content?.trim() || '';
+    const parsed = tryParseJson(contentText);
+    if (!parsed || !parsed.labTitle || !parsed.data) {
+        throw new Error('Failed to generate valid lab content');
     }
-  }
-
-  return {
-    title: parsed.labTitle,
-    description: parsed.description || '',
-    template_type: templateType as any,
-    template_data: parsed.data,
-    difficulty: parsed.difficulty || 'intermediate',
-    estimated_duration: parsed.estimated_duration || 45,
-    topics,
-    raw: contentText,
-  };
+    // Ensure topics are present and meaningful
+    let topics = parsed.topics || [];
+    if (!topics.length) {
+        // Fallback: extract topics from the learning goal
+        const goalWords = request.learningGoal.toLowerCase().split(/\s+/);
+        const commonTopics = [
+            'JavaScript', 'Python', 'TypeScript', 'React', 'Node.js',
+            'Algorithms', 'Data Structures', 'Machine Learning', 'AI',
+            'Statistics', 'Data Analysis', 'Calculus', 'Linear Algebra',
+            'Web Development', 'API', 'Database', 'SQL',
+            'CSS', 'HTML', 'Git', 'Testing'
+        ];
+        topics = commonTopics.filter(topic => goalWords.some(word => topic.toLowerCase().includes(word) || word.includes(topic.toLowerCase()))).slice(0, 3);
+        // If still empty, use template type as topic
+        if (!topics.length) {
+            topics = [templateType.charAt(0).toUpperCase() + templateType.slice(1)];
+        }
+    }
+    return {
+        title: parsed.labTitle,
+        description: parsed.description || '',
+        template_type: templateType,
+        template_data: parsed.data,
+        difficulty: parsed.difficulty || 'intermediate',
+        estimated_duration: parsed.estimated_duration || 45,
+        topics,
+        raw: contentText,
+    };
 };
-
+exports.generateLab = generateLab;
 // Helper function for AI assistance within templates
-export const getLabAIAssistance = async (
-  templateType: string,
-  userPrompt: string,
-  context?: any
-): Promise<string> => {
-  const client = ensureClient();
-  const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
-
-  const systemPrompts: Record<string, string> = {
-    analyze: 'You are a data analysis tutor. Help learners understand data patterns, statistical concepts, and visualization. Be clear and concise.',
-    build: 'You are a coding mentor. Help learners write code, debug issues, and understand algorithms. Provide hints, not full solutions unless asked.',
-    derive: 'You are a mathematics tutor. Help with derivations, proofs, and mathematical reasoning. Use LaTeX notation ($x^2$, $$\\frac{d}{dx}$$).',
-    explain: 'You are a code explanation assistant. Help learners understand how code works, line by line. Explain concepts clearly.',
-    explore: 'You are a science experiment guide. Help learners form hypotheses, understand parameters, and interpret results.',
-    revise: 'You are a writing coach. Help improve clarity, structure, and argument. Provide specific, actionable feedback.',
-  };
-
-  const systemPrompt = systemPrompts[templateType] || 'You are a helpful learning assistant.';
-
-  const messages: any[] = [
-    { role: 'system', content: systemPrompt },
-  ];
-
-  if (context) {
-    messages.push({ role: 'system', content: `Context: ${JSON.stringify(context)}` });
-  }
-
-  messages.push({ role: 'user', content: userPrompt });
-
-  const completion = await client.chat.completions.create({
-    model,
-    messages,
-    temperature: 0.7,
-  });
-
-  return completion.choices[0]?.message?.content?.trim() || '';
+const getLabAIAssistance = async (templateType, userPrompt, context) => {
+    const client = ensureClient();
+    const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+    const systemPrompts = {
+        analyze: 'You are a data analysis tutor. Help learners understand data patterns, statistical concepts, and visualization. Be clear and concise.',
+        build: 'You are a coding mentor. Help learners write code, debug issues, and understand algorithms. Provide hints, not full solutions unless asked.',
+        derive: 'You are a mathematics tutor. Help with derivations, proofs, and mathematical reasoning. Use LaTeX notation ($x^2$, $$\\frac{d}{dx}$$).',
+        explain: 'You are a code explanation assistant. Help learners understand how code works, line by line. Explain concepts clearly.',
+        explore: 'You are a science experiment guide. Help learners form hypotheses, understand parameters, and interpret results.',
+        revise: 'You are a writing coach. Help improve clarity, structure, and argument. Provide specific, actionable feedback.',
+    };
+    const systemPrompt = systemPrompts[templateType] || 'You are a helpful learning assistant.';
+    const messages = [
+        { role: 'system', content: systemPrompt },
+    ];
+    if (context) {
+        messages.push({ role: 'system', content: `Context: ${JSON.stringify(context)}` });
+    }
+    messages.push({ role: 'user', content: userPrompt });
+    const completion = await client.chat.completions.create({
+        model,
+        messages,
+        temperature: 0.7,
+    });
+    return completion.choices[0]?.message?.content?.trim() || '';
 };
+exports.getLabAIAssistance = getLabAIAssistance;

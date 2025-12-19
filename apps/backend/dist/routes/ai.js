@@ -1,0 +1,299 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const ai_1 = require("../ai");
+const assistantStore_1 = require("../assistantStore");
+const supabaseAdmin_1 = require("../supabaseAdmin");
+const aiRouter = (0, express_1.Router)();
+const assistantSystemPrompt = process.env.ASSISTANT_SYSTEM_PROMPT ||
+    'You are Lyceum, a concise AI study partner. Prioritize clarity, short sentences, and actionable next steps. ' +
+        'For math topics: explain concepts clearly using proper LaTeX notation (wrap all math in $...$ or $$...$$). ' +
+        '\n\nCRITICAL: CODE FORMATTING IS NON-NEGOTIABLE\n' +
+        'INLINE CODE (single backticks ` `) - ALWAYS use for:\n' +
+        '• Single keywords: `for` `while` `if` `class` `return` `int` `boolean`\n' +
+        '• Variables/functions: `myVar` `calculateSum()` `i` `count`\n' +
+        '• Expressions: `i = 0` `i < 10` `i++` `true` `false`\n' +
+        '• Syntax: `for (init; condition; update)` - write the ENTIRE syntax inline\n' +
+        '\n' +
+        'BLOCK CODE (triple backticks ```) - ONLY for complete multi-line programs. ' +
+        'NEVER use triple backticks for single words, keywords, or short expressions.\n' +
+        '\n' +
+        'EXAMPLES OF CORRECT USAGE:\n' +
+        '✓ "The `for` keyword starts a loop"\n' +
+        '✓ "Set `i = 0` to initialize"\n' +
+        '✓ "Check if `i < 10` is `true`"\n' +
+        '✓ "The `condition` part determines..."\n' +
+        '\n' +
+        'FORBIDDEN - NEVER DO:\n' +
+        '✗ ```\\nfor\\n``` or ```java\\nfor\\n```\n' +
+        '✗ ```\\ntrue\\n``` or ```\\ni++\\n```\n' +
+        '✗ Any code block for single words/expressions\n' +
+        '\n' +
+        'If unsure whether the user wants mathematical theory or code implementation, ask a brief clarifying question.';
+const buildAssistantContext = async (userId) => {
+    const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
+    const [{ data: profile }, { data: dashboard }] = await Promise.all([
+        supabase
+            .from('profiles')
+            .select('full_name, first_name, last_name, onboarding_data')
+            .eq('id', userId)
+            .maybeSingle(),
+        supabase.from('dashboard_state').select('recommended_topics, top_topics, stats').eq('user_id', userId).maybeSingle(),
+    ]);
+    const name = profile?.full_name ||
+        [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') ||
+        'learner';
+    const onboardingSummary = profile?.onboarding_data
+        ? `Onboarding: ${JSON.stringify(profile.onboarding_data)}`
+        : '';
+    const recommended = dashboard?.recommended_topics?.length
+        ? `Recommended topics: ${dashboard.recommended_topics
+            .map((t) => `${t.name || t.title || 'Topic'} (${t.category || 'General'})`)
+            .join('; ')}`
+        : '';
+    const topTopics = dashboard?.top_topics?.length
+        ? `Top topics: ${dashboard.top_topics.map((t) => t.name).join(', ')}`
+        : '';
+    return [`User: ${name}`, onboardingSummary, recommended, topTopics]
+        .filter(Boolean)
+        .join('\n');
+};
+aiRouter.post('/onboarding/recommendations', async (req, res) => {
+    const { onboardingData } = req.body;
+    if (!onboardingData) {
+        return res.status(400).json({ error: 'onboardingData is required' });
+    }
+    try {
+        const result = await (0, ai_1.generateOnboardingRecommendations)(onboardingData);
+        res.json(result);
+    }
+    catch (error) {
+        console.error('AI onboarding error', error);
+        res
+            .status(500)
+            .json({ error: 'Failed to generate onboarding recommendations', details: error?.message });
+    }
+});
+aiRouter.post('/courses/outline', async (req, res) => {
+    const { course, audienceProfile, modulesCount } = req.body;
+    if (!course || !course.title) {
+        return res.status(400).json({ error: 'course.title is required' });
+    }
+    try {
+        const result = await (0, ai_1.generateCourseOutline)({ course, audienceProfile, modulesCount });
+        res.json(result);
+    }
+    catch (error) {
+        console.error('AI course outline error', error);
+        res.status(500).json({ error: 'Failed to generate course outline', details: error?.message });
+    }
+});
+aiRouter.post('/assistant/chat', async (req, res) => {
+    const { messages, message, conversationId, context, systemPrompt, } = req.body;
+    const stream = req.query.stream === 'true';
+    const userId = req.user?.id;
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const userMessage = message || messages?.[messages.length - 1]?.content;
+    if (!userMessage) {
+        return res.status(400).json({ error: 'message is required' });
+    }
+    try {
+        const contextString = await buildAssistantContext(userId);
+        const conversation = await (0, assistantStore_1.ensureConversation)(userId, conversationId, userMessage);
+        const history = await (0, assistantStore_1.getAssistantMessages)(conversation.id, userId);
+        // Check if this is the first message (no history, or only the current message)
+        const isFirstMessage = history.length === 0;
+        const chatMessages = [
+            ...history.map((m) => ({ role: m.role, content: m.content })),
+            ...(messages || []),
+        ];
+        if (!messages?.length) {
+            chatMessages.push({ role: 'user', content: userMessage });
+        }
+        if (stream) {
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+            res.flushHeaders?.();
+            let full = '';
+            try {
+                const generator = await (0, ai_1.runAssistantChatStream)(chatMessages, {
+                    context: [contextString, context].filter(Boolean).join('\n\n') || undefined,
+                    systemPrompt: systemPrompt || assistantSystemPrompt,
+                });
+                for await (const chunk of generator) {
+                    full += chunk;
+                    res.write(`data: ${chunk}\n\n`);
+                }
+                await (0, assistantStore_1.appendAssistantMessages)(conversation.id, userId, [
+                    { role: 'user', content: userMessage, conversation_id: conversation.id },
+                    { role: 'assistant', content: full, conversation_id: conversation.id },
+                ], full.slice(0, 200));
+                // Generate title for new conversations after first exchange
+                if (isFirstMessage) {
+                    const title = await (0, ai_1.generateChatTitle)(userMessage, full);
+                    await (0, assistantStore_1.updateConversationTitle)(conversation.id, userId, title);
+                }
+                res.write(`event: end\ndata: done\n\n`);
+                res.end();
+            }
+            catch (err) {
+                console.error('AI assistant stream error', err);
+                res.write(`event: error\ndata: ${JSON.stringify({ error: err?.message || 'stream error' })}\n\n`);
+                res.end();
+            }
+        }
+        else {
+            const result = await (0, ai_1.runAssistantChat)(chatMessages, {
+                context: [contextString, context].filter(Boolean).join('\n\n') || undefined,
+                systemPrompt: systemPrompt || assistantSystemPrompt,
+            });
+            await (0, assistantStore_1.appendAssistantMessages)(conversation.id, userId, [
+                { role: 'user', content: userMessage, conversation_id: conversation.id },
+                { role: 'assistant', content: result.reply, conversation_id: conversation.id },
+            ], result.reply.slice(0, 200));
+            // Generate title for new conversations after first exchange
+            if (isFirstMessage) {
+                const title = await (0, ai_1.generateChatTitle)(userMessage, result.reply);
+                await (0, assistantStore_1.updateConversationTitle)(conversation.id, userId, title);
+            }
+            const updatedMessages = await (0, assistantStore_1.getAssistantMessages)(conversation.id, userId);
+            res.json({
+                conversationId: conversation.id,
+                reply: result.reply,
+                messages: updatedMessages,
+            });
+        }
+    }
+    catch (error) {
+        console.error('AI assistant error', error);
+        res.status(500).json({ error: 'Failed to generate assistant response', details: error?.message });
+    }
+});
+aiRouter.get('/assistant/conversations', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        const conversations = await (0, assistantStore_1.listAssistantConversations)(userId);
+        res.json({ conversations });
+    }
+    catch (error) {
+        console.error('AI assistant conversations error', error);
+        res
+            .status(500)
+            .json({ error: 'Failed to fetch conversations', details: error?.message });
+    }
+});
+aiRouter.post('/assistant/conversations', async (req, res) => {
+    const userId = req.user?.id;
+    const { title } = req.body;
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        const conversation = await (0, assistantStore_1.ensureConversation)(userId, undefined, title);
+        res.json({ conversation });
+    }
+    catch (error) {
+        console.error('AI assistant create conversation error', error);
+        res
+            .status(500)
+            .json({ error: 'Failed to create conversation', details: error?.message });
+    }
+});
+aiRouter.patch('/assistant/conversations/:id', async (req, res) => {
+    const userId = req.user?.id;
+    const conversationId = req.params.id;
+    const { title } = req.body;
+    if (!userId)
+        return res.status(401).json({ error: 'Unauthorized' });
+    if (!title)
+        return res.status(400).json({ error: 'title is required' });
+    try {
+        await (0, assistantStore_1.updateConversationTitle)(conversationId, userId, title);
+        res.json({ ok: true });
+    }
+    catch (error) {
+        console.error('AI assistant rename conversation error', error);
+        const status = error?.status || 500;
+        res.status(status).json({ error: 'Failed to rename conversation', details: error?.message });
+    }
+});
+aiRouter.delete('/assistant/conversations/:id', async (req, res) => {
+    const userId = req.user?.id;
+    const conversationId = req.params.id;
+    if (!userId)
+        return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        await (0, assistantStore_1.deleteConversation)(conversationId, userId);
+        res.json({ ok: true });
+    }
+    catch (error) {
+        console.error('AI assistant delete conversation error', error);
+        const status = error?.status || 500;
+        res.status(status).json({ error: 'Failed to delete conversation', details: error?.message });
+    }
+});
+aiRouter.get('/assistant/conversations/:id/messages', async (req, res) => {
+    const userId = req.user?.id;
+    const conversationId = req.params.id;
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        const messages = await (0, assistantStore_1.getAssistantMessages)(conversationId, userId);
+        res.json({ messages });
+    }
+    catch (error) {
+        console.error('AI assistant messages error', error);
+        const status = error?.status || 500;
+        res
+            .status(status)
+            .json({ error: 'Failed to fetch messages', details: error?.message });
+    }
+});
+aiRouter.post('/assistant/suggestions', async (req, res) => {
+    const userId = req.user?.id;
+    if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        const contextString = await buildAssistantContext(userId);
+        const prompt = [
+            'Generate concise, personalized chat starter ideas based on the user context.',
+            'Return JSON only in this shape:',
+            '{',
+            '  "summary": [string, string, string],',
+            '  "code": [string, string, string],',
+            '  "design": [string, string, string],',
+            '  "research": [string, string, string]',
+            '}',
+            'Each string should be a short, 6-10 word prompt the user can tap to start a chat.',
+            'Do not include numbering or markdown.',
+        ].join('\n');
+        const result = await (0, ai_1.runAssistantChat)([{ role: 'user', content: prompt }], { context: contextString, systemPrompt: assistantSystemPrompt });
+        let parsed = null;
+        try {
+            parsed = JSON.parse(result.reply);
+        }
+        catch {
+            parsed = null;
+        }
+        const fallback = {
+            summary: ['Summarize my recent study notes', 'Create a one-page recap for me', 'Pull key insights from my topics'],
+            code: ['Help me debug this snippet', 'Explain this algorithm step by step', 'Refactor my code for clarity'],
+            design: ['Brainstorm a UI for my project', 'Give feedback on my layout idea', 'Create a quick wireframe outline'],
+            research: ['Find resources to learn this topic', 'Compare two tools for my needs', 'Draft a quick study plan'],
+        };
+        res.json(parsed || fallback);
+    }
+    catch (error) {
+        console.error('AI assistant suggestions error', error);
+        res.status(500).json({ error: 'Failed to generate suggestions', details: error?.message });
+    }
+});
+exports.default = aiRouter;

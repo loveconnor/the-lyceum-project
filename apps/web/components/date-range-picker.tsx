@@ -42,23 +42,32 @@ const dateFilterPresets = [
 ];
 
 export default function CalendarDateRangePicker({
-  className
-}: React.HTMLAttributes<HTMLDivElement>) {
+  className,
+  onDateChange,
+  initialDate
+}: React.HTMLAttributes<HTMLDivElement> & {
+  onDateChange?: (date: DateRange | undefined) => void;
+  initialDate?: DateRange | undefined;
+}) {
   const isMobile = useIsMobile();
   const today = new Date();
   const twentyEightDaysAgo = startOfDay(subDays(today, 27));
 
-  // Initialize with "Last 28 days" as default
-  const [date, setDate] = React.useState<DateRange | undefined>({
-    from: twentyEightDaysAgo,
-    to: endOfDay(today)
-  });
+  // Initialize with "Last 28 days" as default or use provided initialDate
+  const [date, setDate] = React.useState<DateRange | undefined>(
+    initialDate || {
+      from: twentyEightDaysAgo,
+      to: endOfDay(today)
+    }
+  );
   const [open, setOpen] = React.useState(false);
-  const [currentMonth, setCurrentMonth] = React.useState<Date>(new Date());
+  const [currentMonth, setCurrentMonth] = React.useState<Date>(initialDate?.from || new Date());
 
   const handleQuickSelect = (from: Date, to: Date) => {
-    setDate({ from, to });
+    const newDate = { from, to };
+    setDate(newDate);
     setCurrentMonth(from);
+    onDateChange?.(newDate);
   };
 
   const changeHandle = (type: string) => {
@@ -200,6 +209,7 @@ export default function CalendarDateRangePicker({
                 if (newDate?.from) {
                   setCurrentMonth(newDate.from);
                 }
+                onDateChange?.(newDate);
               }}
               onMonthChange={setCurrentMonth}
             />

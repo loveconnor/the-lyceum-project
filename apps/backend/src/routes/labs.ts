@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { getSupabaseAdmin } from "../supabaseAdmin";
 import { generateLab, getLabAIAssistance } from "../ai-lab-generator";
+import { updateDashboardActivity } from "../dashboardService";
 
 const router = Router();
 
@@ -283,50 +284,33 @@ router.post("/:id/progress", async (req: Request, res: Response) => {
     const { id } = req.params;
     const { step_id, step_data, completed } = req.body;
 
-    // Check if progress exists
-    const { data: existing } = await supabase
+    if (!step_id) {
+      return res.status(400).json({ error: "step_id is required" });
+    }
+
+    // Basic UUID validation for lab id
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(id)) {
+      return res.status(400).json({ error: "Invalid lab ID format" });
+    }
+
+    // Use upsert for better reliability and to avoid race conditions
+    const { error } = await supabase
       .from("lab_progress")
-      .select("*")
-      .eq("lab_id", id)
-      .eq("user_id", userId)
-      .eq("step_id", step_id)
-      .single();
+      .upsert({
+        lab_id: id,
+        user_id: userId,
+        step_id,
+        step_data,
+        completed,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'lab_id,user_id,step_id'
+      });
 
-    if (existing) {
-      // Update existing
-      const { error } = await supabase
-        .from("lab_progress")
-        .update({
-          step_data,
-          completed,
-          updated_at: new Date().toISOString()
-        })
-        .eq("user_id", userId)
-        .eq("lab_id", id)
-        .eq("step_id", step_id);
-
-      if (error) {
-        console.error("Error updating progress:", error);
-        return res.status(500).json({ error: "Failed to update progress" });
-      }
-    } else {
-      // Create new
-      const { error } = await supabase
-        .from("lab_progress")
-        .insert([
-          {
-            lab_id: id,
-            user_id: userId,
-            step_id,
-            step_data,
-            completed
-          }
-        ]);
-
-      if (error) {
-        console.error("Error creating progress:", error);
-        return res.status(500).json({ error: "Failed to create progress" });
-      }
+    if (error) {
+      console.error("Error saving progress:", error);
+      return res.status(500).json({ error: "Failed to save progress: " + error.message });
     }
 
     // Update lab status to 'in-progress' if this is the first progress entry
@@ -341,6 +325,23 @@ router.post("/:id/progress", async (req: Request, res: Response) => {
         .from("labs")
         .update({ status: "in-progress" })
         .eq("id", id);
+
+      // Update dashboard when lab is started
+      const { data: labInfo } = await supabase
+        .from("labs")
+        .select("topics, estimated_duration")
+        .eq("id", id)
+        .single();
+
+      try {
+        await updateDashboardActivity(userId, {
+          activityType: 'lab_started',
+          topics: labInfo?.topics || [],
+          minutes: 0,
+        });
+      } catch (dashError) {
+        console.error('Error updating dashboard:', dashError);
+      }
     }
 
     // Check if all steps are completed and update lab status to 'completed'
@@ -354,7 +355,7 @@ router.post("/:id/progress", async (req: Request, res: Response) => {
       // Get lab to check expected steps from template_data
       const { data: labData } = await supabase
         .from("labs")
-        .select("template_data")
+        .select("template_data, topics, estimated_duration, status")
         .eq("id", id)
         .single();
 
@@ -379,6 +380,19 @@ router.post("/:id/progress", async (req: Request, res: Response) => {
             completed_at: new Date().toISOString()
           })
           .eq("id", id);
+
+        // Update dashboard with lab completion
+        try {
+          await updateDashboardActivity(userId, {
+            activityType: 'lab_completed',
+            minutes: labData?.estimated_duration || 30,
+            topics: labData?.topics || [],
+            successRate: 100, // Assume 100% success for completed labs
+          });
+        } catch (dashError) {
+          console.error('Error updating dashboard:', dashError);
+          // Don't fail the request if dashboard update fails
+        }
       }
     }
 

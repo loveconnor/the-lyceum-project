@@ -22,6 +22,7 @@ type DashboardState = {
   learning_path: unknown[];
   recommended_topics: DashboardTopic[];
   stats: Record<string, any>;
+  activities?: Array<{ timestamp: string; type: 'lab' | 'path' }>;
   last_recomputed_at?: string;
   created_at?: string;
   updated_at?: string;
@@ -262,6 +263,102 @@ const ensureRecommendations = async (
   return updated as DashboardState;
 };
 
+const recalculateStatsFromLabs = async (userId: string): Promise<Partial<DashboardState>> => {
+  const supabase = getSupabaseAdmin();
+  
+  // Fetch all labs for this user
+  const { data: labs, error } = await supabase
+    .from('labs')
+    .select('id, status, topics, estimated_duration, completed_at, created_at')
+    .eq('user_id', userId);
+
+  if (error) {
+    console.error('Error fetching labs for stats:', error);
+    return {};
+  }
+
+  if (!labs || labs.length === 0) {
+    return {};
+  }
+
+  // Calculate statistics
+  const completedLabs = labs.filter(l => l.status === 'completed');
+  const inProgressLabs = labs.filter(l => l.status === 'in-progress');
+  const notStartedLabs = labs.filter(l => l.status === 'not-started');
+  
+  // Calculate success rate: (completed / (completed + in-progress)) * 100
+  // This shows the success rate of labs you've actually engaged with
+  const engagedLabs = completedLabs.length + inProgressLabs.length;
+  const successRate = engagedLabs > 0 
+    ? (completedLabs.length / engagedLabs) * 100 
+    : 0;
+  
+  let totalMinutes = 0;
+  const topicCounts: Record<string, number> = {};
+  const monthlyActivity: Record<string, { labs: number; paths: number }> = {};
+
+  // Process completed labs
+  completedLabs.forEach(lab => {
+    // Add minutes
+    if (lab.estimated_duration) {
+      totalMinutes += lab.estimated_duration;
+    }
+
+    // Count topics
+    if (lab.topics && Array.isArray(lab.topics)) {
+      lab.topics.forEach(topic => {
+        topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+      });
+    }
+
+    // Monthly activity with lab tracking
+    if (lab.completed_at) {
+      const monthKey = lab.completed_at.slice(0, 7);
+      if (!monthlyActivity[monthKey]) {
+        monthlyActivity[monthKey] = { labs: 0, paths: 0 };
+      }
+      monthlyActivity[monthKey].labs += 1;
+    }
+  });
+
+  // Convert topic counts to dashboard format
+  const topTopics: DashboardTopic[] = Object.entries(topicCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([name, count]) => ({
+      name,
+      category: 'Topic',
+      confidence: 'From activity',
+      progress: Math.min(100, count * 20), // 20% per completion, max 100%
+      count
+    }));
+
+  // Calculate activity counts
+  const activityCounts = {
+    lab_completed: completedLabs.length,
+    lab_started: inProgressLabs.length,
+  };
+
+  return {
+    total_courses: completedLabs.length,
+    total_activities: labs.length,
+    total_minutes: totalMinutes,
+    overall_success_rate: Math.round(successRate),
+    top_topics: topTopics,
+    most_active_month: computeMostActiveMonth(monthlyActivity),
+    stats: {
+      activity_counts: activityCounts,
+      monthly_activity: monthlyActivity,
+      success_samples: completedLabs.length,
+      total_students: 1, // Single user
+      passing_students: completedLabs.length > 0 ? 1 : 0,
+      // Frontend expects these fields
+      in_progress: inProgressLabs.length,
+      completed: completedLabs.length,
+    }
+  };
+};
+
 const router = Router();
 
 router.get('/', async (req, res) => {
@@ -271,9 +368,65 @@ router.get('/', async (req, res) => {
   }
 
   try {
-    const state = await getOrCreateState(userId);
+    let state = await getOrCreateState(userId);
+    
+    // Always recalculate from labs to ensure stats are up-to-date
+    const recalculated = await recalculateStatsFromLabs(userId);
+    
+    if (Object.keys(recalculated).length > 0) {
+      // Update dashboard state with recalculated values
+      const supabase = getSupabaseAdmin();
+      const { data: updated, error } = await supabase
+        .from('dashboard_state')
+        .update(recalculated)
+        .eq('user_id', userId)
+        .select()
+        .single();
+      
+      if (!error && updated) {
+        state = updated as DashboardState;
+      }
+    }
+    
+    // Fetch activities for the chart
+    const supabase = getSupabaseAdmin();
+    const activities: Array<{ timestamp: string; type: 'lab' | 'path' }> = [];
+    
+    // Get completed labs
+    const { data: labs } = await supabase
+      .from('labs')
+      .select('completed_at')
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .not('completed_at', 'is', null);
+    
+    if (labs) {
+      activities.push(...labs.map(l => ({ 
+        timestamp: l.completed_at!, 
+        type: 'lab' as const 
+      })));
+    }
+    
+    // Get completed paths
+    const { data: paths } = await supabase
+      .from('learning_paths')
+      .select('completed_at')
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .not('completed_at', 'is', null);
+    
+    if (paths) {
+      activities.push(...paths.map(p => ({ 
+        timestamp: p.completed_at!, 
+        type: 'path' as const 
+      })));
+    }
+    
+    // Sort by timestamp
+    activities.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    
     const withRecs = await ensureRecommendations(state);
-    res.json(withRecs);
+    res.json({ ...withRecs, activities });
   } catch (error: any) {
     console.error('Dashboard fetch error', error);
     res.status(500).json({ error: 'Failed to fetch dashboard state', details: error?.message });
@@ -380,6 +533,38 @@ router.post('/recommendations/regenerate', async (req, res) => {
   } catch (error: any) {
     console.error('Dashboard regenerate error', error);
     res.status(500).json({ error: 'Failed to regenerate recommendations', details: error?.message });
+  }
+});
+
+router.post('/recalculate', async (req, res) => {
+  const userId = (req as any).user?.id as string | undefined;
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const recalculated = await recalculateStatsFromLabs(userId);
+    
+    if (Object.keys(recalculated).length === 0) {
+      return res.json({ message: 'No labs found to calculate from' });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const { data: updated, error } = await supabase
+      .from('dashboard_state')
+      .update(recalculated)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({ message: 'Dashboard recalculated successfully', data: updated });
+  } catch (error: any) {
+    console.error('Dashboard recalculate error', error);
+    res.status(500).json({ error: 'Failed to recalculate dashboard', details: error?.message });
   }
 });
 

@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { CalendarCheck2Icon, CalendarClockIcon } from "lucide-react";
+import { CheckCircle2, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 export function ProgressStatisticsCard({
   totalActivity = 0,
@@ -11,6 +11,11 @@ export function ProgressStatisticsCard({
   inProgress?: number;
   completed?: number;
 }) {
+  // Calculate percentages for progress bars
+  const total = inProgress + completed;
+  const inProgressPercent = total > 0 ? (inProgress / total) * 100 : 0;
+  const completedPercent = total > 0 ? (completed / total) * 100 : 0;
+  
   return (
     <Card>
       <CardHeader>
@@ -18,41 +23,41 @@ export function ProgressStatisticsCard({
       </CardHeader>
       <CardContent className="flex flex-col space-y-6">
         <div className="space-y-4 text-center">
-          <div>Total Activity</div>
+          <div className="text-muted-foreground text-sm">Total Labs & Paths</div>
           <div className="font-display text-3xl lg:text-4xl">
-            {Math.round(totalActivity ?? 0)}%
+            {total}
           </div>
         </div>
         <div className="grid w-full gap-8 lg:grid-cols-2">
           <div className="flex items-center gap-2">
-            <Progress value={inProgress} indicatorColor="bg-orange-500" />
+            <Progress value={inProgressPercent} indicatorColor="bg-orange-500" />
             <div className="text-muted-foreground text-sm">
-              {Math.round(inProgress ?? 0)}%
+              {Math.round(inProgressPercent)}%
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Progress value={completed} indicatorColor="bg-green-500" />
+            <Progress value={completedPercent} indicatorColor="bg-green-500" />
             <div className="text-muted-foreground text-sm">
-              {Math.round(completed ?? 0)}%
+              {Math.round(completedPercent)}%
             </div>
           </div>
         </div>
         <div className="space-y-4">
           <div className="flex items-center justify-between rounded-md border p-4">
             <div className="flex items-center gap-4">
-              <div className="bg-primary flex size-10 items-center justify-center rounded-lg">
-                <CalendarClockIcon className="text-primary-foreground size-4" />
+              <div className="flex size-10 items-center justify-center rounded-lg bg-orange-100">
+                <Clock className="size-5 text-orange-600" />
               </div>
-              <span className="text-2xl font-semibold">{Math.round(inProgress ?? 0)}</span>
+              <span className="text-2xl font-semibold">{inProgress}</span>
             </div>
             <Badge className="h-auto bg-orange-500 px-4 py-2 text-sm">In Progress</Badge>
           </div>
           <div className="flex items-center justify-between rounded-md border p-4">
             <div className="flex items-center gap-4">
-              <div className="bg-primary flex size-10 items-center justify-center rounded-lg">
-                <CalendarCheck2Icon className="text-primary-foreground size-4" />
+              <div className="flex size-10 items-center justify-center rounded-lg bg-green-100">
+                <CheckCircle2 className="size-5 text-green-600" />
               </div>
-              <span className="text-2xl font-semibold">{Math.round(completed ?? 0)}</span>
+              <span className="text-2xl font-semibold">{completed}</span>
             </div>
             <Badge className="h-auto bg-green-500 px-4 py-2 text-sm">Completed</Badge>
           </div>
