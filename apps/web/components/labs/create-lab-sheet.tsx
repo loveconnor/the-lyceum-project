@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles, TrendingUp, Target, ChevronRight, Paperclip, X } from "lucide-react";
+import { Sparkles, TrendingUp, Target, ChevronRight, Paperclip, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -35,11 +35,15 @@ interface CreateLabSheetProps {
 }
 
 const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTodoId }) => {
-  const { addLab, updateLab, labs } = useLabStore();
+  console.log("🔵 [CREATE LAB SHEET] Component rendered, isOpen:", isOpen);
+  const { addLab, updateLab, labs, generateLab, loading } = useLabStore();
   const [selectedRecommendation, setSelectedRecommendation] = React.useState<string | null>(null);
   const [contextFiles, setContextFiles] = React.useState<File[]>([]);
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  
+  console.log("🔵 [CREATE LAB SHEET] State - isGenerating:", isGenerating, "loading:", loading);
 
-  // Placeholder for AI-generated recommendations based on user's learning context
+  // AI-generated recommendations based on user's learning context
   const recommendedLabs = [
     {
       id: "rec-1",
@@ -103,61 +107,77 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
     }
   }, [editTodoId, labs, isOpen, form]);
 
-  const onSubmit = (data: LabFormValues) => {
-    if (selectedRecommendation) {
-      // Use recommended lab data
-      const rec = recommendedLabs.find(r => r.id === selectedRecommendation);
-      if (rec) {
-        const labData = {
-          title: rec.title,
-          description: rec.description,
-          assignedTo: [],
-          status: EnumLabStatus.Pending,
-          priority: "medium" as const,
-          dueDate: null,
-          reminderDate: null,
-          starred: false // Model determines this
-        };
-        
-        if (editTodoId) {
-          updateLab(editTodoId, labData);
-          toast.success("Your lab has been updated successfully.");
-        } else {
-          addLab(labData);
-          toast.success("Lab created! The system has structured it for optimal learning.");
+  const onSubmit = async (data: LabFormValues) => {
+    console.log("🚀 [CREATE LAB] onSubmit called with data:", data);
+    try {
+      console.log("🚀 [CREATE LAB] Starting lab generation");
+      setIsGenerating(true);
+      console.log("🚀 [CREATE LAB] isGenerating set to true");
+      let learningGoal = "";
+      let contextText = "";
+
+      // If a recommendation is selected, use its data
+      if (selectedRecommendation) {
+        const rec = recommendedLabs.find(r => r.id === selectedRecommendation);
+        if (rec) {
+          learningGoal = `${rec.title}: ${rec.description}`;
+          contextText = `Difficulty: ${rec.difficulty}\nEstimated time: ${rec.estimatedTime}\nType: ${rec.type}\nReason: ${rec.reason}`;
+          console.log("📋 [CREATE LAB] Using recommended lab:", rec.title);
+        }
+      } else {
+        // Use custom description
+        if (!data.description) {
+          console.warn("⚠️ [CREATE LAB] No description provided");
+          toast.error("Please describe what you want to learn");
+          setIsGenerating(false);
+          return;
+        }
+        learningGoal = data.description;
+        console.log("✏️ [CREATE LAB] Using custom description");
+
+        // Read context files if any
+        if (contextFiles.length > 0) {
+          console.log(`📎 [CREATE LAB] Reading ${contextFiles.length} context file(s)`);
+          const fileContents = await Promise.all(
+            contextFiles.map(file => {
+              return new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target?.result as string || "");
+                reader.readAsText(file);
+              });
+            })
+          );
+          contextText = fileContents.join("\n\n---\n\n");
+          console.log(`✅ [CREATE LAB] Files read successfully`);
         }
       }
-    } else {
-      // Generate title from learning goal using model
-      // In production, this would call an API endpoint to generate the title
-      const generatedTitle = data.description 
-        ? `Lab: ${data.description.split('.')[0].substring(0, 50)}...`
-        : "Custom Lab";
-      
-      const labData = {
-        title: generatedTitle,
-        description: data.description,
-        assignedTo: [],
-        status: EnumLabStatus.Pending,
-        priority: "medium" as const,
-        dueDate: null,
-        reminderDate: null,
-        starred: false // Model determines this
-      };
-      
-      if (editTodoId) {
-        updateLab(editTodoId, labData);
-        toast.success("Your lab has been updated successfully.");
-      } else {
-        addLab(labData);
-        toast.success("Lab created! The system has structured it for optimal learning.");
-      }
-    }
 
-    form.reset();
-    setSelectedRecommendation(null);
-    setContextFiles([]);
-    onClose();
+      console.log("🎯 [CREATE LAB] Learning goal:", learningGoal);
+      console.log("📝 [CREATE LAB] Context length:", contextText.length, "characters");
+      console.log("⏳ [CREATE LAB] Calling generateLab API...");
+
+      // Generate lab using AI
+      const newLab = await generateLab(learningGoal, contextText || undefined);
+      
+      console.log("✨ [CREATE LAB] Lab generated successfully:", newLab);
+      
+      toast.success("Lab generated! Ready to start learning.");
+      console.log("🎉 [CREATE LAB] Lab creation complete - closing dialog");
+      
+      form.reset();
+      setSelectedRecommendation(null);
+      setContextFiles([]);
+      onClose();
+    } catch (error) {
+      console.error("❌ [CREATE LAB] Error generating lab:", error);
+      console.error("❌ [CREATE LAB] Error details:", {
+        message: (error as Error).message,
+        stack: (error as Error).stack
+      });
+      toast.error(`Failed to generate lab: ${(error as Error).message}`);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,7 +213,9 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
         </SheetHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 p-4 pt-0">
+          <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
+            console.log("❌ [FORM] Validation errors:", errors);
+          })} className="space-y-6 p-4 pt-0">
             {/* Recommended Labs Section */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
@@ -264,7 +286,6 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
               </div>
             </div>
 
-            {/* Custom Lab Creation */}
             <FormField
               control={form.control}
               name="description"
@@ -273,7 +294,7 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
                   <FormLabel>What do you want to learn?</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Describe what you want to build or learn. The system will generate an appropriate lab structure and title for you."
+                      placeholder="Describe what you want to build or learn. The AI will generate an appropriate lab structure and title for you."
                       rows={4}
                       {...field}
                       value={field.value || ""}
@@ -283,7 +304,7 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
                   <FormMessage />
                   {!selectedRecommendation && (
                     <p className="text-xs text-muted-foreground">
-                      The lab title, difficulty, and structure will be automatically determined based on your input.
+                      The lab title, difficulty, template type, and structure will be automatically generated by AI based on your input.
                     </p>
                   )}
                 </FormItem>
@@ -354,11 +375,24 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
 
             <Button 
               className="w-full" 
+              onClick={() => {
+                console.log("🔴 [BUTTON] Clicked! selectedRec:", selectedRecommendation, "description:", form.watch("description"));
+                console.log("🔴 [BUTTON] Disabled?", (!selectedRecommendation && !form.watch("description")) || isGenerating || loading);
+              }}
               type="submit"
-              disabled={!selectedRecommendation && !form.watch("description")}
+              disabled={(!selectedRecommendation && !form.watch("description")) || isGenerating || loading}
             >
-              <Sparkles className="h-4 w-4" />
-              {selectedRecommendation ? "Start This Lab" : "Generate Lab"}
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating Lab...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  {selectedRecommendation ? "Generate This Lab" : "Generate Lab"}
+                </>
+              )}
             </Button>
           </form>
         </Form>

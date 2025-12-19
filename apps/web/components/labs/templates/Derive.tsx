@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { DeriveLabData } from "@/types/lab-templates";
 import { 
   ResizableHandle, 
   ResizablePanel, 
@@ -42,17 +43,6 @@ interface DerivationStep {
   justification: string;
 }
 
-const CALCULUS_RULES = [
-  { id: "product", name: "Product Rule", formula: "(uv)' = u'v + uv'" },
-  { id: "chain", name: "Chain Rule", formula: "(f(g(x)))' = f'(g(x)) · g'(x)" },
-  { id: "power", name: "Power Rule", formula: "d/dx(x^n) = nx^(n-1)" },
-  { id: "sum", name: "Sum Rule", formula: "(f + g)' = f' + g'" },
-  { id: "constant", name: "Constant Multiple", formula: "(cf)' = cf'" },
-  { id: "trig-sin", name: "Sin Derivative", formula: "d/dx(sin x) = cos x" },
-  { id: "trig-cos", name: "Cos Derivative", formula: "d/dx(cos x) = -sin x" },
-  { id: "quotient", name: "Quotient Rule", formula: "(u/v)' = (u'v - uv')/v²" },
-];
-
 const INITIAL_STEPS: Step[] = [
   { id: "restate", title: "Restate problem", status: "current" },
   { id: "method", title: "Choose method", status: "pending" },
@@ -62,14 +52,15 @@ const INITIAL_STEPS: Step[] = [
 ];
 
 interface DeriveTemplateProps {
-  labTitle?: string;
+  data: DeriveLabData;
+  labId?: string;
 }
 
-export default function DeriveTemplate({ labTitle = "Product Rule Derivative" }: DeriveTemplateProps) {
+export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
+  const { labTitle, description, problemStatement, availableRules, initialStep } = data;
   const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS);
-  const [problemStatement] = useState("Find the derivative of $f(x) = x^2 \\sin(x)$ using the product rule.");
   const [derivationSteps, setDerivationSteps] = useState<DerivationStep[]>([
-    { id: "1", expression: "f(x) = x^2 sin(x)", rule: "", justification: "Given function" }
+    { id: "1", expression: initialStep?.expression || "", rule: "", justification: initialStep?.justification || "Given" }
   ]);
 
   const addStep = () => {
@@ -78,7 +69,7 @@ export default function DeriveTemplate({ labTitle = "Product Rule Derivative" }:
   };
   
   const applyRule = (stepId: string, ruleId: string) => {
-    const rule = CALCULUS_RULES.find(r => r.id === ruleId);
+    const rule = availableRules.find(r => r.id === ruleId);
     if (rule) {
       updateStep(stepId, "rule", rule.name);
       if (!derivationSteps.find(s => s.id === stepId)?.justification) {
@@ -125,7 +116,7 @@ export default function DeriveTemplate({ labTitle = "Product Rule Derivative" }:
                 <Calculator className="w-5 h-5 text-primary" />
                 {labTitle}
               </h2>
-              <p className="text-xs text-muted-foreground mt-1">Formal reasoning and mathematical derivation.</p>
+              <p className="text-xs text-muted-foreground mt-1">{description}</p>
             </div>
             <ScrollArea className="flex-1 h-0">
               <div className="p-4 space-y-2">
@@ -236,7 +227,7 @@ export default function DeriveTemplate({ labTitle = "Product Rule Derivative" }:
                             }}
                           >
                             <option value="">Select rule...</option>
-                            {CALCULUS_RULES.map(rule => (
+                            {availableRules.map(rule => (
                               <option key={rule.id} value={rule.name}>{rule.name}</option>
                             ))}
                           </select>
@@ -290,7 +281,7 @@ export default function DeriveTemplate({ labTitle = "Product Rule Derivative" }:
                   </div>
                   <div className="space-y-2">
                     <p className="text-[10px] text-muted-foreground italic">Click a rule to learn more</p>
-                    {CALCULUS_RULES.slice(0, 5).map((rule) => (
+                    {availableRules.slice(0, 5).map((rule) => (
                       <button
                         key={rule.id}
                         className="w-full text-left p-3 rounded-xl border bg-background hover:bg-primary/5 hover:border-primary/30 transition-all duration-200 group"

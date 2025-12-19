@@ -1,53 +1,41 @@
-import { EnumLabPriority, EnumLabStatus } from "./enum";
+import { UnifiedLabData } from "@/types/lab-templates";
 
-export type LabPriority = `${EnumLabPriority}`;
-export type LabStatus = `${EnumLabStatus}`;
+export type LabStatus = "not-started" | "in-progress" | "completed";
 export type FilterTab = "all" | LabStatus;
 export type ViewMode = "list" | "grid";
-export type Difficulty = "intro" | "intermediate" | "advanced";
-export type LabType = "concept" | "practice" | "exploration";
+export type Difficulty = "beginner" | "intermediate" | "advanced";
+export type LabTemplateType = "analyze" | "build" | "derive" | "explain" | "explore" | "revise";
 
 export interface Comment {
   id: string;
   text: string;
-  createdAt: Date;
+  created_at: string;
 }
 
-export interface LabFile {
+export interface LabProgress {
   id: string;
-  name: string;
-  url: string;
-  type: string;
-  size: number;
-  uploadedAt: Date;
-}
-
-export interface LabSection {
-  id: string;
-  title: string;
+  step_id: string;
+  step_data?: any;
   completed: boolean;
+  updated_at: string;
 }
 
 export interface Lab {
   id: string;
+  user_id: string;
   title: string;
   description?: string;
-  assignedTo: string[];
-  comments: Comment[];
+  template_type: LabTemplateType;
+  template_data: UnifiedLabData;
   status: LabStatus;
-  priority: LabPriority;
-  createdAt: Date;
-  dueDate?: Date | null;
-  reminderDate?: Date | null;
-  files?: LabFile[];
-  subTasks?: LabSection[];
-  starred: boolean;
   difficulty?: Difficulty;
-  labType?: LabType;
-  estimatedTime?: string;
-}
-
-export interface LabPosition {
-  id: string;
-  position: number;
+  estimated_duration?: number; // in minutes
+  topics?: string[];
+  starred: boolean;
+  created_at: string;
+  updated_at: string;
+  due_date?: string | null;
+  completed_at?: string | null;
+  lab_comments?: Comment[];
+  lab_progress?: LabProgress[];
 }

@@ -1,0 +1,83 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { fetchLabById } from "@/lib/api/labs";
+import { Lab } from "@/app/(main)/labs/types";
+import LabViewer from "@/components/labs/lab-viewer";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Loader2 } from "lucide-react";
+
+export default function LabPage() {
+  const params = useParams();
+  const router = useRouter();
+  const labId = params.id as string;
+  
+  const [lab, setLab] = useState<Lab | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!labId) return;
+    
+    const loadLab = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchLabById(labId);
+        setLab(data);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadLab();
+  }, [labId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[var(--content-full-height)]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error || !lab) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[var(--content-full-height)] gap-4">
+        <p className="text-muted-foreground">
+          {error || "Lab not found"}
+        </p>
+        <Button onClick={() => router.push("/labs")} variant="outline">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Labs
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-[var(--content-full-height)] flex flex-col">
+      <div className="p-4 border-b flex items-center gap-4">
+        <Button 
+          onClick={() => router.push("/labs")} 
+          variant="ghost" 
+          size="sm"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </Button>
+        <div className="flex-1">
+          <h1 className="text-xl font-semibold">{lab.title}</h1>
+          {lab.description && (
+            <p className="text-sm text-muted-foreground">{lab.description}</p>
+          )}
+        </div>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <LabViewer lab={lab} />
+      </div>
+    </div>
+  );
+}

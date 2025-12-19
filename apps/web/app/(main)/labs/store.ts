@@ -1,14 +1,34 @@
 import { create } from "zustand";
-import { v4 as uuidv4 } from "uuid";
 import {
   Lab,
   FilterTab,
   ViewMode,
-  LabFile,
-  LabPriority,
   Difficulty,
-  LabType
+  LabTemplateType,
+  LabStatus
 } from "./types";
+import {
+  fetchLabs,
+  createLab as apiCreateLab,
+  updateLab as apiUpdateLab,
+  deleteLab as apiDeleteLab,
+  addLabComment,
+  deleteLabComment,
+  updateLabProgress,
+  generateLab as apiGenerateLab
+} from "@/lib/api/labs";
+import { UnifiedLabData } from "@/types/lab-templates";
+
+interface CreateLabPayload {
+  title: string;
+  description?: string;
+  template_type: LabTemplateType;
+  template_data: UnifiedLabData;
+  difficulty?: Difficulty;
+  estimated_duration?: number;
+  topics?: string[];
+  due_date?: string;
+}
 
 interface LabStore {
   labs: Lab[];
@@ -18,43 +38,34 @@ interface LabStore {
   isLabSheetOpen: boolean;
   viewMode: ViewMode;
   filterDifficulty: Difficulty | null;
-  filterLabType: LabType | null;
+  filterLabType: LabTemplateType | null;
   filterEstimatedTime: string | null;
-  showCoreLabsOnly: boolean;
   searchQuery: string;
+  loading: boolean;
+  error: string | null;
 
   // Actions
-  setLabs: (labs: Lab[]) => void;
-  addLab: (
-    lab: Omit<
-      Lab,
-      "id" | "createdAt" | "comments" | "files" | "subTasks" | "starred" | "reminderDate"
-    >
-  ) => void;
-  updateLab: (id: string, updatedLab: Partial<Omit<Lab, "id">>) => void;
-  deleteLab: (id: string) => void;
+  fetchLabs: () => Promise<void>;
+  addLab: (lab: CreateLabPayload) => Promise<void>;
+  generateLab: (learningGoal: string, context?: string) => Promise<Lab>;
+  updateLab: (id: string, updatedLab: Partial<Lab>) => Promise<void>;
+  deleteLab: (id: string) => Promise<void>;
   setSelectedLabId: (id: string | null) => void;
   setActiveTab: (tab: FilterTab) => void;
   setAddDialogOpen: (isOpen: boolean) => void;
   setLabSheetOpen: (isOpen: boolean) => void;
-  addComment: (labId: string, text: string) => void;
-  deleteComment: (labId: string, commentId: string) => void;
-  reorderLabs: (labPositions: { id: string; position: number }[]) => void;
+  addComment: (labId: string, text: string) => Promise<void>;
+  deleteComment: (labId: string, commentId: string) => Promise<void>;
   setViewMode: (mode: ViewMode) => void;
   setFilterDifficulty: (difficulty: Difficulty | null) => void;
-  setFilterLabType: (labType: LabType | null) => void;
+  setFilterLabType: (labType: LabTemplateType | null) => void;
   setFilterEstimatedTime: (time: string | null) => void;
-  toggleShowCoreLabsOnly: () => void;
   setSearchQuery: (query: string) => void;
-  addFile: (labId: string, file: Omit<LabFile, "id">) => void;
-  removeFile: (labId: string, fileId: string) => void;
-  addLabSection: (labId: string, title: string) => void;
-  updateLabSection: (labId: string, sectionId: string, completed: boolean) => void;
-  removeLabSection: (labId: string, sectionId: string) => void;
-  toggleStarred: (labId: string) => void;
+  updateProgress: (labId: string, stepId: string, stepData?: any, completed?: boolean) => Promise<void>;
+  toggleStarred: (labId: string) => Promise<void>;
 }
 
-export const useLabStore = create<LabStore>((set) => ({
+export const useLabStore = create<LabStore>((set, get) => ({
   labs: [],
   selectedLabId: null,
   activeTab: "all",
@@ -64,38 +75,76 @@ export const useLabStore = create<LabStore>((set) => ({
   filterDifficulty: null,
   filterLabType: null,
   filterEstimatedTime: null,
-  showCoreLabsOnly: false,
   searchQuery: "",
+  loading: false,
+  error: null,
 
-  setLabs: (labs) =>
-    set(() => ({
-      labs: labs
-    })),
-  addLab: (lab) =>
-    set((state) => ({
-      labs: [
-        ...state.labs,
-        {
-          ...lab,
-          id: uuidv4(),
-          createdAt: new Date(),
-          comments: [],
-          files: [],
-          subTasks: [],
-          starred: false
-        }
-      ]
-    })),
+  fetchLabs: async () => {
+    set({ loading: true, error: null });
+    try {
+      const labs = await fetchLabs();
+      set({ labs, loading: false });
+    } catch (error) {
+      set({ error: (error as Error).message, loading: false });
+    }
+  },
 
-  updateLab: (id, updatedLab) =>
-    set((state) => ({
-      labs: state.labs.map((lab) => (lab.id === id ? { ...lab, ...updatedLab } : lab))
-    })),
+  addLab: async (labPayload) => {
+    set({ loading: true, error: null });
+    try {
+      const newLab = await apiCreateLab(labPayload);
+      set((state) => ({
+        labs: [...state.labs, newLab],
+        loading: false
+      }));
+    } catch (error) {
+      set({ error: (error as Error).message, loading: false });
+      throw error;
+    }
+  },
 
-  deleteLab: (id) =>
-    set((state) => ({
-      labs: state.labs.filter((lab) => lab.id !== id)
-    })),
+  generateLab: async (learningGoal, context) => {
+    set({ loading: true, error: null });
+    try {
+      const newLab = await apiGenerateLab({ learningGoal, context });
+      set((state) => ({
+        labs: [...state.labs, newLab],
+        loading: false
+      }));
+      return newLab;
+    } catch (error) {
+      set({ error: (error as Error).message, loading: false });
+      throw error;
+    }
+  },
+
+  updateLab: async (id, updatedLab) => {
+    set({ loading: true, error: null });
+    try {
+      const updated = await apiUpdateLab(id, updatedLab);
+      set((state) => ({
+        labs: state.labs.map((lab) => (lab.id === id ? updated : lab)),
+        loading: false
+      }));
+    } catch (error) {
+      set({ error: (error as Error).message, loading: false });
+      throw error;
+    }
+  },
+
+  deleteLab: async (id) => {
+    set({ loading: true, error: null });
+    try {
+      await apiDeleteLab(id);
+      set((state) => ({
+        labs: state.labs.filter((lab) => lab.id !== id),
+        loading: false
+      }));
+    } catch (error) {
+      set({ error: (error as Error).message, loading: false });
+      throw error;
+    }
+  },
 
   setSelectedLabId: (id) =>
     set(() => ({
@@ -117,51 +166,31 @@ export const useLabStore = create<LabStore>((set) => ({
       isLabSheetOpen: isOpen
     })),
 
-  addComment: (labId, text) =>
-    set((state) => ({
-      labs: state.labs.map((lab) =>
-        lab.id === labId
-          ? {
-              ...lab,
-              comments: [
-                ...lab.comments,
-                {
-                  id: uuidv4(),
-                  text,
-                  createdAt: new Date()
-                }
-              ]
-            }
-          : lab
-      )
-    })),
+  addComment: async (labId, text) => {
+    set({ loading: true, error: null });
+    try {
+      await addLabComment(labId, { text });
+      // Refetch the specific lab to get the updated comments
+      const labs = await fetchLabs();
+      set({ labs, loading: false });
+    } catch (error) {
+      set({ error: (error as Error).message, loading: false });
+      throw error;
+    }
+  },
 
-  deleteComment: (labId, commentId) =>
-    set((state) => ({
-      labs: state.labs.map((lab) =>
-        lab.id === labId
-          ? {
-              ...lab,
-              comments: lab.comments.filter((comment) => comment.id !== commentId)
-            }
-          : lab
-      )
-    })),
-
-  reorderLabs: (labPositions) =>
-    set((state) => {
-      const reorderedLabs = [...state.labs];
-
-      labPositions.forEach(({ id, position }) => {
-        const labIndex = reorderedLabs.findIndex((lab) => lab.id === id);
-        if (labIndex !== -1) {
-          const [lab] = reorderedLabs.splice(labIndex, 1);
-          reorderedLabs.splice(position, 0, lab);
-        }
-      });
-
-      return { labs: reorderedLabs };
-    }),
+  deleteComment: async (labId, commentId) => {
+    set({ loading: true, error: null });
+    try {
+      await deleteLabComment(labId, commentId);
+      // Refetch the specific lab to get the updated comments
+      const labs = await fetchLabs();
+      set({ labs, loading: false });
+    } catch (error) {
+      set({ error: (error as Error).message, loading: false });
+      throw error;
+    }
+  },
 
   setViewMode: (mode) =>
     set(() => ({
@@ -188,90 +217,35 @@ export const useLabStore = create<LabStore>((set) => ({
       searchQuery: query
     })),
 
-  toggleShowCoreLabsOnly: () =>
-    set((state) => ({
-      showCoreLabsOnly: !state.showCoreLabsOnly
-    })),
+  updateProgress: async (labId, stepId, stepData, completed = false) => {
+    set({ loading: true, error: null });
+    try {
+      await updateLabProgress(labId, { step_id: stepId, step_data: stepData, completed });
+      // Refetch labs to get updated progress
+      const labs = await fetchLabs();
+      set({ labs, loading: false });
+    } catch (error) {
+      set({ error: (error as Error).message, loading: false });
+      throw error;
+    }
+  },
 
-  addFile: (labId, file) =>
-    set((state) => ({
-      labs: state.labs.map((lab) =>
-        lab.id === labId
-          ? {
-              ...lab,
-              files: [
-                ...(lab.files || []),
-                {
-                  ...file,
-                  id: uuidv4()
-                }
-              ]
-            }
-          : lab
-      )
-    })),
-
-  removeFile: (labId, fileId) =>
-    set((state) => ({
-      labs: state.labs.map((lab) =>
-        lab.id === labId
-          ? {
-              ...lab,
-              files: (lab.files || []).filter((file) => file.id !== fileId)
-            }
-          : lab
-      )
-    })),
-
-  addLabSection: (labId, title) =>
-    set((state) => ({
-      labs: state.labs.map((lab) =>
-        lab.id === labId
-          ? {
-              ...lab,
-              subTasks: [
-                ...(lab.subTasks || []),
-                {
-                  id: uuidv4(),
-                  title,
-                  completed: false
-                }
-              ]
-            }
-          : lab
-      )
-    })),
-
-  updateLabSection: (labId, sectionId, completed) =>
-    set((state) => ({
-      labs: state.labs.map((lab) =>
-        lab.id === labId
-          ? {
-              ...lab,
-              subTasks: (lab.subTasks || []).map((section) =>
-                section.id === sectionId ? { ...section, completed } : section
-              )
-            }
-          : lab
-      )
-    })),
-
-  removeLabSection: (labId, sectionId) =>
-    set((state) => ({
-      labs: state.labs.map((lab) =>
-        lab.id === labId
-          ? {
-              ...lab,
-              subTasks: (lab.subTasks || []).filter((section) => section.id !== sectionId)
-            }
-          : lab
-      )
-    })),
-
-  toggleStarred: (labId) =>
-    set((state) => ({
-      labs: state.labs.map((lab) =>
-        lab.id === labId ? { ...lab, starred: !lab.starred } : lab
-      )
-    }))
+  toggleStarred: async (labId) => {
+    const lab = get().labs.find((l) => l.id === labId);
+    if (!lab) return;
+    
+    set({ loading: true, error: null });
+    try {
+      await apiUpdateLab(labId, { starred: !lab.starred });
+      set((state) => ({
+        labs: state.labs.map((l) =>
+          l.id === labId ? { ...l, starred: !l.starred } : l
+        ),
+        loading: false
+      }));
+    } catch (error) {
+      set({ error: (error as Error).message, loading: false });
+      throw error;
+    }
+  }
 }));

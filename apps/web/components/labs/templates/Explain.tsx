@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { ExplainLabData } from "@/types/lab-templates";
 import { 
   ResizableHandle, 
   ResizablePanel, 
@@ -23,68 +24,170 @@ import {
   Check,
   Eye,
   Brain,
-  AlertTriangle
+  AlertTriangle,
+  Loader2,
+  ThumbsUp,
+  ThumbsDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
+import { useLabAI } from "@/hooks/use-lab-ai";
+import { toast } from "sonner";
 
 interface Step {
   id: string;
   title: string;
   status: "pending" | "current" | "completed";
+  instruction?: string;
+  keyQuestions?: string[];
+  prompt?: string;
 }
-
-const INITIAL_STEPS: Step[] = [
-  { id: "read", title: "Read / inspect", status: "current" },
-  { id: "predict", title: "Predict behavior", status: "pending" },
-  { id: "explain", title: "Explain reasoning", status: "pending" },
-  { id: "edge-cases", title: "Address edge cases", status: "pending" },
-];
 
 interface ExplainTemplateProps {
-  labTitle?: string;
+  data: ExplainLabData;
+  labId?: string;
 }
 
-export default function ExplainTemplate({ labTitle = "Two Sum" }: ExplainTemplateProps) {
-  const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS);
-  const [artifactCode] = useState(`/**
- * Analyze this function and explain its behavior.
- * 
- * @param {number[]} nums
- * @param {number} target
- * @return {number[]}
- */
-function twoSum(nums, target) {
-  const map = new Map();
+export default function ExplainTemplate({ data, labId }: ExplainTemplateProps) {
+  const { labTitle, description, artifact, steps: aiSteps } = data;
+  const artifactCode = artifact?.code || "// No code provided";
+  const language = artifact?.language || "javascript";
   
-  for (let i = 0; i < nums.length; i++) {
-    const complement = target - nums[i];
-    
-    if (map.has(complement)) {
-      return [map.get(complement), i];
-    }
-    
-    map.set(nums[i], i);
-  }
+  // Initialize steps from AI-generated data or use defaults
+  const initialSteps: Step[] = aiSteps && aiSteps.length > 0
+    ? aiSteps.map((step: any, idx: number) => ({
+        id: step.id || `step-${idx}`,
+        title: step.title || `Step ${idx + 1}`,
+        status: idx === 0 ? "current" as const : "pending" as const,
+        instruction: step.instruction,
+        keyQuestions: step.keyQuestions,
+        prompt: step.prompt
+      }))
+    : [
+        { id: "read", title: "Read / inspect", status: "current" },
+        { id: "predict", title: "Predict behavior", status: "pending" },
+        { id: "explain", title: "Explain reasoning", status: "pending" },
+        { id: "edge-cases", title: "Address edge cases", status: "pending" },
+      ];
   
-  return [];
-}
+  const [steps, setSteps] = useState<Step[]>(initialSteps);
+  const [feedback, setFeedback] = useState<{ text: string; approved: boolean } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const { getAssistance, loading: aiLoading } = labId ? useLabAI(labId) : { getAssistance: null, loading: false };
 
-// Consider: What happens if there are multiple solutions?
-// Consider: What is the time and space complexity?
-`);
-
-  const [explanations, setExplanations] = useState({
-    prediction: "",
-    reasoning: "",
-    edgeCases: "",
-    spaceComplexity: ""
-  });
+  // Dynamic explanations object based on step IDs
+  const [explanations, setExplanations] = useState<Record<string, string>>({});
   
   const currentStepIndex = steps.findIndex(s => s.status === "current");
-  const isPredictionComplete = explanations.prediction.trim().length > 0;
+  const currentStep = steps[currentStepIndex];
+  const currentExplanation = currentStep ? explanations[currentStep.id] || "" : "";
 
-  const completeStep = (id: string) => {
+  // Auto-save explanations when they change (debounced)
+  React.useEffect(() => {
+    if (!labId || isLoading) return;
+    
+    const currentStep = steps.find(s => s.status === "current");
+    if (!currentStep) return;
+
+    const timer = setTimeout(() => {
+      saveProgress(currentStep.id, false);
+    }, 2000); // Auto-save after 2 seconds of no typing
+
+    return () => clearTimeout(timer);
+  }, [explanations, labId, isLoading]);
+
+  // Load progress when component mounts
+  React.useEffect(() => {
+    if (!labId) {
+      setIsLoading(false);
+      return;
+    }
+
+    const loadProgress = async () => {
+      try {
+        const { fetchLabProgress } = await import("@/lib/api/labs");
+        const progress = await fetchLabProgress(labId);
+        
+        if (progress && progress.length > 0) {
+          // Restore explanations from saved progress
+          const savedExplanations: any = {};
+          progress.forEach((p: any) => {
+            if (p.step_data) {
+              Object.assign(savedExplanations, p.step_data);
+            }
+          });
+          if (Object.keys(savedExplanations).length > 0) {
+            setExplanations(prev => ({ ...prev, ...savedExplanations }));
+          }
+
+          // Restore step completion status
+          const completedStepIds = progress.filter((p: any) => p.completed).map((p: any) => p.step_id);
+          if (completedStepIds.length > 0) {
+            setSteps(prev => {
+              const newSteps = prev.map(step => {
+                if (completedStepIds.includes(step.id)) {
+                  return { ...step, status: "completed" as const };
+                }
+                return step;
+              });
+              
+              // Set first non-completed step as current
+              const firstIncomplete = newSteps.findIndex(s => s.status !== "completed");
+              if (firstIncomplete !== -1) {
+                newSteps[firstIncomplete] = { ...newSteps[firstIncomplete], status: "current" as const };
+              }
+              
+              return newSteps;
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load progress:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProgress();
+  }, [labId]);
+
+  const goToStep = (id: string) => {
+    setSteps(prev => {
+      const newSteps = prev.map((step) => {
+        if (step.id === id) {
+          return { ...step, status: "current" as const };
+        }
+        // Keep completed steps as completed, non-completed as pending
+        if (step.status === "completed") {
+          return step;
+        }
+        return { ...step, status: "pending" as const };
+      });
+      return newSteps;
+    });
+    setFeedback(null);
+  };
+
+  const saveProgress = async (stepId: string, completed: boolean = false) => {
+    if (!labId) return;
+    
+    try {
+      const { updateLabProgress } = await import("@/lib/api/labs");
+      await updateLabProgress(labId, {
+        step_id: stepId,
+        step_data: explanations,
+        completed
+      });
+    } catch (error) {
+      console.error("Failed to save progress:", error);
+    }
+  };
+
+  const completeStep = async (id: string) => {
+    // Save progress before completing
+    await saveProgress(id, true);
+    
     setSteps(prev => {
       const index = prev.findIndex(s => s.id === id);
       if (index === -1) return prev;
@@ -100,6 +203,63 @@ function twoSum(nums, target) {
     });
   };
 
+  const handleSubmit = async () => {
+    const currentStep = steps.find(s => s.status === "current");
+    if (!currentStep || !getAssistance) return;
+
+    const userResponse = currentExplanation;
+    const stepName = currentStep.title;
+
+    if (!userResponse.trim()) {
+      toast.error("Please provide an answer before submitting");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const prompt = `You are a coding instructor reviewing a student's ${stepName.toLowerCase()} for this code:
+
+\`\`\`${language}
+${artifactCode}
+\`\`\`
+
+Step instruction: ${currentStep.instruction}
+
+Student's response:
+${userResponse}
+
+Evaluate if their response demonstrates understanding. Respond ONLY in this JSON format:
+{
+  "approved": true/false,
+  "feedback": "Brief constructive feedback (2-3 sentences)"
+}
+
+Approve if they show reasonable understanding. If not approved, explain what's missing.`;
+
+      const response = await getAssistance(prompt, { step: currentStep.id, code: artifactCode });
+      
+      try {
+        const parsed = JSON.parse(response);
+        setFeedback({ text: parsed.feedback, approved: parsed.approved });
+        
+        if (parsed.approved) {
+          setTimeout(async () => {
+            await completeStep(currentStep.id);
+            setFeedback(null);
+          }, 2000);
+        }
+      } catch {
+        toast.error("Failed to parse AI response");
+      }
+    } catch (error) {
+      toast.error("Failed to get feedback: " + (error as Error).message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground rounded-xl border shadow-sm">
       <ResizablePanelGroup direction="horizontal" className="w-full">
@@ -107,59 +267,24 @@ function twoSum(nums, target) {
         {/* Left Panel: Step List */}
         <ResizablePanel defaultSize={20} minSize={15} maxSize={25} className="border-r bg-muted/5">
           <div className="flex flex-col h-full">
-            <div className="p-6 border-b">
-              <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-primary" />
-                {labTitle}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">Reason about the artifact to complete the lab.</p>
-            </div>
-            <ScrollArea className="flex-1 h-0">
+            <ScrollArea className="flex-1">
               <div className="p-4 space-y-2">
                 {steps.map((step) => (
-                  <div 
+                  <button
                     key={step.id}
+                    onClick={() => goToStep(step.id)}
+                    disabled={step.status === "pending"}
                     className={cn(
-                      "group flex items-start gap-3 p-3 rounded-xl transition-all duration-200",
+                      "w-full text-left p-3 rounded-lg transition-all duration-200",
                       step.status === "current" 
-                        ? "bg-primary/10 border border-primary/20 shadow-sm" 
-                        : "hover:bg-muted/50 border border-transparent"
+                        ? "bg-primary/10 border border-primary/20 text-primary font-medium" 
+                        : step.status === "completed"
+                        ? "text-foreground hover:bg-muted/50 cursor-pointer"
+                        : "text-muted-foreground/60 cursor-not-allowed"
                     )}
                   >
-                    <div className="mt-0.5">
-                      {step.status === "completed" ? (
-                        <div className="bg-primary rounded-full p-0.5">
-                          <Check className="w-3.5 h-3.5 text-primary-foreground" />
-                        </div>
-                      ) : step.status === "current" ? (
-                        <div className="w-4.5 h-4.5 rounded-full bg-primary" />
-                      ) : (
-                        <Circle className="w-4.5 h-4.5 text-muted-foreground/40" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "text-sm font-medium leading-none",
-                        step.status === "pending" && "text-muted-foreground/60",
-                        step.status === "current" && "text-primary"
-                      )}>
-                        {step.title}
-                      </p>
-                      {step.status === "current" && (
-                        <Button 
-                          variant="link" 
-                          size="sm" 
-                          className="h-auto p-0 text-xs mt-2 text-primary/80 hover:text-primary"
-                          onClick={() => completeStep(step.id)}
-                          disabled={step.id === "predict" && !isPredictionComplete}
-                        >
-                          {step.id === "predict" && !isPredictionComplete 
-                            ? "Submit prediction to continue" 
-                            : "Mark as complete"} <ChevronRight className="w-3 h-3 ml-1" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+                    <p className="text-sm">{step.title}</p>
+                  </button>
                 ))}
               </div>
             </ScrollArea>
@@ -175,7 +300,7 @@ function twoSum(nums, target) {
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5 px-2 py-1 bg-background rounded border text-xs font-medium">
                   <Eye className="w-3.5 h-3.5 text-blue-500" />
-                  artifact.js
+                  artifact.{language === 'java' ? 'java' : language === 'python' ? 'py' : language === 'typescript' ? 'ts' : 'js'}
                 </div>
                 <Badge variant="secondary" className="text-[10px] uppercase tracking-wider font-bold py-0 h-5">
                   Read Only
@@ -191,7 +316,7 @@ function twoSum(nums, target) {
             <div className="flex-1 relative bg-[#1e1e1e]">
               <Editor
                 height="100%"
-                defaultLanguage="javascript"
+                defaultLanguage={language}
                 theme="vs-dark"
                 value={artifactCode}
                 options={{
@@ -223,117 +348,130 @@ function twoSum(nums, target) {
             </div>
             <ScrollArea className="flex-1 h-0">
               <div className="p-5 space-y-6">
-                <div className="space-y-4">
-                  <div className="space-y-2">
+                {currentStep && (
+                  <div className="space-y-4">
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      1. Predict Behavior
+                      {currentStepIndex + 1}. {currentStep.title}
                     </label>
                     <p className="text-sm text-muted-foreground">
-                      Given `nums = [2, 7, 11, 15]` and `target = 9`, what will this function return?
+                      {currentStep.instruction || "Complete this step by analyzing the code."}
                     </p>
-                    <div className="flex items-start gap-2 p-2 bg-amber-500/10 rounded-lg border border-amber-500/20 mb-2">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
-                      <p className="text-[10px] text-amber-700 leading-relaxed font-medium">
-                        Do not run the code. Reason it out mentally.
-                      </p>
-                    </div>
-                    <Textarea 
-                      placeholder="Type your prediction here..."
-                      className="min-h-[80px] text-sm"
-                      value={explanations.prediction}
-                      onChange={(e) => setExplanations({...explanations, prediction: e.target.value})}
-                      disabled={currentStepIndex > 1}
-                    />
-                    {!isPredictionComplete && currentStepIndex === 1 && (
-                      <p className="text-[10px] text-muted-foreground italic">
-                        Required to proceed to next step
-                      </p>
+                    
+                    {currentStep.keyQuestions && currentStep.keyQuestions.length > 0 && (
+                      <Card className="border-none bg-primary/5 shadow-none">
+                        <CardContent className="p-4 space-y-2">
+                          <p className="text-xs font-medium">Key Questions:</p>
+                          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground">
+                            {currentStep.keyQuestions.map((q: string, i: number) => (
+                              <li key={i}>{q}</li>
+                            ))}
+                          </ul>
+                        </CardContent>
+                      </Card>
                     )}
-                  </div>
-
-                  <Separator className="opacity-50" />
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      2. Explain Reasoning
-                    </label>
-                    <p className="text-sm text-muted-foreground">
-                      How does the `Map` help optimize the search for the complement?
-                    </p>
-                    <p className="text-xs text-muted-foreground italic">
-                      Reference specific lines in the code in your explanation (e.g., "Line 10 checks...")
-                    </p>
+                    
+                    {currentStep.prompt && (
+                      <div className="flex items-start gap-2 p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                        <Eye className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
+                        <p className="text-[10px] text-blue-700 leading-relaxed font-medium">
+                          {currentStep.prompt}
+                        </p>
+                      </div>
+                    )}
+                    
                     <Textarea 
-                      placeholder="Explain the logic..."
+                      placeholder="Type your answer here..."
                       className="min-h-[120px] text-sm"
-                      value={explanations.reasoning}
-                      onChange={(e) => setExplanations({...explanations, reasoning: e.target.value})}
+                      value={currentExplanation}
+                      onChange={(e) => setExplanations({...explanations, [currentStep.id]: e.target.value})}
                     />
                   </div>
+                )}
 
-                  <Separator className="opacity-50" />
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      3. Edge Cases
-                    </label>
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        • Does this implementation handle duplicate values correctly?
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        • What assumption does this solution make about solutions existing?
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        • What happens if the array has only one element?
-                      </p>
+
+                {steps.every(s => s.status === "completed") && (
+                  <div className="space-y-4 pt-4">
+                    <div className="flex items-center gap-2">
+                      <HelpCircle className="w-4 h-4 text-amber-500" />
+                      <h4 className="text-sm font-semibold">Concept Check</h4>
                     </div>
-                    <Textarea 
-                      placeholder="Address each edge case..."
-                      className="min-h-[100px] text-sm"
-                      value={explanations.edgeCases}
-                      onChange={(e) => setExplanations({...explanations, edgeCases: e.target.value})}
-                    />
+                    
+                    <Card className="border-none bg-primary/5 shadow-none">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium">What additional memory does this algorithm use, and why?</p>
+                          <Textarea 
+                            placeholder="Explain space complexity..."
+                            className="min-h-[60px] text-xs"
+                            value={explanations.spaceComplexity}
+                            onChange={(e) => setExplanations({...explanations, spaceComplexity: e.target.value})}
+                          />
+                        </div>
+                        
+                        <Separator className="opacity-50" />
+                        
+                        <p className="text-xs font-medium">What is the time complexity of this implementation?</p>
+                        <div className="grid grid-cols-1 gap-2">
+                          {["O(n²)", "O(n log n)", "O(n)", "O(1)"].map((opt) => (
+                            <Button key={opt} variant="outline" size="sm" className="justify-start text-xs h-8 bg-background">
+                              {opt}
+                            </Button>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
-                </div>
-
-                <div className="space-y-4 pt-4">
-                  <div className="flex items-center gap-2">
-                    <HelpCircle className="w-4 h-4 text-amber-500" />
-                    <h4 className="text-sm font-semibold">Concept Check</h4>
-                  </div>
-                  
-                  <Card className="border-none bg-primary/5 shadow-none">
-                    <CardContent className="p-4 space-y-3">
-                      <div className="space-y-2">
-                        <p className="text-xs font-medium">What additional memory does this algorithm use, and why?</p>
-                        <Textarea 
-                          placeholder="Explain space complexity..."
-                          className="min-h-[60px] text-xs"
-                          value={explanations.spaceComplexity}
-                          onChange={(e) => setExplanations({...explanations, spaceComplexity: e.target.value})}
-                        />
-                      </div>
-                      
-                      <Separator className="opacity-50" />
-                      
-                      <p className="text-xs font-medium">What is the time complexity of this implementation?</p>
-                      <div className="grid grid-cols-1 gap-2">
-                        {["O(n²)", "O(n log n)", "O(n)", "O(1)"].map((opt) => (
-                          <Button key={opt} variant="outline" size="sm" className="justify-start text-xs h-8 bg-background">
-                            {opt}
-                          </Button>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                )}
               </div>
             </ScrollArea>
             
+            {feedback && (
+              <div className={cn(
+                "mx-4 mb-4 p-4 rounded-lg border-2",
+                feedback.approved 
+                  ? "bg-green-50 border-green-500 dark:bg-green-950" 
+                  : "bg-amber-50 border-amber-500 dark:bg-amber-950"
+              )}>
+                <div className="flex items-start gap-3">
+                  {feedback.approved ? (
+                    <ThumbsUp className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <ThumbsDown className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1">
+                    <p className={cn(
+                      "text-sm font-semibold mb-1",
+                      feedback.approved ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"
+                    )}>
+                      {feedback.approved ? "Great work!" : "Needs improvement"}
+                    </p>
+                    <p className="text-sm text-foreground/80">{feedback.text}</p>
+                    {feedback.approved && (
+                      <p className="text-xs text-muted-foreground mt-2 italic">Moving to next step...</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="p-4 border-t bg-background">
-              <Button className="w-full shadow-sm" variant="default">
-                Submit Explanation
+              <Button 
+                className="w-full shadow-sm" 
+                variant="default"
+                onClick={handleSubmit}
+                disabled={steps.every(s => s.status === "completed") || isSubmitting || aiLoading}
+              >
+                {isSubmitting || aiLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Reviewing...
+                  </>
+                ) : steps.every(s => s.status === "completed") ? (
+                  "Lab Complete"
+                ) : (
+                  "Submit for Feedback"
+                )}
               </Button>
             </div>
           </div>

@@ -5,7 +5,7 @@ export enum EnumLabPriority {
 }
 
 export enum EnumLabStatus {
-  Pending = "pending",
+  NotStarted = "not-started",
   InProgress = "in-progress",
   Completed = "completed"
 }
@@ -24,20 +24,20 @@ export const priorityDotColors: Record<EnumLabPriority, string> = {
 };
 
 export const statusClasses: Record<EnumLabStatus, string> = {
-  [EnumLabStatus.Pending]: "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200",
+  [EnumLabStatus.NotStarted]: "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200",
   [EnumLabStatus.InProgress]:
     "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
   [EnumLabStatus.Completed]: "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100"
 };
 
 export const labStatusNamed: Record<EnumLabStatus, string> = {
-  [EnumLabStatus.Pending]: "Not Started",
+  [EnumLabStatus.NotStarted]: "Not Started",
   [EnumLabStatus.InProgress]: "In Progress",
   [EnumLabStatus.Completed]: "Mastered"
 };
 
 export const statusDotColors: Record<EnumLabStatus, string> = {
-  [EnumLabStatus.Pending]: "bg-blue-500",
+  [EnumLabStatus.NotStarted]: "bg-blue-500",
   [EnumLabStatus.InProgress]: "bg-purple-500",
   [EnumLabStatus.Completed]: "bg-green-500"
 };

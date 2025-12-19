@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { BuildLabData } from "@/types/lab-templates";
 import { 
   ResizableHandle, 
   ResizablePanel, 
@@ -39,19 +40,19 @@ interface Step {
   requiresInput?: boolean;
 }
 
-const INITIAL_STEPS: Step[] = [
+const INITIAL_STEPS = (stepPrompts: BuildLabData['stepPrompts']): Step[] => [
   { 
     id: "understand", 
     title: "Understand problem", 
     status: "current",
-    prompt: "In your own words, what does the function need to return?",
+    prompt: stepPrompts.understand,
     requiresInput: true
   },
   { 
     id: "design", 
     title: "Design approach", 
     status: "pending",
-    prompt: "What strategy will you use and why?",
+    prompt: stepPrompts.design,
     requiresInput: true
   },
   { 
@@ -64,40 +65,27 @@ const INITIAL_STEPS: Step[] = [
     id: "test", 
     title: "Test & debug", 
     status: "pending",
-    prompt: "Which test failed first, and what did it reveal?",
+    prompt: stepPrompts.test,
     requiresInput: true
   },
   { 
     id: "explain", 
     title: "Explain solution", 
     status: "pending",
-    prompt: "Explain why your solution works and its time complexity.",
+    prompt: stepPrompts.explain,
     requiresInput: true
   },
 ];
 
 interface BuildTemplateProps {
-  labTitle?: string;
+  data: BuildLabData;
+  labId?: string;
 }
 
-const INITIAL_CODE = `/**
- * Problem: Implement a function that finds the longest palindromic substring.
- * 
- * @param {string} s
- * @return {string}
- */
-function longestPalindrome(s: string): string {
-  // Your implementation here
-  return "";
-}
-
-// Example usage:
-// console.log(longestPalindrome("babad")); // "bab" or "aba"
-`;
-
-export default function BuildTemplate({ labTitle = "Longest Palindromic Substring" }: BuildTemplateProps) {
-  const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS);
-  const [code, setCode] = useState(INITIAL_CODE);
+export default function BuildTemplate({ data, labId }: BuildTemplateProps) {
+  const { labTitle, description, initialCode, language, testCases, hints, stepPrompts } = data;
+  const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS(stepPrompts));
+  const [code, setCode] = useState(initialCode);
   const [output, setOutput] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [activeTab, setActiveTab] = useState("coach");
@@ -193,7 +181,7 @@ export default function BuildTemplate({ labTitle = "Longest Palindromic Substrin
               <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
                 {labTitle}
               </h2>
-              <p className="text-xs text-muted-foreground mt-1">Follow the steps to complete the artifact.</p>
+              <p className="text-xs text-muted-foreground mt-1">{description}</p>
             </div>
             <ScrollArea className="flex-1 h-0">
               <div className="p-4 space-y-2">
@@ -282,7 +270,7 @@ export default function BuildTemplate({ labTitle = "Longest Palindromic Substrin
                       variant="outline" 
                       size="sm" 
                       className="h-8 text-xs"
-                      onClick={() => setCode(INITIAL_CODE)}
+                      onClick={() => setCode(initialCode)}
                     >
                       Reset
                     </Button>
@@ -304,7 +292,7 @@ export default function BuildTemplate({ labTitle = "Longest Palindromic Substrin
                 <div className="flex-1 relative bg-[#1e1e1e]">
                   <Editor
                     height="100%"
-                    defaultLanguage="typescript"
+                    defaultLanguage={language}
                     theme="vs-dark"
                     value={code}
                     onChange={(value) => setCode(value || "")}
@@ -392,6 +380,96 @@ export default function BuildTemplate({ labTitle = "Longest Palindromic Substrin
               <TabsContent value="coach" className="flex-1 m-0 p-0 overflow-hidden">
                 <ScrollArea className="h-full">
                   <div className="p-5 space-y-8">
+                    {currentStep.id === "understand" && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-primary/10">
+                            <MessageSquare className="w-4 h-4 text-primary" />
+                          </div>
+                          <h3 className="text-sm font-semibold">Understanding the Problem</h3>
+                        </div>
+                        <Card className="border-none bg-primary/5 shadow-none">
+                          <CardContent className="p-4 text-sm leading-relaxed text-muted-foreground">
+                            <p>Read the problem statement carefully. What are the inputs and expected outputs?</p>
+                            <div className="mt-3 p-2 bg-background/50 rounded border border-primary/10 text-xs italic">
+                              "Can you rephrase the problem in your own words without looking at the description?"
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
+                    {currentStep.id === "design" && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-primary/10">
+                            <Lightbulb className="w-4 h-4 text-primary" />
+                          </div>
+                          <h3 className="text-sm font-semibold">Designing Your Approach</h3>
+                        </div>
+                        <Card className="border-none bg-primary/5 shadow-none">
+                          <CardContent className="p-4 text-sm leading-relaxed text-muted-foreground">
+                            <p>{hints.find(h => h.stepId === "design")?.hint || "Think about the algorithm and data structures you'll need."}</p>
+                            <div className="mt-3 space-y-2">
+                              <p className="text-xs font-medium">Consider:</p>
+                              <ul className="text-xs space-y-1 list-disc list-inside">
+                                <li>What's the brute force approach?</li>
+                                <li>How can you optimize it?</li>
+                                <li>What edge cases should you handle?</li>
+                              </ul>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
+                    {currentStep.id === "implement" && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-primary/10">
+                            <Code2 className="w-4 h-4 text-primary" />
+                          </div>
+                          <h3 className="text-sm font-semibold">Implementation Tips</h3>
+                        </div>
+                        <Card className="border-none bg-primary/5 shadow-none">
+                          <CardContent className="p-4 space-y-3">
+                            <p className="text-sm text-muted-foreground">Write your code in the editor. Remember to:</p>
+                            <ul className="text-xs space-y-2 list-disc list-inside text-muted-foreground">
+                              <li>Start with the simplest case</li>
+                              <li>Add complexity incrementally</li>
+                              <li>Test frequently with the Run button</li>
+                              <li>Read error messages carefully</li>
+                            </ul>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
+                    {currentStep.id === "test" && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-primary/10">
+                            <Play className="w-4 h-4 text-primary" />
+                          </div>
+                          <h3 className="text-sm font-semibold">Testing & Debugging</h3>
+                        </div>
+                        <Card className="border-none bg-primary/5 shadow-none">
+                          <CardContent className="p-4 text-sm leading-relaxed text-muted-foreground">
+                            <p>{hints.find(h => h.stepId === "test")?.hint || "Run the tests and fix any errors."}</p>
+                            <div className="mt-3 p-2 bg-background/50 rounded border border-primary/10 text-xs">
+                              <p className="font-medium mb-1">Debugging Strategy:</p>
+                              <ol className="list-decimal list-inside space-y-1">
+                                <li>Identify which test fails first</li>
+                                <li>Understand why it fails</li>
+                                <li>Fix the issue</li>
+                                <li>Re-run all tests</li>
+                              </ol>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+
                     {currentStep.id === "explain" ? (
                       // Complexity Analysis Section (for Explain step)
                       <div className="space-y-6">

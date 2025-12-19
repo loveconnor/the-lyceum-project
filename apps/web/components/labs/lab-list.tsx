@@ -55,8 +55,22 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
 
   // Apply all filters
   const filteredTodos = labs.filter((lab) => {
-    // Tab filter
-    if (activeTab !== "all" && lab.status !== activeTab) return false;
+    // Calculate actual status based on completed steps
+    const completedSteps = lab.lab_progress?.filter((p: any) => p.completed).length || 0;
+    // Get total steps dynamically from template_data
+    const aiSteps = lab.template_data?.steps || [];
+    const totalSteps = aiSteps.length > 0 ? aiSteps.length : 4;
+    let actualStatus = lab.status;
+    if (completedSteps === 0) {
+      actualStatus = "not-started";
+    } else if (completedSteps > 0 && completedSteps < totalSteps) {
+      actualStatus = "in-progress";
+    } else if (completedSteps === totalSteps) {
+      actualStatus = "completed";
+    }
+
+    // Tab filter using calculated status
+    if (activeTab !== "all" && actualStatus !== activeTab) return false;
 
     // Difficulty filter
     if (filterDifficulty && lab.difficulty !== filterDifficulty) return false;

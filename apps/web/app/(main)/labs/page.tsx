@@ -1,16 +1,6 @@
 import React from "react";
 import { generateMeta } from "@/lib/utils";
-import { promises as fs } from "fs";
-import path from "path";
-
 import Labs from "./labs";
-
-async function getLabs() {
-  const data = await fs.readFile(
-    path.join(process.cwd(), "app/(main)/labs/data/labs.json")
-  );
-  return JSON.parse(data.toString());
-}
 
 export async function generateMetadata() {
   return generateMeta({
@@ -22,7 +12,6 @@ export async function generateMetadata() {
 }
 
 export default async function Page() {
-  const labs = await getLabs();
-
-  return <Labs labs={labs} />;
+  // Labs will be fetched client-side from the API
+  return <Labs />;
 }

@@ -1,6 +1,7 @@
 import React from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Clock, Eye, MoreVertical, RotateCcw, Star, Trash2 } from "lucide-react";
+import { Clock, Eye, MoreVertical, RotateCcw, Star, Trash2, PlayCircle } from "lucide-react";
 import { statusClasses } from "@/app/(main)/labs/enum";
 import { Lab, LabStatus } from "@/app/(main)/labs/types";
 
@@ -34,16 +35,30 @@ const LabCard: React.FC<LabCardProps> = ({
   onRestart,
   onDelete
 }) => {
-  // Calculate sections/exercises completed (using subtasks as sections)
-  const completedSections = lab.subTasks?.filter((st) => st.completed).length || 0;
-  const totalSections = lab.subTasks?.length || 0;
+  // Calculate step progress from lab_progress
+  const completedSteps = lab.lab_progress?.filter((p: any) => p.completed).length || 0;
+  // Get total steps dynamically from template_data
+  const aiSteps = lab.template_data?.steps || [];
+  const totalSteps = aiSteps.length > 0 ? aiSteps.length : 4; // Default to 4 if no steps provided
+  
+  // Calculate actual status based on completed steps (override DB status if incorrect)
+  let actualStatus = lab.status;
+  if (completedSteps === 0) {
+    actualStatus = "not-started";
+  } else if (completedSteps > 0 && completedSteps < totalSteps) {
+    actualStatus = "in-progress";
+  } else if (completedSteps === totalSteps) {
+    actualStatus = "completed";
+  }
+  
+  const hasStarted = actualStatus === "in-progress" || actualStatus === "completed";
 
   // Map status to learning-focused labels
   const statusLabel = {
-    pending: "Not Started",
+    "not-started": "Not Started",
     "in-progress": "In Progress", 
-    completed: "Mastered"
-  }[lab.status] || lab.status;
+    "completed": "Mastered"
+  }[actualStatus] || actualStatus;
 
   // Estimate time based on description or use a default
   // In real implementation, this would come from the data model
@@ -131,15 +146,21 @@ const LabCard: React.FC<LabCardProps> = ({
                   <span>{estimatedTime}</span>
                 </div>
 
-                {totalSections > 0 && (
+                {hasStarted && (
                   <div className="flex items-center gap-1.5">
-                    <span>{completedSections} / {totalSections} sections</span>
+                    <span>{completedSteps} / {totalSteps} steps</span>
                   </div>
                 )}
               </div>
               
-              <div>
-                <Badge className={statusClasses[lab.status]}>{statusLabel}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge className={statusClasses[actualStatus]}>{statusLabel}</Badge>
+                <Link href={`/labs/${lab.id}`}>
+                  <Button size="sm" variant="outline" className="h-7 text-xs">
+                    <PlayCircle className="h-3 w-3" />
+                    {hasStarted ? "Resume Lab" : "Start Lab"}
+                  </Button>
+                </Link>
               </div>
             </div>
           </CardContent>
@@ -214,7 +235,7 @@ const LabCard: React.FC<LabCardProps> = ({
                 </DropdownMenu>
               </div>
 
-              <Badge className={statusClasses[lab.status]}>
+              <Badge className={statusClasses[actualStatus]}>
                 {statusLabel}
               </Badge>
             </div>
@@ -229,9 +250,9 @@ const LabCard: React.FC<LabCardProps> = ({
                 <span>{estimatedTime}</span>
               </div>
 
-              {totalSections > 0 && (
+              {hasStarted && (
                 <div className="flex items-center gap-1.5">
-                  <span>{completedSections} / {totalSections} sections</span>
+                  <span>{completedSteps} / {totalSteps} steps</span>
                 </div>
               )}
             </div>
