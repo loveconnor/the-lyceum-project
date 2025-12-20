@@ -80,14 +80,18 @@ const TABS: { key: ViewMode; label: string; icon: React.ElementType }[] = [
 
 const ImmersiveTextView = ({ isQuizPassed, setIsQuizPassed }: { isQuizPassed: boolean; setIsQuizPassed: (v: boolean) => void }) => {
   const [currentChapter, setCurrentChapter] = useState(0);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [completedChapters, setCompletedChapters] = useState<Set<number>>(new Set());
+  const [completedQuestions, setCompletedQuestions] = useState<Set<number>>(new Set());
+  const [showQuiz, setShowQuiz] = useState(false);
 
   const chapters = [
     {
       id: 0,
       title: "Introduction to Abstraction",
+      duration: "5 min",
       content: `
 # Introduction to Abstraction
 
@@ -103,20 +107,33 @@ Abstraction is not a single step but a series of layers. In modern computing, we
 
 By mastering abstraction, engineers can build systems that are far more complex than any single human could understand in full detail. It is the fundamental tool that makes modern software development possible.
       `,
-      quiz: {
-        question: "Which of the following best describes the primary goal of 'abstraction' in software engineering?",
-        options: [
-          { id: 'A', text: "To make the code run faster on modern hardware." },
-          { id: 'B', text: "To hide complex implementation details and reduce cognitive load." },
-          { id: 'C', text: "To ensure that all data is stored in a relational database." },
-          { id: 'D', text: "To prevent other developers from seeing your source code." }
-        ],
-        correct: 'B'
-      }
+      quizzes: [
+        {
+          question: "Which of the following best describes the primary goal of 'abstraction' in software engineering?",
+          options: [
+            { id: 'A', text: "To make the code run faster on modern hardware." },
+            { id: 'B', text: "To hide complex implementation details and reduce cognitive load." },
+            { id: 'C', text: "To ensure that all data is stored in a relational database." },
+            { id: 'D', text: "To prevent other developers from seeing your source code." }
+          ],
+          correct: 'B'
+        },
+        {
+          question: "In the car analogy, which part represents the 'abstraction'?",
+          options: [
+            { id: 'A', text: "The internal combustion engine." },
+            { id: 'B', text: "The fuel injection system." },
+            { id: 'C', text: "The steering wheel and pedals." },
+            { id: 'D', text: "The spark plugs." }
+          ],
+          correct: 'C'
+        }
+      ]
     },
     {
       id: 1,
       title: "Data Types & Classifications",
+      duration: "8 min",
       content: `
 # Data Types & Classifications
 
@@ -131,20 +148,33 @@ Understanding how a language handles these types is crucial. Static typing (like
 
 Data types are the first level of abstraction we encounter in programming. They allow us to treat a sequence of bits as a meaningful concept, like a number or a letter.
       `,
-      quiz: {
-        question: "What is the main difference between primitive and composite data types?",
-        options: [
-          { id: 'A', text: "Primitive types are faster than composite types." },
-          { id: 'B', text: "Composite types are built from multiple primitive types." },
-          { id: 'C', text: "Primitive types can only store numbers." },
-          { id: 'D', text: "There is no real difference between them." }
-        ],
-        correct: 'B'
-      }
+      quizzes: [
+        {
+          question: "What is the main difference between primitive and composite data types?",
+          options: [
+            { id: 'A', text: "Primitive types are faster than composite types." },
+            { id: 'B', text: "Composite types are built from multiple primitive types." },
+            { id: 'C', text: "Primitive types can only store numbers." },
+            { id: 'D', text: "There is no real difference between them." }
+          ],
+          correct: 'B'
+        },
+        {
+          question: "Which of these is an example of a primitive data type?",
+          options: [
+            { id: 'A', text: "Array" },
+            { id: 'B', text: "Class" },
+            { id: 'C', text: "Boolean" },
+            { id: 'D', text: "Struct" }
+          ],
+          correct: 'C'
+        }
+      ]
     },
     {
       id: 2,
       title: "Abstract Data Types (ADTs)",
+      duration: "10 min",
       content: `
 # Abstract Data Types (ADTs)
 
@@ -160,38 +190,64 @@ The key power of an ADT is that it is independent of its implementation. A Stack
 
 This level of abstraction allows developers to swap out implementations for better performance without changing the code that uses the ADT.
       `,
-      quiz: {
-        question: "Which principle defines an Abstract Data Type (ADT)?",
-        options: [
-          { id: 'A', text: "The specific memory address where data is stored." },
-          { id: 'B', text: "The behavior and operations from the user's perspective." },
-          { id: 'C', text: "The programming language used to implement it." },
-          { id: 'D', text: "The speed at which it processes data." }
-        ],
-        correct: 'B'
-      }
+      quizzes: [
+        {
+          question: "Which principle defines an Abstract Data Type (ADT)?",
+          options: [
+            { id: 'A', text: "The specific memory address where data is stored." },
+            { id: 'B', text: "The behavior and operations from the user's perspective." },
+            { id: 'C', text: "The programming language used to implement it." },
+            { id: 'D', text: "The speed at which it processes data." }
+          ],
+          correct: 'B'
+        },
+        {
+          question: "Which ADT follows the Last-In-First-Out (LIFO) principle?",
+          options: [
+            { id: 'A', text: "Queue" },
+            { id: 'B', text: "List" },
+            { id: 'C', text: "Stack" },
+            { id: 'D', text: "Tree" }
+          ],
+          correct: 'C'
+        }
+      ]
     }
   ];
 
+  const currentQuiz = chapters[currentChapter].quizzes[currentQuestionIndex];
+
   const handleOptionSelect = (optionId: string) => {
     setSelectedOption(optionId);
-    const correct = optionId === chapters[currentChapter].quiz.correct;
+    const correct = optionId === currentQuiz.correct;
     setIsCorrect(correct);
     
     if (correct) {
-      const newCompleted = new Set(completedChapters);
-      newCompleted.add(currentChapter);
-      setCompletedChapters(newCompleted);
+      const newCompletedQuestions = new Set(completedQuestions);
+      newCompletedQuestions.add(currentQuestionIndex);
+      setCompletedQuestions(newCompletedQuestions);
       
-      if (newCompleted.size === chapters.length) {
-        setIsQuizPassed(true);
+      if (newCompletedQuestions.size === chapters[currentChapter].quizzes.length) {
+        const newCompletedChapters = new Set(completedChapters);
+        newCompletedChapters.add(currentChapter);
+        setCompletedChapters(newCompletedChapters);
+        
+        if (newCompletedChapters.size === chapters.length) {
+          setIsQuizPassed(true);
+        }
       }
     }
   };
 
-  const nextChapter = () => {
-    if (currentChapter < chapters.length - 1) {
+  const nextQuestion = () => {
+    if (currentQuestionIndex < chapters[currentChapter].quizzes.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setSelectedOption(null);
+      setIsCorrect(null);
+    } else if (currentChapter < chapters.length - 1) {
       setCurrentChapter(currentChapter + 1);
+      setCurrentQuestionIndex(0);
+      setCompletedQuestions(new Set());
       setSelectedOption(null);
       setIsCorrect(null);
     }
@@ -200,50 +256,86 @@ This level of abstraction allows developers to swap out implementations for bett
   return (
     <div className="flex h-full gap-12">
       {/* Left Outline Sidebar */}
-      <div className="w-72 flex-shrink-0 hidden xl:block">
-        <div className="space-y-6 sticky top-8">
+      <div className="w-80 flex-shrink-0 hidden xl:block">
+        <div className="space-y-8 sticky top-[calc(var(--header-height)+6rem)]">
           <div>
-            <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] px-2 mb-4">Module Outline</h3>
-            <div className="space-y-1">
-              {chapters.map((chapter, i) => (
-                <div 
-                  key={chapter.id}
-                  onClick={() => {
-                    if (i === 0 || completedChapters.has(i - 1)) {
-                      setCurrentChapter(i);
-                      setSelectedOption(null);
-                      setIsCorrect(null);
-                    }
-                  }}
-                  className={cn(
-                    "group flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer",
-                    currentChapter === i ? "bg-accent border border-border" : "hover:bg-muted/50",
-                    (i > 0 && !completedChapters.has(i - 1)) && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <div className={cn(
-                    "w-5 h-5 rounded-full flex items-center justify-center border-2 transition-colors",
-                    completedChapters.has(i) ? "bg-primary border-primary" : "border-muted group-hover:border-muted-foreground"
-                  )}>
-                    {completedChapters.has(i) && <CheckCircle2 className="w-3 h-3 text-white" />}
-                  </div>
-                  <span className={cn(
-                    "text-sm font-medium transition-colors",
-                    currentChapter === i ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
-                  )}>
-                    {chapter.title}
-                  </span>
-                </div>
-              ))}
+            <div className="flex items-center justify-between px-2 mb-6">
+              <h3 className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Module Outline</h3>
+              <Badge variant="outline" className="text-[10px] font-bold px-2 py-0 h-5 border-primary/20 text-primary">
+                {chapters.length} SECTIONS
+              </Badge>
             </div>
-          </div>
+            <div className="space-y-2">
+              {chapters.map((chapter, i) => {
+                const isLocked = i > 0 && !completedChapters.has(i - 1);
+                const isActive = currentChapter === i;
+                const isDone = completedChapters.has(i);
 
-          <div className="p-5 rounded-2xl bg-muted/30 border border-border/50">
-            <h4 className="text-xs font-bold text-foreground mb-2">Your Progress</h4>
-            <Progress value={(completedChapters.size / chapters.length) * 100} className="h-1.5 mb-3" />
-            <p className="text-[10px] text-muted-foreground font-medium">
-              {completedChapters.size} of {chapters.length} sections completed
-            </p>
+                return (
+                  <div 
+                    key={chapter.id}
+                    onClick={() => {
+                      if (!isLocked) {
+                        setCurrentChapter(i);
+                        setCurrentQuestionIndex(0);
+                        setCompletedQuestions(new Set());
+                        setSelectedOption(null);
+                        setIsCorrect(null);
+                      }
+                    }}
+                    className={cn(
+                      "group relative flex flex-col gap-1 p-4 rounded-[20px] transition-all cursor-pointer border-2",
+                      isActive 
+                        ? "bg-card border-primary/20 shadow-sm" 
+                        : "border-transparent hover:bg-muted/50",
+                      isLocked && "opacity-40 cursor-not-allowed"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all",
+                        isDone 
+                          ? "bg-primary border-primary shadow-[0_0_10px_rgba(var(--primary),0.3)]" 
+                          : isActive 
+                            ? "border-primary" 
+                            : "border-muted group-hover:border-muted-foreground"
+                      )}>
+                        {isDone ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                        ) : (
+                          <span className={cn(
+                            "text-[10px] font-bold",
+                            isActive ? "text-primary" : "text-muted-foreground"
+                          )}>{i + 1}</span>
+                        )}
+                      </div>
+                      <span className={cn(
+                        "text-sm font-bold transition-colors flex-1",
+                        isActive ? "text-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      )}>
+                        {chapter.title}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 ml-9">
+                      <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60">
+                        <Clock className="w-3 h-3" />
+                        {chapter.duration}
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60">
+                        <HelpCircle className="w-3 h-3" />
+                        {chapter.quizzes.length} questions
+                      </div>
+                    </div>
+                    {isActive && (
+                      <motion.div 
+                        layoutId="active-indicator"
+                        className="absolute -left-1 top-4 bottom-4 w-1 bg-primary rounded-full"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -265,86 +357,128 @@ This level of abstraction allows developers to swap out implementations for bett
           <Separator className="my-12" />
 
           {/* Quiz Section */}
-          <div className="space-y-8">
-            <div className="space-y-2">
-              <h2 className="text-2xl font-display">Check your understanding</h2>
-              <p className="text-muted-foreground">Complete this brief check to proceed.</p>
+          <div className="space-y-6">
+            <div className="flex items-end justify-between">
+              <div className="space-y-1">
+                <h2 className="text-2xl font-display">Check your understanding</h2>
+                <p className="text-sm text-muted-foreground">Complete these questions to proceed to the next section.</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Question</p>
+                <p className="text-xl font-display text-primary">
+                  {currentQuestionIndex + 1}<span className="text-muted-foreground/30 mx-1">/</span>{chapters[currentChapter].quizzes.length}
+                </p>
+              </div>
             </div>
 
-            <Card className="border-2 border-border rounded-[32px] overflow-hidden shadow-sm">
+            <Card className="border-2 border-border rounded-[32px] overflow-hidden shadow-sm bg-card">
               <CardContent className="p-8 space-y-8">
-                <p className="text-xl font-medium leading-snug text-foreground">
-                  {chapters[currentChapter].quiz.question}
-                </p>
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    {chapters[currentChapter].quizzes.map((_, i) => (
+                      <div 
+                        key={i}
+                        className={cn(
+                          "h-1.5 flex-1 rounded-full transition-all duration-500",
+                          i < currentQuestionIndex ? "bg-primary" : 
+                          i === currentQuestionIndex ? "bg-primary/30" : "bg-muted"
+                        )}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-xl font-medium leading-tight text-foreground">
+                    {currentQuiz.question}
+                  </p>
+                </div>
                 
-                <div className="grid gap-4">
-                  {chapters[currentChapter].quiz.options.map((option) => (
+                <div className="grid gap-3">
+                  {currentQuiz.options.map((option) => (
                     <button 
                       key={option.id} 
                       onClick={() => handleOptionSelect(option.id)}
+                      disabled={isCorrect === true}
                       className={cn(
-                        "w-full text-left p-5 rounded-2xl border-2 transition-all flex items-center gap-4 group",
+                        "w-full text-left p-4 rounded-2xl border-2 transition-all flex items-center gap-4 group relative overflow-hidden",
                         selectedOption === option.id 
                           ? (isCorrect ? "border-green-500 bg-green-500/5" : "border-destructive bg-destructive/5")
-                          : "border-border hover:border-primary/50 hover:bg-accent/50"
+                          : "border-border hover:border-primary/50 hover:bg-accent/50",
+                        isCorrect === true && selectedOption !== option.id && "opacity-50"
                       )}
                     >
                       <div className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center font-bold transition-colors",
+                        "w-10 h-10 rounded-xl flex items-center justify-center font-bold text-base transition-all",
                         selectedOption === option.id
                           ? (isCorrect ? "bg-green-500 text-white" : "bg-destructive text-white")
                           : "bg-muted text-muted-foreground group-hover:bg-accent group-hover:text-primary"
                       )}>
                         {option.id}
                       </div>
-                      <span className="text-lg font-medium text-foreground/80 group-hover:text-foreground">{option.text}</span>
+                      <span className="text-base font-medium text-foreground/80 group-hover:text-foreground flex-1">{option.text}</span>
+                      
+                      {selectedOption === option.id && isCorrect && (
+                        <motion.div 
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="absolute right-4"
+                        >
+                          <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        </motion.div>
+                      )}
                     </button>
                   ))}
                 </div>
 
-                {isCorrect === true && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="space-y-6"
-                  >
-                    <div className="p-6 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                        <CheckCircle2 className="w-6 h-6 text-white" />
+                <AnimatePresence mode="wait">
+                  {isCorrect === true && (
+                    <motion.div 
+                      key="correct-feedback"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-6"
+                    >
+                      <div className="p-6 bg-green-500/5 border border-green-500/20 rounded-[24px] flex items-center gap-5">
+                        <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-green-500/20">
+                          <CheckCircle2 className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <p className="text-lg font-bold text-green-600 dark:text-green-400">Excellent work!</p>
+                          <p className="text-sm text-green-600/70 dark:text-green-500/70">That's the correct answer. You're making great progress.</p>
+                        </div>
+                      </div>
+
+                      <Button 
+                        onClick={nextQuestion}
+                        className="w-full py-7 rounded-2xl text-lg font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl shadow-primary/20 transition-all group"
+                      >
+                        {currentQuestionIndex < chapters[currentChapter].quizzes.length - 1 
+                          ? "Next Question" 
+                          : currentChapter < chapters.length - 1 
+                            ? "Next Chapter" 
+                            : "Complete Module"}
+                        <ChevronRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      </Button>
+                    </motion.div>
+                  )}
+
+                  {isCorrect === false && (
+                    <motion.div 
+                      key="incorrect-feedback"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="p-6 bg-destructive/5 border border-destructive/20 rounded-[24px] flex items-center gap-5"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-destructive flex items-center justify-center flex-shrink-0 shadow-lg shadow-destructive/20">
+                        <HelpCircle className="w-6 h-6 text-white" />
                       </div>
                       <div>
-                        <p className="font-bold text-green-600 dark:text-green-400">Correct!</p>
-                        <p className="text-sm text-green-600/80 dark:text-green-500/80">You've mastered this concept.</p>
+                        <p className="text-lg font-bold text-destructive">Not quite right</p>
+                        <p className="text-sm text-destructive/70">Review the section above and try another option.</p>
                       </div>
-                    </div>
-
-                    {currentChapter < chapters.length - 1 && (
-                      <Button 
-                        onClick={nextChapter}
-                        className="w-full py-8 rounded-2xl text-lg font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg transition-all"
-                      >
-                        Next Chapter
-                        <ChevronRight className="ml-2 w-5 h-5" />
-                      </Button>
-                    )}
-                  </motion.div>
-                )}
-
-                {isCorrect === false && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="p-6 bg-destructive/10 border border-destructive/20 rounded-2xl flex items-center gap-4"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-destructive flex items-center justify-center flex-shrink-0">
-                      <HelpCircle className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-destructive">Not quite right</p>
-                      <p className="text-sm text-destructive/80">Review the section above and try again.</p>
-                    </div>
-                  </motion.div>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </CardContent>
             </Card>
           </div>
@@ -744,7 +878,7 @@ const AudioLessonView = () => {
 
 const MindmapView = () => {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(["root"]));
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(0.8);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -761,120 +895,176 @@ const MindmapView = () => {
   const nodes: MindmapNode[] = [
     {
       id: "root",
-      label: "[Start]",
-      color: "bg-primary text-primary-foreground border-primary/20",
-      children: ["basics", "adts", "common"]
+      label: "Foundations of Logic",
+      color: "bg-primary text-primary-foreground border-primary/20 shadow-lg shadow-primary/20",
+      children: ["abstraction", "data-types", "adts"]
     },
     {
-      id: "basics",
-      label: "Algorithms & Data Structures: The Basics",
+      id: "abstraction",
+      label: "Abstraction",
       parentId: "root",
-      color: "bg-card text-card-foreground border-border",
-      children: ["core", "vs"]
+      children: ["complexity", "layers", "independence"]
+    },
+    {
+      id: "complexity",
+      label: "Managing Complexity",
+      parentId: "abstraction"
+    },
+    {
+      id: "layers",
+      label: "Layers of Abstraction",
+      parentId: "abstraction"
+    },
+    {
+      id: "independence",
+      label: "Implementation Independence",
+      parentId: "abstraction"
+    },
+    {
+      id: "data-types",
+      label: "Data Types",
+      parentId: "root",
+      children: ["primitive", "composite", "typing"]
+    },
+    {
+      id: "primitive",
+      label: "Primitive Types",
+      parentId: "data-types"
+    },
+    {
+      id: "composite",
+      label: "Composite Types",
+      parentId: "data-types"
+    },
+    {
+      id: "typing",
+      label: "Static vs Dynamic",
+      parentId: "data-types"
     },
     {
       id: "adts",
-      label: "Data Structures & Abstract Data Types (ADTs)",
+      label: "Abstract Data Types",
       parentId: "root",
-      color: "bg-card text-card-foreground border-border"
+      children: ["stack", "queue", "list"]
     },
     {
-      id: "common",
-      label: "Common Abstract Data Types (ADTs)",
-      parentId: "root",
-      color: "bg-card text-card-foreground border-border"
+      id: "stack",
+      label: "Stack (LIFO)",
+      parentId: "adts"
     },
     {
-      id: "core",
-      label: "Core Concepts:",
-      parentId: "basics",
-      color: "bg-accent text-accent-foreground border-border"
+      id: "queue",
+      label: "Queue (FIFO)",
+      parentId: "adts"
     },
     {
-      id: "vs",
-      label: "Algorithm vs. Program:",
-      parentId: "basics",
-      color: "bg-accent text-accent-foreground border-border"
+      id: "list",
+      label: "Linked List",
+      parentId: "adts"
     }
   ];
 
-  const getVisibleNodes = () => {
-    const visible = new Set<string>(["root"]);
-    const checkChildren = (nodeId: string) => {
-      if (expandedNodes.has(nodeId)) {
-        const node = nodes.find(n => n.id === nodeId);
-        node?.children?.forEach(childId => {
-          visible.add(childId);
-          checkChildren(childId);
-        });
+  // Simple tree layout calculation
+  const getLayout = () => {
+    const layout = new Map<string, { x: number; y: number }>();
+    const levelWidth = 350;
+    const nodeHeight = 100;
+
+    const calculate = (nodeId: string, x: number, minY: number): number => {
+      const node = nodes.find(n => n.id === nodeId);
+      if (!node) return minY;
+
+      const children = (node.children || []).filter(id => expandedNodes.has(nodeId));
+      
+      if (children.length === 0) {
+        layout.set(nodeId, { x, y: minY });
+        return minY + nodeHeight;
       }
+
+      let currentY = minY;
+      const childYPositions: number[] = [];
+
+      children.forEach(childId => {
+        const nextY = calculate(childId, x + levelWidth, currentY);
+        childYPositions.push((currentY + nextY - nodeHeight) / 2);
+        currentY = nextY;
+      });
+
+      const avgY = childYPositions.reduce((a, b) => a + b, 0) / childYPositions.length;
+      layout.set(nodeId, { x, y: avgY });
+      
+      return currentY;
     };
-    checkChildren("root");
-    return visible;
+
+    calculate("root", -450, -200);
+    return layout;
   };
 
-  const visibleNodeIds = getVisibleNodes();
-
-  const getPosition = (nodeId: string) => {
-    const node = nodes.find(n => n.id === nodeId);
-    if (nodeId === "root") return { x: -300, y: 0 };
-    
-    if (node?.parentId === "root") {
-      const index = nodes.filter(n => n.parentId === "root").indexOf(node);
-      const total = nodes.filter(n => n.parentId === "root").length;
-      return { x: 150, y: (index - (total - 1) / 2) * 120 };
+  const nodePositions = getLayout();
+  const visibleNodeIds = new Set<string>();
+  const traverse = (id: string) => {
+    visibleNodeIds.add(id);
+    if (expandedNodes.has(id)) {
+      const node = nodes.find(n => n.id === id);
+      node?.children?.forEach(traverse);
     }
-
-    if (node?.parentId === "basics") {
-      const index = nodes.filter(n => n.parentId === "basics").indexOf(node);
-      const total = nodes.filter(n => n.parentId === "basics").length;
-      return { x: 550, y: (index - (total - 1) / 2) * 100 - 60 };
-    }
-
-    return { x: 0, y: 0 };
   };
+  traverse("root");
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div className="space-y-1">
-          <h2 className="text-2xl font-display">Concept Map</h2>
-          <p className="text-sm text-muted-foreground">Explore the relationships between key concepts.</p>
+          <h2 className="text-2xl font-display">Interactive Concept Map</h2>
+          <p className="text-sm text-muted-foreground">Visualize the hierarchy and connections of logical foundations.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 px-3 py-1">
+            {visibleNodeIds.size} Concepts
+          </Badge>
         </div>
       </div>
 
-      <Card className="h-[600px] relative overflow-hidden bg-background border-2 cursor-grab active:cursor-grabbing">
+      <Card className="h-[700px] relative overflow-hidden bg-muted/10 border-2 rounded-[32px] cursor-grab active:cursor-grabbing group/map">
+        {/* Grid Background */}
+        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+          style={{ 
+            backgroundImage: `radial-gradient(circle at 2px 2px, currentColor 1px, transparent 0)`,
+            backgroundSize: '32px 32px',
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`
+          }} 
+        />
+
         <motion.div 
           className="absolute inset-0"
           drag
           dragMomentum={false}
-          style={{ x: pan.x, y: pan.y, scale: zoom }}
+          animate={{ x: pan.x, y: pan.y, scale: zoom }}
+          transition={{ type: "spring", damping: 25, stiffness: 200 }}
           onDragEnd={(_, info) => setPan({ x: pan.x + info.offset.x, y: pan.y + info.offset.y })}
         >
           <div className="absolute inset-0 flex items-center justify-center">
-            <svg className="absolute left-1/2 top-1/2 w-0 h-0 overflow-visible pointer-events-none">
+            {/* SVG Connections */}
+            <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none" style={{ left: '50%', top: '50%' }}>
               <AnimatePresence>
                 {nodes.map(node => {
-                  if (!visibleNodeIds.has(node.id) || !node.parentId || !visibleNodeIds.has(node.parentId)) return null;
-                  const start = getPosition(node.parentId);
-                  const end = getPosition(node.id);
+                  if (!node.parentId || !visibleNodeIds.has(node.id) || !visibleNodeIds.has(node.parentId)) return null;
+                  const start = nodePositions.get(node.parentId)!;
+                  const end = nodePositions.get(node.id)!;
                   
-                  const startOffset = node.parentId === "root" ? 60 : 160;
-                  const endOffset = 160;
-                  
-                  const dx = end.x - start.x;
-                  const midX = start.x + dx / 2;
+                  // Calculate curve
+                  const midX = (start.x + end.x) / 2;
                   
                   return (
                     <motion.path
                       key={`edge-${node.id}`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
+                      initial={{ pathLength: 0, opacity: 0 }}
+                      animate={{ pathLength: 1, opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      d={`M ${start.x + startOffset} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x - endOffset} ${end.y}`}
+                      d={`M ${start.x + 120} ${start.y} C ${midX} ${start.y}, ${midX} ${end.y}, ${end.x - 120} ${end.y}`}
                       stroke="currentColor"
-                      className="text-primary/60"
-                      strokeWidth="3"
+                      className="text-primary/30 dark:text-primary/50"
+                      strokeWidth="2.5"
                       fill="none"
                     />
                   );
@@ -882,10 +1072,11 @@ const MindmapView = () => {
               </AnimatePresence>
             </svg>
 
+            {/* Nodes */}
             <AnimatePresence>
               {nodes.map(node => {
                 if (!visibleNodeIds.has(node.id)) return null;
-                const pos = getPosition(node.id);
+                const pos = nodePositions.get(node.id)!;
                 const isExpanded = expandedNodes.has(node.id);
                 const hasChildren = (node.children?.length ?? 0) > 0;
                 const isRoot = node.id === "root";
@@ -893,13 +1084,13 @@ const MindmapView = () => {
                 return (
                   <motion.div
                     key={node.id}
-                    initial={{ opacity: 0, scale: 0.8, x: pos.x - 50, y: pos.y }}
+                    initial={{ opacity: 0, scale: 0.8, x: pos.x, y: pos.y }}
                     animate={{ opacity: 1, scale: 1, x: pos.x, y: pos.y }}
                     exit={{ opacity: 0, scale: 0.8 }}
+                    whileHover={{ y: pos.y - 4, transition: { duration: 0.2 } }}
                     className={cn(
-                      "absolute px-6 py-4 rounded-[24px] border-2 shadow-sm flex items-center gap-4 justify-between transition-colors",
-                      isRoot ? "w-[120px]" : "w-[320px]",
-                      node.color || "bg-card text-card-foreground border-border"
+                      "absolute w-[240px] p-4 rounded-[20px] border-2 shadow-sm flex items-center gap-3 transition-all",
+                      node.color || "bg-card/80 backdrop-blur-md text-card-foreground border-border/50 hover:border-primary/30 hover:shadow-md"
                     )}
                     style={{ 
                       left: '50%',
@@ -908,17 +1099,17 @@ const MindmapView = () => {
                       translateY: '-50%',
                     }}
                   >
-                    {node.parentId && (
-                      <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] text-muted-foreground flex-shrink-0">
-                        {"<"}
-                      </div>
-                    )}
-                    <span className={cn(
-                      "text-sm font-bold truncate px-1 flex-1",
-                      isRoot ? "text-center" : "text-left"
+                    <div className={cn(
+                      "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0",
+                      isRoot ? "bg-white/20" : "bg-primary/10 text-primary"
                     )}>
+                      {isRoot ? <Network className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+                    </div>
+                    
+                    <span className="text-sm font-bold flex-1 leading-tight">
                       {node.label}
                     </span>
+
                     {hasChildren && (
                       <button 
                         onClick={(e) => {
@@ -926,11 +1117,13 @@ const MindmapView = () => {
                           toggleNode(node.id);
                         }}
                         className={cn(
-                          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] transition-all shadow-sm flex-shrink-0",
-                          isExpanded ? "bg-primary text-primary-foreground rotate-180" : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          "w-6 h-6 rounded-lg flex items-center justify-center transition-all border",
+                          isExpanded 
+                            ? "bg-primary text-primary-foreground border-primary rotate-180" 
+                            : "bg-muted/50 text-muted-foreground border-border hover:bg-accent hover:text-accent-foreground"
                         )}
                       >
-                        {">"}
+                        <ChevronRightSmall className="w-3 h-3" />
                       </button>
                     )}
                   </motion.div>
@@ -940,32 +1133,51 @@ const MindmapView = () => {
           </div>
         </motion.div>
 
-        {/* Controls */}
-        <div className="absolute bottom-6 left-6 flex flex-col gap-2">
+        {/* Controls Overlay */}
+        <div className="absolute bottom-8 left-8 flex items-center gap-3">
+          <div className="flex flex-col gap-2 p-2 bg-card/80 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-10 w-10 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors"
+              onClick={() => setZoom(z => Math.min(z + 0.1, 2))}
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+            <Separator className="bg-border/50" />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-10 w-10 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors"
+              onClick={() => setZoom(z => Math.max(z - 0.1, 0.4))}
+            >
+              <Minus className="w-4 h-4" />
+            </Button>
+          </div>
+          
           <Button 
             variant="secondary" 
-            size="icon" 
-            className="rounded-xl bg-card shadow-lg border hover:bg-muted"
-            onClick={() => setZoom(z => Math.min(z + 0.2, 2))}
-          >
-            <Plus className="w-4 h-4" />
-          </Button>
-          <Button 
-            variant="secondary" 
-            size="icon" 
-            className="rounded-xl bg-card shadow-lg border hover:bg-muted"
-            onClick={() => setZoom(z => Math.max(z - 0.2, 0.5))}
-          >
-            <Minus className="w-4 h-4" />
-          </Button>
-          <Button 
-            variant="secondary" 
-            size="icon" 
-            className="rounded-xl bg-card shadow-lg border hover:bg-muted"
-            onClick={() => { setPan({ x: 0, y: 0 }); setZoom(1); }}
+            className="h-12 px-6 rounded-2xl bg-card/80 backdrop-blur-xl border border-border/50 shadow-2xl hover:bg-accent transition-all flex items-center gap-2 font-bold"
+            onClick={() => { setPan({ x: 0, y: 0 }); setZoom(0.8); }}
           >
             <Maximize2 className="w-4 h-4" />
+            Reset View
           </Button>
+        </div>
+
+        {/* Legend */}
+        <div className="absolute top-8 right-8 p-4 bg-card/80 backdrop-blur-xl border border-border/50 rounded-2xl shadow-2xl hidden md:block">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3">Navigation</p>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs font-medium">
+              <div className="w-2 h-2 rounded-full bg-primary" />
+              <span>Drag to pan</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-medium">
+              <div className="w-2 h-2 rounded-full bg-muted-foreground" />
+              <span>Scroll to zoom</span>
+            </div>
+          </div>
         </div>
       </Card>
     </div>
@@ -981,32 +1193,35 @@ export default function DemoModulePage() {
   return (
     <div className="space-y-8">
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-muted-foreground text-xs font-bold uppercase tracking-widest mb-1">
-            <Link href="/paths" className="hover:text-foreground transition-colors">Learning Path</Link>
-            <ChevronRight className="w-3 h-3" />
-            <span>Computer Science</span>
-          </div>
-          <h1 className="text-2xl font-display">Module 1: Foundations of Logic</h1>
+      <div className="relative flex items-center justify-center min-h-[80px]">
+        <div className="absolute left-0">
+          <Link href="/paths">
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Path
+            </Button>
+          </Link>
         </div>
+        <h1 className="text-3xl font-display">Module 1: Foundations of Logic</h1>
       </div>
 
       {/* View Mode Tabs */}
       <Tabs value={activeMode} onValueChange={(v) => setActiveMode(v as ViewMode)} className="w-full">
-        <div className="flex justify-center mb-8">
-          <TabsList className="h-12 p-1 bg-muted/50 border">
-            {TABS.map((tab) => (
-              <TabsTrigger 
-                key={tab.key} 
-                value={tab.key}
-                className="px-6 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm"
-              >
-                <tab.icon className="w-4 h-4 mr-2" />
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+        <div className="sticky top-[var(--header-height)] z-40 backdrop-blur py-4 mb-8 border-b border-transparent transition-all">
+          <div className="flex justify-center">
+            <TabsList className="h-12 p-1 bg-muted/50 border shadow-sm">
+              {TABS.map((tab) => (
+                <TabsTrigger 
+                  key={tab.key} 
+                  value={tab.key}
+                  className="px-6 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                >
+                  <tab.icon className="w-4 h-4 mr-2" />
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
         </div>
 
         <div className="min-h-[600px]">
@@ -1036,32 +1251,6 @@ export default function DemoModulePage() {
           </TabsContent>
         </div>
       </Tabs>
-
-      {/* Footer Navigation */}
-      <Separator />
-      <div className="flex justify-between items-center">
-        <Button variant="ghost" className="gap-2 text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="w-4 h-4" />
-          Previous Module
-        </Button>
-        <div className="flex items-center gap-6">
-          <div className="hidden sm:block text-right">
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Next Up</p>
-            <p className="text-sm font-medium">Data Structures & Types</p>
-          </div>
-          <Button 
-            disabled={!isQuizPassed}
-            size="lg"
-            className={cn(
-              "rounded-full gap-2 px-8 font-bold transition-all",
-              isQuizPassed ? "bg-primary" : "bg-muted text-muted-foreground"
-            )}
-          >
-            Continue
-            <ChevronRight className="w-5 h-5" />
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
