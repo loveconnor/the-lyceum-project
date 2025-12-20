@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { LabStepPanel } from "@/components/labs/lab-step-panel";
 import {
   Dialog,
   DialogContent,
@@ -38,10 +39,11 @@ import {
   ThumbsUp,
   ThumbsDown
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, extractJSON } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { useLabAI } from "@/hooks/use-lab-ai";
 import { toast } from "sonner";
+import { Markdown } from "@/components/ui/custom/prompt/markdown";
 
 interface Step {
   id: string;
@@ -335,7 +337,7 @@ Show exactly what would be printed to the console.`;
 
         try {
           const execResponse = await getAssistance(executionPrompt, { code });
-          const execParsed = JSON.parse(execResponse);
+          const execParsed = extractJSON<{ output: string[] }>(execResponse);
           
           if (execParsed.output && execParsed.output.length > 0) {
             setOutput([
@@ -382,7 +384,7 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
 }`;
 
         const response = await getAssistance(prompt, { code, testCases: relevantTests });
-        const parsed = JSON.parse(response);
+        const parsed = extractJSON<any>(response);
         
         const results: typeof testResults = parsed.results.map((r: any, idx: number) => ({
           passed: r.passed,
@@ -592,7 +594,7 @@ Approve if they show reasonable understanding. If not approved, explain what's m
       const response = await getAssistance(prompt, { step: currentStep.id, code });
       
       try {
-        const parsed = JSON.parse(response);
+        const parsed = extractJSON<{ approved: boolean; feedback: string }>(response);
         setFeedback({ text: parsed.feedback, approved: parsed.approved });
         
         if (parsed.approved) {
@@ -652,37 +654,12 @@ Approve if they show reasonable understanding. If not approved, explain what's m
       <ResizablePanelGroup direction="horizontal" className="w-full">
         
         {/* Left Panel: Step List */}
-        <ResizablePanel defaultSize={20} minSize={15} maxSize={25} className="border-r bg-muted/5">
-          <div className="flex flex-col h-full">
-            <ScrollArea className="flex-1">
-              <div className="p-4 space-y-2">
-                {steps.map((step) => {
-                  const isAccessible = step.status === "completed" || step.status === "current" || accessedSteps.has(step.id);
-                  return (
-                    <button
-                      key={step.id}
-                      ref={step.status === "current" ? currentStepRef : null}
-                      onClick={() => goToStep(step.id)}
-                      disabled={!isAccessible}
-                      className={cn(
-                        "w-full text-left p-3 rounded-lg transition-all duration-200",
-                        step.status === "current" 
-                          ? "bg-primary/10 border border-primary/20 text-primary font-medium" 
-                          : step.status === "completed"
-                          ? "text-foreground hover:bg-muted/50 cursor-pointer"
-                          : isAccessible
-                          ? "text-foreground hover:bg-muted/50 cursor-pointer"
-                          : "text-muted-foreground/60 cursor-not-allowed"
-                      )}
-                    >
-                      <p className="text-sm">{step.title}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </ScrollArea>
-          </div>
-        </ResizablePanel>
+        <LabStepPanel
+          steps={steps}
+          accessedSteps={accessedSteps}
+          currentStepRef={currentStepRef}
+          onStepClick={goToStep}
+        />
 
         <ResizableHandle withHandle />
 
@@ -818,13 +795,13 @@ Approve if they show reasonable understanding. If not approved, explain what's m
                     </label>
                     
                     {currentStep.instruction ? (
-                      <p className="text-sm text-muted-foreground leading-relaxed">
+                      <Markdown className="text-sm text-muted-foreground leading-relaxed">
                         {currentStep.instruction}
-                      </p>
+                      </Markdown>
                     ) : (currentStep.id.includes("test") || currentStep.id.includes("debug")) && (
-                      <p className="text-sm text-muted-foreground leading-relaxed">
+                      <Markdown className="text-sm text-muted-foreground leading-relaxed">
                         Run the provided test cases. If a test fails, use print statements or a debugger to inspect variable values and fix the logic. Add a main method to test your code manually if needed.
-                      </p>
+                      </Markdown>
                     )}
                     
                     {currentStep.keyQuestions && currentStep.keyQuestions.length > 0 ? (
@@ -833,7 +810,7 @@ Approve if they show reasonable understanding. If not approved, explain what's m
                           <p className="text-xs font-medium">Key Questions:</p>
                           <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground">
                             {currentStep.keyQuestions.map((q: string, i: number) => (
-                              <li key={i}>{q}</li>
+                              <li key={i}><Markdown className="inline">{q}</Markdown></li>
                             ))}
                           </ul>
                         </CardContent>
@@ -854,16 +831,16 @@ Approve if they show reasonable understanding. If not approved, explain what's m
                     {currentStep.prompt ? (
                       <div className="flex items-start gap-2 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
                         <Eye className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
-                        <p className="text-xs text-blue-700 leading-relaxed font-medium">
+                        <Markdown className="text-xs text-blue-700 leading-relaxed font-medium">
                           {currentStep.prompt}
-                        </p>
+                        </Markdown>
                       </div>
                     ) : (currentStep.id.includes("test") || currentStep.id.includes("debug")) && (
                       <div className="flex items-start gap-2 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
                         <Eye className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
-                        <p className="text-xs text-blue-700 leading-relaxed font-medium">
+                        <Markdown className="text-xs text-blue-700 leading-relaxed font-medium">
                           If a test fails, add System.out.println() statements to check variable values at key points. Double-check the loop condition and modulo checks. Remember that &apos;||&apos; means logical OR.
-                        </p>
+                        </Markdown>
                       </div>
                     )}
                     

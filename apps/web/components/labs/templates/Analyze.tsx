@@ -7,6 +7,7 @@ import {
   ResizablePanelGroup 
 } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { LabStepPanel } from "@/components/labs/lab-step-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -47,6 +48,7 @@ import {
   Legend 
 } from "recharts";
 import { Textarea } from "@/components/ui/textarea";
+import { Markdown } from "@/components/ui/custom/prompt/markdown";
 
 interface Step {
   id: string;
@@ -85,6 +87,25 @@ export default function AnalyzeTemplate({ data, labId }: AnalyzeTemplateProps) {
   const [evidence, setEvidence] = useState("");
   const [reasoning, setReasoning] = useState("");
 
+  const goToStep = (id: string) => {
+    const stepIndex = steps.findIndex(s => s.id === id);
+    if (stepIndex === -1) return;
+    
+    const step = steps[stepIndex];
+    const canNavigate = step.status === "completed" || step.status === "current";
+    if (!canNavigate) return;
+    
+    setSteps(prev => prev.map((s, idx) => {
+      if (idx === stepIndex) {
+        return { ...s, status: "current" as const };
+      }
+      if (s.status === "current") {
+        return { ...s, status: "pending" as const };
+      }
+      return s;
+    }));
+  };
+
   const completeStep = (id: string) => {
     setSteps(prev => {
       const index = prev.findIndex(s => s.id === id);
@@ -117,63 +138,10 @@ export default function AnalyzeTemplate({ data, labId }: AnalyzeTemplateProps) {
       <ResizablePanelGroup direction="horizontal" className="w-full">
         
         {/* Left Panel: Step List */}
-        <ResizablePanel defaultSize={20} minSize={15} maxSize={25} className="border-r bg-muted/5">
-          <div className="flex flex-col h-full">
-            <div className="p-6 border-b">
-              <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-primary" />
-                {labTitle}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">{description}</p>
-            </div>
-            <ScrollArea className="flex-1 h-0">
-              <div className="p-4 space-y-2">
-                {steps.map((step) => (
-                  <div 
-                    key={step.id}
-                    className={cn(
-                      "group flex items-start gap-3 p-3 rounded-xl transition-all duration-200",
-                      step.status === "current" 
-                        ? "bg-primary/10 border border-primary/20 shadow-sm" 
-                        : "hover:bg-muted/50 border border-transparent"
-                    )}
-                  >
-                    <div className="mt-0.5">
-                      {step.status === "completed" ? (
-                        <div className="bg-primary rounded-full p-0.5">
-                          <Check className="w-3.5 h-3.5 text-primary-foreground" />
-                        </div>
-                      ) : step.status === "current" ? (
-                        <div className="w-4.5 h-4.5 rounded-full bg-primary" />
-                      ) : (
-                        <Circle className="w-4.5 h-4.5 text-muted-foreground/40" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "text-sm font-medium leading-none",
-                        step.status === "pending" && "text-muted-foreground/60",
-                        step.status === "current" && "text-primary"
-                      )}>
-                        {step.title}
-                      </p>
-                      {step.status === "current" && (
-                        <Button 
-                          variant="link" 
-                          size="sm" 
-                          className="h-auto p-0 text-xs mt-2 text-primary/80 hover:text-primary"
-                          onClick={() => completeStep(step.id)}
-                        >
-                          Mark as complete <ChevronRight className="w-3 h-3 ml-1" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-        </ResizablePanel>
+        <LabStepPanel
+          steps={steps}
+          onStepClick={goToStep}
+        />
 
         <ResizableHandle withHandle />
 
@@ -373,9 +341,9 @@ export default function AnalyzeTemplate({ data, labId }: AnalyzeTemplateProps) {
                       </div>
                     </div>
                     
-                    <p className="text-sm text-muted-foreground italic">
+                    <Markdown className="text-sm text-muted-foreground italic">
                       {guidingQuestions.question}
-                    </p>
+                    </Markdown>
                     <Textarea 
                       placeholder="e.g., Is there a correlation between temperature and precipitation?"
                       className="min-h-[80px] text-sm"
@@ -407,9 +375,9 @@ export default function AnalyzeTemplate({ data, labId }: AnalyzeTemplateProps) {
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                       2. Analyze Patterns
                     </label>
-                    <p className="text-sm text-muted-foreground italic">
+                    <Markdown className="text-sm text-muted-foreground italic">
                       {guidingQuestions.patterns}
-                    </p>
+                    </Markdown>
                     <div className="flex items-start gap-2 p-2 bg-amber-500/10 rounded-lg border border-amber-500/20 mb-2">
                       <AlertCircle className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
                       <p className="text-[10px] text-amber-700 font-medium">
@@ -430,9 +398,9 @@ export default function AnalyzeTemplate({ data, labId }: AnalyzeTemplateProps) {
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                       3. Draw Conclusions
                     </label>
-                    <p className="text-sm text-muted-foreground italic">
+                    <Markdown className="text-sm text-muted-foreground italic">
                       {guidingQuestions.conclusions}
-                    </p>
+                    </Markdown>
                     
                     <div className="space-y-3">
                       <div className="space-y-1.5">
@@ -473,9 +441,9 @@ export default function AnalyzeTemplate({ data, labId }: AnalyzeTemplateProps) {
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                       4. Consider Limitations
                     </label>
-                    <p className="text-sm text-muted-foreground italic">
+                    <Markdown className="text-sm text-muted-foreground italic">
                       {guidingQuestions.limitations}
-                    </p>
+                    </Markdown>
                     <Textarea 
                       placeholder="Identify limitations of this analysis..."
                       className="min-h-[100px] text-sm"
@@ -510,7 +478,7 @@ export default function AnalyzeTemplate({ data, labId }: AnalyzeTemplateProps) {
                     ].map((check, i) => (
                       <div key={i} className="flex items-center gap-3 text-xs p-3 rounded-xl border bg-background">
                         <div className="border-2 border-muted-foreground/20 w-4 h-4 rounded shrink-0" />
-                        <span className="text-muted-foreground">{check}</span>
+                        <Markdown className="text-muted-foreground inline">{check}</Markdown>
                       </div>
                     ))}
                   </div>

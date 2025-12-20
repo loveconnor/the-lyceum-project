@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Clock, Eye, MoreVertical, RotateCcw, Star, Trash2, PlayCircle } from "lucide-react";
 import { statusClasses } from "@/app/(main)/labs/enum";
 import { Lab, LabStatus } from "@/app/(main)/labs/types";
+import { Markdown } from "@/components/ui/custom/prompt/markdown";
 
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,25 @@ const LabCard: React.FC<LabCardProps> = ({
   onRestart,
   onDelete
 }) => {
+  // Helper function to auto-wrap LaTeX patterns
+  const wrapMath = (text: string): string => {
+    if (!text) return text;
+    
+    // If already has $ signs, return as is
+    if (text.includes('$')) return text;
+    
+    // Wrap expressions in parentheses that contain LaTeX (backslash commands or special chars)
+    let result = text.replace(/\(([^)]*(?:\\[a-z]+|[\^_{}])[^)]*)\)/g, (match, inner) => {
+      // Only wrap if it contains LaTeX syntax
+      if (/\\[a-z]+|[\^_{}]/.test(inner)) {
+        return `$${match}$`;
+      }
+      return match;
+    });
+    
+    return result;
+  };
+
   // Calculate step progress from lab_progress
   const completedSteps = lab.lab_progress?.filter((p: any) => p.completed).length || 0;
   // Get total steps dynamically from template_data
@@ -77,7 +97,7 @@ const LabCard: React.FC<LabCardProps> = ({
             <div className="flex flex-col gap-3">
               <div className="flex items-start justify-between gap-2">
                 <h3 className="text-md flex-1 font-semibold leading-tight">
-                  {lab.title}
+                  <Markdown>{wrapMath(lab.title)}</Markdown>
                 </h3>
 
                 <DropdownMenu>
@@ -134,9 +154,9 @@ const LabCard: React.FC<LabCardProps> = ({
                 </DropdownMenu>
               </div>
 
-              <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2 min-h-[2.5rem]">
-                {learningOutcome}
-              </p>
+              <div className="text-muted-foreground text-sm leading-relaxed line-clamp-2 min-h-[2.5rem]">
+                <Markdown>{wrapMath(learningOutcome)}</Markdown>
+              </div>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -178,7 +198,7 @@ const LabCard: React.FC<LabCardProps> = ({
             <div className="flex flex-col items-start justify-between gap-3 lg:flex-row lg:gap-4">
               <div className="flex items-start gap-2 flex-1">
                 <h3 className="text-md font-semibold leading-tight">
-                  {lab.title}
+                  <Markdown>{wrapMath(lab.title)}</Markdown>
                 </h3>
 
                 <DropdownMenu>
@@ -240,9 +260,9 @@ const LabCard: React.FC<LabCardProps> = ({
               </Badge>
             </div>
 
-            <p className="text-muted-foreground text-sm leading-relaxed">
-              {learningOutcome}
-            </p>
+            <div className="text-muted-foreground text-sm leading-relaxed">
+              <Markdown>{wrapMath(learningOutcome)}</Markdown>
+            </div>
 
             <div className="flex flex-wrap items-center gap-4 text-muted-foreground text-sm">
               <div className="flex items-center gap-1.5">

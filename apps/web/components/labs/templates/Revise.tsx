@@ -8,6 +8,7 @@ import {
   ResizablePanelGroup 
 } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { LabStepPanel } from "@/components/labs/lab-step-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -30,6 +31,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Markdown } from "@/components/ui/custom/prompt/markdown";
 
 interface Step {
   id: string;
@@ -76,6 +78,25 @@ export default function ReviseTemplate({ data, labId }: ReviseTemplateProps) {
       question: criterion?.guidanceQuestion || "How can you improve this?",
       hint: criterion?.hint || ""
     };
+  };
+
+  const goToStep = (id: string) => {
+    const stepIndex = steps.findIndex(s => s.id === id);
+    if (stepIndex === -1) return;
+    
+    const step = steps[stepIndex];
+    const canNavigate = step.status === "completed" || step.status === "current";
+    if (!canNavigate) return;
+    
+    setSteps(prev => prev.map((s, idx) => {
+      if (idx === stepIndex) {
+        return { ...s, status: "current" as const };
+      }
+      if (s.status === "current") {
+        return { ...s, status: "pending" as const };
+      }
+      return s;
+    }));
   };
 
   const completeStep = (id: string) => {
@@ -132,63 +153,10 @@ export default function ReviseTemplate({ data, labId }: ReviseTemplateProps) {
       <ResizablePanelGroup direction="horizontal" className="w-full">
         
         {/* Left Panel: Step List */}
-        <ResizablePanel defaultSize={20} minSize={15} maxSize={25} className="border-r bg-muted/5">
-          <div className="flex flex-col h-full">
-            <div className="p-6 border-b">
-              <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
-                <PenLine className="w-5 h-5 text-primary" />
-                {labTitle}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">{description}</p>
-            </div>
-            <ScrollArea className="flex-1 h-0">
-              <div className="p-4 space-y-2">
-                {steps.map((step) => (
-                  <div 
-                    key={step.id}
-                    className={cn(
-                      "group flex items-start gap-3 p-3 rounded-xl transition-all duration-200",
-                      step.status === "current" 
-                        ? "bg-primary/10 border border-primary/20 shadow-sm" 
-                        : "hover:bg-muted/50 border border-transparent"
-                    )}
-                  >
-                    <div className="mt-0.5">
-                      {step.status === "completed" ? (
-                        <div className="bg-primary rounded-full p-0.5">
-                          <Check className="w-3.5 h-3.5 text-primary-foreground" />
-                        </div>
-                      ) : step.status === "current" ? (
-                        <div className="w-4.5 h-4.5 rounded-full bg-primary" />
-                      ) : (
-                        <Circle className="w-4.5 h-4.5 text-muted-foreground/40" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "text-sm font-medium leading-none",
-                        step.status === "pending" && "text-muted-foreground/60",
-                        step.status === "current" && "text-primary"
-                      )}>
-                        {step.title}
-                      </p>
-                      {step.status === "current" && (
-                        <Button 
-                          variant="link" 
-                          size="sm" 
-                          className="h-auto p-0 text-xs mt-2 text-primary/80 hover:text-primary"
-                          onClick={() => completeStep(step.id)}
-                        >
-                          Mark as complete <ChevronRight className="w-3 h-3 ml-1" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-        </ResizablePanel>
+        <LabStepPanel
+          steps={steps}
+          onStepClick={goToStep}
+        />
 
         <ResizableHandle withHandle />
 
@@ -353,7 +321,7 @@ export default function ReviseTemplate({ data, labId }: ReviseTemplateProps) {
                                       isSelected && "rotate-90"
                                     )} />
                                   </p>
-                                  <p className="text-[10px] text-muted-foreground mt-1">{criterion.description}</p>
+                                  <Markdown className="text-[10px] text-muted-foreground mt-1">{criterion.description}</Markdown>
                                 </div>
                                 <Badge variant="outline" className="text-xs ml-2">
                                   {score}/3
@@ -365,9 +333,9 @@ export default function ReviseTemplate({ data, labId }: ReviseTemplateProps) {
                                   <div className="flex items-start gap-2 p-2 bg-amber-500/10 rounded-lg">
                                     <Target className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
                                     <div className="space-y-1">
-                                      <p className="text-[10px] font-medium text-amber-900">{guidance.question}</p>
+                                      <Markdown className="text-[10px] font-medium text-amber-900">{guidance.question}</Markdown>
                                       {guidance.hint && (
-                                        <p className="text-[10px] text-amber-700 italic">{guidance.hint}</p>
+                                        <Markdown className="text-[10px] text-amber-700 italic">{guidance.hint}</Markdown>
                                       )}
                                     </div>
                                   </div>
@@ -409,7 +377,7 @@ export default function ReviseTemplate({ data, labId }: ReviseTemplateProps) {
                           >
                             <span className="flex items-start gap-2">
                               <CheckCircle2 className="w-3 h-3 mt-0.5 opacity-40 group-hover:opacity-100 transition-opacity" />
-                              {prompt}
+                              <Markdown className="inline">{prompt}</Markdown>
                             </span>
                           </button>
                         ))}

@@ -76,6 +76,18 @@ export interface DeriveLabData {
   };
   expectedSteps?: number;
   verificationHints?: string[];
+  conceptCheck?: {
+    question: string;
+    explanation?: string;
+  };
+  steps?: Array<{
+    id: string;
+    title: string;
+    widgets?: Array<{
+      type: "text-input" | "multiple-choice" | "derivation-steps";
+      config: any;
+    }>;
+  }>;
 }
 
 // ============= EXPLAIN TEMPLATE =============

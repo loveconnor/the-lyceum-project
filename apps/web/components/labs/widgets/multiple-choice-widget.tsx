@@ -1,0 +1,128 @@
+"use client";
+
+import React from "react";
+import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Markdown } from "@/components/ui/custom/prompt/markdown";
+import { Textarea } from "@/components/ui/textarea";
+
+// Helper to wrap math notation in LaTeX delimiters
+const wrapMath = (text: string): string => {
+  if (!text) return text;
+  // Wrap any $...$ pattern that isn't already wrapped
+  return text.replace(/\$([^$]+)\$/g, (match, inner) => {
+    // Already properly formatted
+    if (match.startsWith('$') && match.endsWith('$')) {
+      return match;
+    }
+    return `$${inner}$`;
+  });
+};
+
+interface Choice {
+  id: string;
+  name: string;
+  description?: string;
+  formula?: string;
+}
+
+interface MultipleChoiceWidgetProps {
+  label: string;
+  description?: string;
+  choices: Choice[];
+  selectedIds: string[];
+  onSelectionChange: (selectedIds: string[]) => void;
+  multiSelect?: boolean;
+  showExplanation?: boolean;
+  explanation?: string;
+  onExplanationChange?: (value: string) => void;
+  explanationLabel?: string;
+  explanationPlaceholder?: string;
+}
+
+export function MultipleChoiceWidget({
+  label,
+  description,
+  choices,
+  selectedIds,
+  onSelectionChange,
+  multiSelect = true,
+  showExplanation = false,
+  explanation = "",
+  onExplanationChange,
+  explanationLabel = "Explain your choice",
+  explanationPlaceholder = "Explain why you made this selection..."
+}: MultipleChoiceWidgetProps) {
+  const handleChoiceClick = (choiceId: string) => {
+    if (multiSelect) {
+      if (selectedIds.includes(choiceId)) {
+        onSelectionChange(selectedIds.filter(id => id !== choiceId));
+      } else {
+        onSelectionChange([...selectedIds, choiceId]);
+      }
+    } else {
+      onSelectionChange([choiceId]);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <label className="text-sm font-medium text-muted-foreground">
+        {label}
+      </label>
+      {description && (
+        <div className="text-xs text-muted-foreground italic">
+          <Markdown>{wrapMath(description)}</Markdown>
+        </div>
+      )}
+      
+      <div className="space-y-2">
+        {choices.map((choice) => {
+          const isSelected = selectedIds.includes(choice.id);
+          
+          return (
+            <button
+              key={choice.id}
+              onClick={() => handleChoiceClick(choice.id)}
+              className={cn(
+                "w-full text-left p-4 rounded-xl border transition-all duration-200",
+                isSelected
+                  ? "bg-primary/10 border-primary/40 shadow-sm"
+                  : "bg-background hover:bg-muted/50"
+              )}
+            >
+              <div className="flex items-start justify-between">
+                <div className="space-y-2 flex-1">
+                  <p className="text-sm font-bold">{choice.name}</p>
+                  {choice.description && (
+                    <p className="text-xs text-muted-foreground">{choice.description}</p>
+                  )}
+                  {choice.formula && (
+                    <Markdown className="text-xs text-muted-foreground">{choice.formula}</Markdown>
+                  )}
+                </div>
+                {isSelected && (
+                  <Check className="w-5 h-5 text-primary" />
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {showExplanation && onExplanationChange && (
+        <div className="space-y-3 pt-2">
+          <div className="text-sm font-medium text-muted-foreground">
+            <Markdown>{wrapMath(explanationLabel)}</Markdown>
+          </div>
+          <Textarea 
+            placeholder={explanationPlaceholder}
+            className="min-h-[120px] text-sm"
+            value={explanation}
+            onChange={(e) => onExplanationChange(e.target.value)}
+          />
+        </div>
+      )}
+    </div>
+  );
+}

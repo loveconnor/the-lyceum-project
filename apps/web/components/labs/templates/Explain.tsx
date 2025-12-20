@@ -8,6 +8,7 @@ import {
   ResizablePanelGroup 
 } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { LabStepPanel } from "@/components/labs/lab-step-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -29,10 +30,11 @@ import {
   ThumbsUp,
   ThumbsDown
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, extractJSON } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { useLabAI } from "@/hooks/use-lab-ai";
 import { toast } from "sonner";
+import { Markdown } from "@/components/ui/custom/prompt/markdown";
 
 interface Step {
   id: string;
@@ -241,7 +243,7 @@ Approve if they show reasonable understanding. If not approved, explain what's m
       const response = await getAssistance(prompt, { step: currentStep.id, code: artifactCode });
       
       try {
-        const parsed = JSON.parse(response);
+        const parsed = extractJSON<{ approved: boolean; feedback: string }>(response);
         setFeedback({ text: parsed.feedback, approved: parsed.approved });
         
         if (parsed.approved) {
@@ -265,31 +267,10 @@ Approve if they show reasonable understanding. If not approved, explain what's m
       <ResizablePanelGroup direction="horizontal" className="w-full">
         
         {/* Left Panel: Step List */}
-        <ResizablePanel defaultSize={20} minSize={15} maxSize={25} className="border-r bg-muted/5">
-          <div className="flex flex-col h-full">
-            <ScrollArea className="flex-1">
-              <div className="p-4 space-y-2">
-                {steps.map((step) => (
-                  <button
-                    key={step.id}
-                    onClick={() => goToStep(step.id)}
-                    disabled={step.status === "pending"}
-                    className={cn(
-                      "w-full text-left p-3 rounded-lg transition-all duration-200",
-                      step.status === "current" 
-                        ? "bg-primary/10 border border-primary/20 text-primary font-medium" 
-                        : step.status === "completed"
-                        ? "text-foreground hover:bg-muted/50 cursor-pointer"
-                        : "text-muted-foreground/60 cursor-not-allowed"
-                    )}
-                  >
-                    <p className="text-sm">{step.title}</p>
-                  </button>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-        </ResizablePanel>
+        <LabStepPanel
+          steps={steps}
+          onStepClick={goToStep}
+        />
 
         <ResizableHandle withHandle />
 
@@ -353,9 +334,9 @@ Approve if they show reasonable understanding. If not approved, explain what's m
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                       {currentStepIndex + 1}. {currentStep.title}
                     </label>
-                    <p className="text-sm text-muted-foreground">
+                    <Markdown className="text-sm text-muted-foreground">
                       {currentStep.instruction || "Complete this step by analyzing the code."}
-                    </p>
+                    </Markdown>
                     
                     {currentStep.keyQuestions && currentStep.keyQuestions.length > 0 && (
                       <Card className="border-none bg-primary/5 shadow-none">
@@ -363,7 +344,7 @@ Approve if they show reasonable understanding. If not approved, explain what's m
                           <p className="text-xs font-medium">Key Questions:</p>
                           <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground">
                             {currentStep.keyQuestions.map((q: string, i: number) => (
-                              <li key={i}>{q}</li>
+                              <li key={i}><Markdown className="inline">{q}</Markdown></li>
                             ))}
                           </ul>
                         </CardContent>
@@ -373,9 +354,9 @@ Approve if they show reasonable understanding. If not approved, explain what's m
                     {currentStep.prompt && (
                       <div className="flex items-start gap-2 p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
                         <Eye className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
-                        <p className="text-[10px] text-blue-700 leading-relaxed font-medium">
+                        <Markdown className="text-[10px] text-blue-700 leading-relaxed font-medium">
                           {currentStep.prompt}
-                        </p>
+                        </Markdown>
                       </div>
                     )}
                     

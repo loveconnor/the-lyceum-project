@@ -8,48 +8,40 @@ import {
   ResizablePanelGroup 
 } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { LabStepPanel } from "@/components/labs/lab-step-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
-  Calculator, 
-  CheckCircle2, 
-  Circle, 
-  History,
-  HelpCircle,
   ChevronRight,
   Check,
-  Plus,
-  Trash2,
   Info,
   Lightbulb,
   ArrowRight
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Textarea } from "@/components/ui/textarea";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
+import { TextInputWidget } from "@/components/labs/widgets/text-input-widget";
+import { MultipleChoiceWidget } from "@/components/labs/widgets/multiple-choice-widget";
+import { DerivationStepsWidget, DerivationStep } from "@/components/labs/widgets/derivation-steps-widget";
 
 interface Step {
   id: string;
   title: string;
   status: "pending" | "current" | "completed";
+  widgets?: Array<{
+    type: "text-input" | "multiple-choice" | "derivation-steps";
+    config: any;
+  }>;
 }
-
-interface DerivationStep {
-  id: string;
-  expression: string;
-  rule: string;
-  justification: string;
-}
-
-const INITIAL_STEPS: Step[] = [
-  { id: "restate", title: "Restate problem", status: "current" },
-  { id: "method", title: "Choose method", status: "pending" },
-  { id: "derive", title: "Derive solution", status: "pending" },
-  { id: "verify", title: "Verify", status: "pending" },
-  { id: "generalize", title: "Generalize", status: "pending" },
-];
 
 interface DeriveTemplateProps {
   data: DeriveLabData;
@@ -57,15 +49,194 @@ interface DeriveTemplateProps {
 }
 
 export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
-  const { labTitle, description, problemStatement, availableRules, initialStep } = data;
-  const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS);
-  const [derivationSteps, setDerivationSteps] = useState<DerivationStep[]>([
-    { id: "1", expression: initialStep?.expression || "", rule: "", justification: initialStep?.justification || "Given" }
-  ]);
+  const { labTitle, description, problemStatement, availableRules, initialStep, steps: dataSteps, conceptCheck } = data;
+  
+  // Initialize steps from AI-generated data or fallback to defaults
+  const initialSteps: Step[] = dataSteps && dataSteps.length > 0 
+    ? dataSteps.map((step, idx) => ({
+        id: step.id,
+        title: step.title,
+        status: idx === 0 ? "current" as const : "pending" as const,
+        widgets: step.widgets
+      }))
+    : [
+        { id: "restate", title: "Restate problem", status: "current" as const },
+        { id: "method", title: "Choose method", status: "pending" as const },
+        { id: "derive", title: "Derive solution", status: "pending" as const },
+        { id: "verify", title: "Verify", status: "pending" as const },
+        { id: "generalize", title: "Generalize", status: "pending" as const },
+      ];
+  
+  const [steps, setSteps] = useState<Step[]>(initialSteps);
+  const [selectedRule, setSelectedRule] = useState<typeof availableRules[0] | null>(null);
+  const [stepResponses, setStepResponses] = useState<Record<string, any>>({});
+  const [isLoadingProgress, setIsLoadingProgress] = useState(false);
+  const [feedback, setFeedback] = useState<{ text: string; approved: boolean } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [accessedSteps, setAccessedSteps] = useState<Set<string>>(new Set([initialSteps[0]?.id]));
+  
+  const currentStepRef = React.useRef<HTMLButtonElement>(null);
+
+  const currentStep = steps.find(s => s.status === "current");
+
+  const derivationSteps = React.useMemo(() => {
+    if (!currentStep) return [];
+    return stepResponses[`${currentStep.id}-derivation`] || [
+      { 
+        id: "1", 
+        expression: (currentStep.id === initialSteps[0].id ? initialStep?.expression : "") || "", 
+        rule: "", 
+        justification: (currentStep.id === initialSteps[0].id ? initialStep?.justification : "") || (currentStep.id === initialSteps[0].id ? "Given" : "") 
+      }
+    ];
+  }, [currentStep, stepResponses, initialStep, initialSteps]);
+
+  // Load saved progress on mount
+  React.useEffect(() => {
+    if (!labId) {
+      setIsLoadingProgress(false);
+      return;
+    }
+
+    const loadProgress = async () => {
+      try {
+        const { fetchLabProgress } = await import("@/lib/api/labs");
+        const progress = await fetchLabProgress(labId);
+        
+        if (progress && progress.length > 0) {
+          // Sort progress by timestamp to get the most recent
+          const sortedProgress = [...progress].sort((a, b) => {
+            const timeA = new Date(a.updated_at || a.created_at).getTime();
+            const timeB = new Date(b.updated_at || b.created_at).getTime();
+            return timeB - timeA;
+          });
+          
+          const mostRecent = sortedProgress[0];
+          
+          // Restore data from most recent progress entry
+          if (mostRecent?.step_data) {
+            const responses = mostRecent.step_data.stepResponses || {};
+            
+            // Migrate old derivationSteps if they exist
+            if (mostRecent.step_data.derivationSteps && !responses[`${mostRecent.step_id}-derivation`]) {
+              responses[`${mostRecent.step_id}-derivation`] = mostRecent.step_data.derivationSteps;
+            }
+            
+            setStepResponses(responses);
+          }
+
+          // Restore step completion status
+          const completedStepIds = progress.filter((p: any) => p.completed).map((p: any) => p.step_id);
+          
+          setSteps(prev => {
+            const newSteps = prev.map(step => {
+              if (completedStepIds.includes(step.id)) {
+                return { ...step, status: "completed" as const };
+              }
+              return step;
+            });
+            
+            // Always go to the first incomplete step (right after all completed ones)
+            const firstIncomplete = newSteps.findIndex(s => s.status !== "completed");
+            if (firstIncomplete !== -1) {
+              newSteps[firstIncomplete] = { ...newSteps[firstIncomplete], status: "current" as const };
+            }
+            
+            return newSteps;
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load progress:", error);
+      } finally {
+        setIsLoadingProgress(false);
+      }
+    };
+
+    loadProgress();
+  }, [labId]);
+
+  // Auto-save data when it changes (debounced)
+  React.useEffect(() => {
+    if (!labId || isLoadingProgress) return;
+    
+    const currentStep = steps.find(s => s.status === "current");
+    if (!currentStep) return;
+
+    const timer = setTimeout(() => {
+      saveProgress(currentStep.id, false);
+    }, 2000); // Auto-save after 2 seconds of no typing
+
+    return () => clearTimeout(timer);
+  }, [stepResponses, labId, isLoadingProgress]);
+
+  const saveProgress = async (stepId: string, completed: boolean = false) => {
+    if (!labId || !stepId) return;
+    
+    try {
+      const { updateLabProgress } = await import("@/lib/api/labs");
+      await updateLabProgress(labId, {
+        step_id: stepId,
+        step_data: {
+          stepResponses
+        },
+        completed
+      });
+    } catch (error) {
+      console.error("Failed to save progress:", error);
+    }
+  };
+
+  // Helper function to auto-wrap math notation for preview
+  const previewWithMath = (text: string): string => {
+    // If already has $ signs, return as is
+    if (text.includes('$')) return text;
+    
+    // If it contains LaTeX commands or complex operators and is relatively short,
+    // treat the whole thing as a single mathematical expression.
+    const words = text.trim().split(/\s+/);
+    const hasComplexMath = /\\|[\^_{}]/.test(text);
+    if (hasComplexMath && words.length <= 5) {
+      return `$${text.trim()}$`;
+    }
+    
+    // Split by periods and newlines to handle sentences separately
+    const sentences = text.split(/([.!?\n]+)/);
+    
+    return sentences.map(sentence => {
+      // Check if this sentence/fragment contains math patterns
+      const hasMathOperators = /[\^*/+\-=\\__{}]|sin|cos|tan|log|ln|sqrt|exp|lim|int|sum|prod|alpha|beta|gamma|delta|theta|pi/i.test(sentence);
+      
+      if (hasMathOperators) {
+        // Wrap entire mathematical expressions in inline math
+        return sentence
+          // Wrap expressions with operators or LaTeX commands
+          .replace(/((?:[a-zA-Z0-9()\s\^*/+\-=\\__{}]+)?(?:sin|cos|tan|log|ln|sqrt|exp|int|sum|prod|lim|frac|partial|alpha|beta|gamma|delta|theta|pi)[a-zA-Z0-9()\s\^*/+\-=\\__{}]*)/gi, (match) => {
+            // Don't wrap if it's just plain words without operators or backslashes
+            if (/[\^*/+\-=\\__{}]/.test(match) || /sin|cos|tan|log|ln|sqrt|exp|int|sum|prod|lim|frac|partial|\\/.test(match)) {
+              // If it's just a word like "integral" or "sum" without operators, don't wrap
+              if (/^[a-zA-Z]+$/.test(match.trim()) && !/sin|cos|tan|log|ln|sqrt|exp/.test(match.trim())) {
+                return match;
+              }
+              return `$${match.trim()}$`;
+            }
+            return match;
+          })
+          // Catch remaining patterns: standalone x^2, e^x, etc.
+          .replace(/\b([a-zA-Z]+\^[a-zA-Z0-9]+)\b/g, '$$$1$$')
+          .replace(/\b([a-zA-Z]+_[a-zA-Z0-9]+)\b/g, '$$$1$$') // subscripts
+          // Clean up double wrapping
+          .replace(/\$\$+/g, '$');
+      }
+      
+      return sentence;
+    }).join('');
+  };
 
   const addStep = () => {
+    if (!currentStep) return;
     const newId = (derivationSteps.length + 1).toString();
-    setDerivationSteps([...derivationSteps, { id: newId, expression: "", rule: "", justification: "" }]);
+    const newSteps = [...derivationSteps, { id: newId, expression: "", rule: "", justification: "" }];
+    setStepResponses({ ...stepResponses, [`${currentStep.id}-derivation`]: newSteps });
   };
   
   const applyRule = (stepId: string, ruleId: string) => {
@@ -79,16 +250,45 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
   };
 
   const removeStep = (id: string) => {
+    if (!currentStep) return;
     if (derivationSteps.length > 1) {
-      setDerivationSteps(derivationSteps.filter(s => s.id !== id));
+      const newSteps = derivationSteps.filter(s => s.id !== id);
+      setStepResponses({ ...stepResponses, [`${currentStep.id}-derivation`]: newSteps });
     }
   };
 
   const updateStep = (id: string, field: keyof DerivationStep, value: string) => {
-    setDerivationSteps(derivationSteps.map(s => s.id === id ? { ...s, [field]: value } : s));
+    if (!currentStep) return;
+    const newSteps = derivationSteps.map(s => s.id === id ? { ...s, [field]: value } : s);
+    setStepResponses({ ...stepResponses, [`${currentStep.id}-derivation`]: newSteps });
+  };
+
+  const goToStep = (id: string) => {
+    const stepIndex = steps.findIndex(s => s.id === id);
+    if (stepIndex === -1) return;
+    
+    const step = steps[stepIndex];
+    const canNavigate = step.status === "completed" || step.status === "current" || accessedSteps.has(id);
+    if (!canNavigate) return;
+    
+    setSteps(prev => prev.map((s, idx) => {
+      if (idx === stepIndex) {
+        return { ...s, status: "current" as const };
+      }
+      if (s.status === "current") {
+        return { ...s, status: "pending" as const };
+      }
+      return s;
+    }));
+    
+    // Clear feedback when navigating
+    setFeedback(null);
   };
 
   const completeStep = (id: string) => {
+    // Save progress before completing
+    saveProgress(id, true);
+    
     setSteps(prev => {
       const index = prev.findIndex(s => s.id === id);
       if (index === -1) return prev;
@@ -98,10 +298,85 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
       
       if (index + 1 < newSteps.length) {
         newSteps[index + 1] = { ...newSteps[index + 1], status: "current" };
+        setAccessedSteps(prev => new Set([...prev, newSteps[index + 1].id]));
       }
       
       return newSteps;
     });
+    
+    // Clear feedback when moving to next step
+    setFeedback(null);
+  };
+
+  const handleSubmit = async () => {
+    const currentStep = steps.find(s => s.status === "current");
+    if (!currentStep || !labId) return;
+
+    const userResponse = stepResponses[currentStep.id];
+    const choiceResponse = stepResponses[`${currentStep.id}-choice`];
+    const explainResponse = stepResponses[`${currentStep.id}-explain`];
+    
+    // Check if user has provided any response
+    const hasResponse = userResponse?.trim() || choiceResponse || explainResponse?.trim() || derivationSteps.some(s => s.expression);
+    
+    if (!hasResponse) {
+      const { toast } = await import("sonner");
+      toast.error("Please provide an answer before submitting");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFeedback(null);
+
+    try {
+      const { getLabAIAssistance } = await import("@/lib/api/labs");
+      const { extractJSON } = await import("@/lib/utils");
+      
+      // Build context about what the student did
+      let studentWork = '';
+      if (userResponse) studentWork += `Text response: ${userResponse}\n`;
+      if (choiceResponse) studentWork += `Selected options: ${choiceResponse}\n`;
+      if (explainResponse) studentWork += `Explanation: ${explainResponse}\n`;
+      if (derivationSteps.length > 0 && derivationSteps.some(s => s.expression)) {
+        studentWork += `Derivation steps:\n${derivationSteps.map(s => `- ${s.expression} (${s.rule || 'no rule'}: ${s.justification || 'no justification'})`).join('\n')}`;
+      }
+      
+      const prompt = `You are a mathematics instructor reviewing a student's work on: ${problemStatement}
+
+Step: ${currentStep.title}
+
+Student's work:
+${studentWork}
+
+Evaluate if their response demonstrates understanding and mathematical correctness. Respond ONLY in this JSON format:
+{
+  "approved": true/false,
+  "feedback": "Brief constructive feedback (2-3 sentences)"
+}
+
+Approve if they show reasonable understanding and correct approach. If not approved, explain what's missing or incorrect.`;
+
+      const result = await getLabAIAssistance(labId, prompt, {});
+      
+      try {
+        const parsed = extractJSON<{ approved: boolean; feedback: string }>(result.assistance);
+        setFeedback({ text: parsed.feedback, approved: parsed.approved });
+        
+        if (parsed.approved) {
+          setTimeout(() => {
+            completeStep(currentStep.id);
+          }, 2000);
+        }
+      } catch {
+        const { toast } = await import("sonner");
+        toast.error("Failed to parse AI response");
+      }
+    } catch (error) {
+      const { toast } = await import("sonner");
+      toast.error("Failed to get feedback: " + (error as Error).message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -109,169 +384,154 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
       <ResizablePanelGroup direction="horizontal" className="w-full">
         
         {/* Left Panel: Step List */}
-        <ResizablePanel defaultSize={20} minSize={15} maxSize={25} className="border-r bg-muted/5">
-          <div className="flex flex-col h-full">
-            <div className="p-6 border-b">
-              <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
-                <Calculator className="w-5 h-5 text-primary" />
-                {labTitle}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">{description}</p>
-            </div>
-            <ScrollArea className="flex-1 h-0">
-              <div className="p-4 space-y-2">
-                {steps.map((step) => (
-                  <div 
-                    key={step.id}
-                    className={cn(
-                      "group flex items-start gap-3 p-3 rounded-xl transition-all duration-200",
-                      step.status === "current" 
-                        ? "bg-primary/10 border border-primary/20 shadow-sm" 
-                        : "hover:bg-muted/50 border border-transparent"
-                    )}
-                  >
-                    <div className="mt-0.5">
-                      {step.status === "completed" ? (
-                        <div className="bg-primary rounded-full p-0.5">
-                          <Check className="w-3.5 h-3.5 text-primary-foreground" />
-                        </div>
-                      ) : step.status === "current" ? (
-                        <div className="w-4.5 h-4.5 rounded-full bg-primary" />
-                      ) : (
-                        <Circle className="w-4.5 h-4.5 text-muted-foreground/40" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "text-sm font-medium leading-none",
-                        step.status === "pending" && "text-muted-foreground/60",
-                        step.status === "current" && "text-primary"
-                      )}>
-                        {step.title}
-                      </p>
-                      {step.status === "current" && (
-                        <Button 
-                          variant="link" 
-                          size="sm" 
-                          className="h-auto p-0 text-xs mt-2 text-primary/80 hover:text-primary"
-                          onClick={() => completeStep(step.id)}
-                        >
-                          Mark as complete <ChevronRight className="w-3 h-3 ml-1" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-        </ResizablePanel>
+        <LabStepPanel
+          steps={steps}
+          accessedSteps={accessedSteps}
+          currentStepRef={currentStepRef}
+          onStepClick={goToStep}
+        />
 
         <ResizableHandle withHandle />
 
         {/* Center Panel: LaTeX Scratchpad */}
         <ResizablePanel defaultSize={55} minSize={40}>
-          <div className="flex flex-col h-full bg-background">
+          <ScrollArea className="h-full w-full">
             <div className="p-8 max-w-3xl mx-auto w-full space-y-8">
-              <div className="space-y-4">
-                <Badge variant="outline" className="px-2 py-0.5 text-[10px] uppercase tracking-widest font-bold">
-                  Problem Statement
-                </Badge>
-                <div className="text-xl font-serif leading-relaxed">
-                  <Markdown>{problemStatement}</Markdown>
+                <div className="space-y-4">
+                  <Badge variant="outline" className="px-2 py-0.5 text-[10px] uppercase tracking-widest font-bold">
+                    Problem Statement
+                  </Badge>
+                  <div className="text-xl font-serif leading-relaxed">
+                    <Markdown>{problemStatement}</Markdown>
+                  </div>
                 </div>
-              </div>
 
-              <Separator className="opacity-50" />
+                <Separator className="opacity-50" />
 
-              <div className="space-y-6">
-                {derivationSteps.map((step, index) => (
-                  <div key={step.id} className="group relative space-y-3 p-6 rounded-2xl border bg-muted/30 hover:bg-muted/50 transition-all duration-200">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                        Step {index + 1}
-                      </span>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive"
-                        onClick={() => removeStep(step.id)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-medium text-muted-foreground uppercase">Expression</label>
-                        <p className="text-[10px] text-muted-foreground italic mb-1">Type naturally: x^2 sin(x), 2x cos(x) + x^2(-sin(x)), etc.</p>
-                        <Textarea 
-                          placeholder="e.g. 2x sin(x) + x^2 cos(x)"
-                          className="font-mono text-sm min-h-[80px] bg-background"
-                          value={step.expression}
-                          onChange={(e) => updateStep(step.id, "expression", e.target.value)}
-                        />
+                {/* Dynamic Widget Rendering */}
+                {currentStep && (
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span className="text-sm font-bold text-primary">{steps.findIndex(s => s.id === currentStep.id) + 1}</span>
                       </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-medium text-muted-foreground uppercase">Rule Applied</label>
-                          <select
-                            className="w-full px-3 py-2 text-sm rounded-md border border-input bg-background"
-                            value={step.rule}
-                            onChange={(e) => {
-                              updateStep(step.id, "rule", e.target.value);
-                              if (e.target.value && !step.justification) {
-                                updateStep(step.id, "justification", `Apply ${e.target.value}`);
-                              }
-                            }}
+                      <h3 className="text-lg font-semibold">
+                        <Markdown>{currentStep.title}</Markdown>
+                      </h3>
+                    </div>
+
+                    {/* Render widgets if they exist */}
+                    {currentStep.widgets && currentStep.widgets.length > 0 ? (
+                      <div className="space-y-6">
+                        {currentStep.widgets.map((widget, idx) => {
+                          if (widget.type === "text-input") {
+                            return (
+                              <TextInputWidget
+                                key={idx}
+                                label={widget.config.label || ""}
+                                description={widget.config.description}
+                                placeholder={widget.config.placeholder || ""}
+                                value={stepResponses[currentStep.id] || ''}
+                                onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: value})}
+                                minHeight={widget.config.minHeight || "150px"}
+                                showPreview={widget.config.showPreview !== false}
+                                previewWithMath={widget.config.showPreview ? previewWithMath : undefined}
+                                mathMode={widget.config.mathMode === true}
+                              />
+                            );
+                          }
+                          
+                          if (widget.type === "multiple-choice") {
+                            return (
+                              <MultipleChoiceWidget
+                                key={idx}
+                                label={widget.config.label || ""}
+                                description={widget.config.description}
+                                choices={widget.config.choices || []}
+                                selectedIds={(stepResponses[`${currentStep.id}-choice`] || '').split(',').filter(Boolean)}
+                                onSelectionChange={(ids) => setStepResponses({...stepResponses, [`${currentStep.id}-choice`]: ids.join(',')})}
+                                multiSelect={widget.config.multiSelect !== false}
+                                showExplanation={widget.config.showExplanation === true}
+                                explanation={stepResponses[`${currentStep.id}-explain`] || ''}
+                                onExplanationChange={(value) => setStepResponses({...stepResponses, [`${currentStep.id}-explain`]: value})}
+                                explanationLabel={widget.config.explanationLabel}
+                                explanationPlaceholder={widget.config.explanationPlaceholder}
+                              />
+                            );
+                          }
+                          
+                          if (widget.type === "derivation-steps") {
+                            return (
+                              <DerivationStepsWidget
+                                key={idx}
+                                steps={derivationSteps}
+                                availableRules={availableRules}
+                                onAddStep={addStep}
+                                onRemoveStep={removeStep}
+                                onUpdateStep={updateStep}
+                                showInstructions={widget.config.showInstructions !== false}
+                              />
+                            );
+                          }
+                          
+                          return null;
+                        })}
+
+                        {/* Feedback Display */}
+                        {feedback && (
+                          <Card className={cn(
+                            "border-2",
+                            feedback.approved ? "border-green-500/50 bg-green-500/5" : "border-amber-500/50 bg-amber-500/5"
+                          )}>
+                            <CardContent className="p-4 space-y-3">
+                              <div className="flex items-start gap-3">
+                                {feedback.approved ? (
+                                  <Check className="w-5 h-5 text-green-500 mt-0.5" />
+                                ) : (
+                                  <Info className="w-5 h-5 text-amber-500 mt-0.5" />
+                                )}
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium mb-1">
+                                    {feedback.approved ? "Great work!" : "Keep going!"}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">{feedback.text}</p>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Submit Button */}
+                        {!feedback?.approved && (
+                          <Button 
+                            className="w-full"
+                            onClick={handleSubmit}
+                            disabled={isSubmitting}
                           >
-                            <option value="">Select rule...</option>
-                            {availableRules.map(rule => (
-                              <option key={rule.id} value={rule.name}>{rule.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-medium text-muted-foreground uppercase">Explanation (Why?)</label>
-                          <Textarea 
-                            placeholder="Explain your reasoning..."
-                            className="text-sm min-h-[80px] bg-background"
-                            value={step.justification}
-                            onChange={(e) => updateStep(step.id, "justification", e.target.value)}
-                          />
-                        </div>
+                            {isSubmitting ? "Getting Feedback..." : "Submit for Feedback"}
+                          </Button>
+                        )}
                       </div>
-                    </div>
-
-                    {step.expression && (
-                      <div className="mt-4 p-4 rounded-xl bg-background border border-primary/10 flex items-center justify-center min-h-[60px]">
-                        <Markdown>{`$${step.expression}$`}</Markdown>
+                    ) : (
+                      /* Fallback: No widgets found in lab data */
+                      <div className="space-y-4 p-6 bg-muted/30 rounded-lg border-2 border-dashed">
+                        <p className="text-sm text-muted-foreground text-center">
+                          This lab doesn't have widget configuration. Widgets make labs interactive!
+                        </p>
                       </div>
                     )}
                   </div>
-                ))}
-
-                <Button 
-                  variant="outline" 
-                  className="w-full py-8 border-dashed border-2 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 group"
-                  onClick={addStep}
-                >
-                  <Plus className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
-                  Add Derivation Step
-                </Button>
+                )}
               </div>
-            </div>
-          </div>
+          </ScrollArea>
         </ResizablePanel>
 
         <ResizableHandle withHandle />
 
-        {/* Right Panel: Rules + Feedback */}
+        {/* Right Panel: Rule Reminders */}
         <ResizablePanel defaultSize={25} minSize={20} maxSize={35} className="border-l bg-muted/5">
-          <div className="flex flex-col h-full">
-            <ScrollArea className="flex-1 h-0">
-              <div className="p-6 space-y-8">
+          <ScrollArea className="h-full w-full">
+            <div className="p-6 space-y-8">
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 rounded-lg bg-blue-500/10">
@@ -279,23 +539,18 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
                     </div>
                     <h3 className="text-sm font-semibold">Rule Reminders</h3>
                   </div>
+                  <p className="text-xs text-muted-foreground italic">Click a rule to learn more</p>
                   <div className="space-y-2">
-                    <p className="text-[10px] text-muted-foreground italic">Click a rule to learn more</p>
-                    {availableRules.slice(0, 5).map((rule) => (
+                    {availableRules.map((rule) => (
                       <button
                         key={rule.id}
                         className="w-full text-left p-3 rounded-xl border bg-background hover:bg-primary/5 hover:border-primary/30 transition-all duration-200 group"
-                        onClick={() => {
-                          const lastStep = derivationSteps[derivationSteps.length - 1];
-                          if (lastStep && !lastStep.rule) {
-                            applyRule(lastStep.id, rule.id);
-                          }
-                        }}
+                        onClick={() => setSelectedRule(rule)}
                       >
                         <div className="flex items-start justify-between">
                           <div className="space-y-1 flex-1">
                             <p className="text-xs font-bold text-primary">{rule.name}</p>
-                            <p className="text-[10px] text-muted-foreground font-mono">{rule.formula}</p>
+                            <Markdown className="text-[10px] text-muted-foreground">{rule.formula}</Markdown>
                           </div>
                           <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
                         </div>
@@ -304,66 +559,78 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-amber-500/10">
-                      <Lightbulb className="w-4 h-4 text-amber-500" />
-                    </div>
-                    <h3 className="text-sm font-semibold">Concept Check</h3>
-                  </div>
-                  <Card className="border-none bg-amber-500/5 shadow-none">
-                    <CardContent className="p-4 space-y-3">
-                      <p className="text-xs leading-relaxed text-muted-foreground">
-                        Why is the product rule necessary here instead of just differentiating $x^2$ and $\sin(x)$ separately?
-                      </p>
-                      <Button variant="outline" size="sm" className="w-full text-xs justify-between bg-background">
-                        View Explanation <ArrowRight className="w-3 h-3" />
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
+                {conceptCheck && (
+                  <>
+                    <Separator className="opacity-50" />
 
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-emerald-500/10">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    </div>
-                    <h3 className="text-sm font-semibold">Feedback</h3>
-                  </div>
-                  {derivationSteps.length > 1 ? (
-                    <div className="space-y-2">
-                      <div className="p-3 rounded-xl border bg-emerald-500/5 border-emerald-500/20">
-                        <p className="text-xs text-emerald-700 font-medium">
-                          ✓ Step {derivationSteps.length - 1}: Product Rule applied correctly
-                        </p>
-                      </div>
-                      {derivationSteps[derivationSteps.length - 1].expression && !derivationSteps[derivationSteps.length - 1].rule && (
-                        <div className="p-3 rounded-xl border bg-amber-500/5 border-amber-500/20">
-                          <p className="text-xs text-amber-700 font-medium">
-                            💡 Select which rule justifies this transformation
-                          </p>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-amber-500/10">
+                          <Lightbulb className="w-4 h-4 text-amber-500" />
                         </div>
-                      )}
+                        <h3 className="text-sm font-semibold">Concept Check</h3>
+                      </div>
+                      <Card className="border-none bg-amber-500/5 shadow-none">
+                        <CardContent className="p-4 space-y-3">
+                          <Markdown className="text-xs leading-relaxed text-muted-foreground">
+                            {conceptCheck.question}
+                          </Markdown>
+                          {conceptCheck.explanation && (
+                            <Button variant="outline" size="sm" className="w-full text-xs justify-between bg-background">
+                              View Explanation <ArrowRight className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </CardContent>
+                      </Card>
                     </div>
-                  ) : (
-                    <div className="p-4 rounded-xl border bg-muted/20">
-                      <p className="text-xs text-muted-foreground">
-                        Add derivation steps to receive feedback
-                      </p>
-                    </div>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
-            </ScrollArea>
-            
-            <div className="p-4 border-t bg-background">
-              <Button className="w-full shadow-sm" variant="default">
-                Verify Derivation
+          </ScrollArea>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+
+      {/* Rule Details Dialog */}
+      <Dialog open={!!selectedRule} onOpenChange={(open) => !open && setSelectedRule(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-xl">{selectedRule?.name}</DialogTitle>
+            <DialogDescription>
+              Learn how to apply this differentiation rule
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold">Formula</h4>
+              <div className="p-4 bg-muted/30 rounded-lg border">
+                <Markdown className="text-center">{selectedRule?.formula || ""}</Markdown>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button 
+                variant="outline" 
+                className="flex-1"
+                onClick={() => setSelectedRule(null)}
+              >
+                Close
+              </Button>
+              <Button 
+                className="flex-1"
+                onClick={() => {
+                  const lastStep = derivationSteps[derivationSteps.length - 1];
+                  if (lastStep && !lastStep.rule && selectedRule) {
+                    applyRule(lastStep.id, selectedRule.id);
+                  }
+                  setSelectedRule(null);
+                }}
+              >
+                Apply to Last Step
               </Button>
             </div>
           </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

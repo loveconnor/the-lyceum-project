@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
+import { Markdown } from "@/components/ui/custom/prompt/markdown";
 
 interface Insight {
   id: string;
@@ -264,7 +265,7 @@ export default function ExploreTemplate({ data, labId }: ExploreTemplateProps) {
                   <div className="space-y-2">
                     {guidingQuestions.map((question, i) => (
                       <div key={i} className="text-xs p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
-                        <p className="text-muted-foreground">{question}</p>
+                        <Markdown className="text-muted-foreground">{question}</Markdown>
                       </div>
                     ))}
                   </div>
@@ -305,7 +306,7 @@ export default function ExploreTemplate({ data, labId }: ExploreTemplateProps) {
                         {insights.map((insight) => (
                           <Card key={insight.id} className="border-none bg-primary/5 shadow-none">
                             <CardContent className="p-3 space-y-2">
-                              <p className="text-xs leading-relaxed">{insight.text}</p>
+                              <Markdown className="text-xs leading-relaxed">{insight.text}</Markdown>
                               <p className="text-[9px] text-muted-foreground">
                                 {insight.timestamp.toLocaleTimeString()}
                               </p>
