@@ -104,26 +104,29 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
         const progress = await fetchLabProgress(labId);
         
         if (progress && progress.length > 0) {
-          // Sort progress by timestamp to get the most recent
+          // Sort by timestamp ascending so later entries overwrite earlier ones when merged
           const sortedProgress = [...progress].sort((a, b) => {
             const timeA = new Date(a.updated_at || a.created_at).getTime();
             const timeB = new Date(b.updated_at || b.created_at).getTime();
-            return timeB - timeA;
+            return timeA - timeB;
           });
-          
-          const mostRecent = sortedProgress[0];
-          
-          // Restore data from most recent progress entry
-          if (mostRecent?.step_data) {
-            const responses = mostRecent.step_data.stepResponses || {};
-            
-            // Migrate old derivationSteps if they exist
-            if (mostRecent.step_data.derivationSteps && !responses[`${mostRecent.step_id}-derivation`]) {
-              responses[`${mostRecent.step_id}-derivation`] = mostRecent.step_data.derivationSteps;
+
+          // Merge all step_data so each step retains its own answers
+          const mergedResponses: Record<string, any> = {};
+          sortedProgress.forEach((entry: any) => {
+            const data = entry.step_data || {};
+            const responses = data.stepResponses || {};
+
+            // Copy stepResponses
+            Object.assign(mergedResponses, responses);
+
+            // Migrate old derivationSteps field (pre-per-step storage)
+            if (data.derivationSteps) {
+              mergedResponses[`${entry.step_id}-derivation`] = data.derivationSteps;
             }
-            
-            setStepResponses(responses);
-          }
+          });
+
+          setStepResponses(mergedResponses);
 
           // Restore step completion status
           const completedStepIds = progress.filter((p: any) => p.completed).map((p: any) => p.step_id);
