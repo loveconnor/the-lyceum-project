@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
@@ -342,9 +343,11 @@ This level of abstraction allows developers to swap out implementations for bett
                       />
                     ))}
                   </div>
-                  <p className="text-base font-medium leading-relaxed">
-                    {currentQuiz.question}
-                  </p>
+                  <div className="text-base font-medium leading-relaxed">
+                    <Markdown components={{ p: ({ children }) => <>{children}</> }}>
+                      {currentQuiz.question}
+                    </Markdown>
+                  </div>
                 </div>
                 
                 <div className="grid gap-2">
@@ -369,7 +372,11 @@ This level of abstraction allows developers to swap out implementations for bett
                       )}>
                         {option.id}
                       </div>
-                      <span className="text-sm font-medium flex-1">{option.text}</span>
+                      <div className="text-sm font-medium flex-1">
+                        <Markdown components={{ p: ({ children }) => <>{children}</> }}>
+                          {option.text}
+                        </Markdown>
+                      </div>
                       
                       {selectedOption === option.id && isCorrect && (
                         <motion.div 
@@ -882,6 +889,7 @@ function greet(name: string, age: number): string {
 };
 
 const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsComplete: boolean; setIsVisualsComplete: (v: boolean) => void }) => {
+  const { theme } = useTheme();
   const [activeVisual, setActiveVisual] = useState<"flow" | "relationship" | "states" | "structure">("flow");
   const [currentStep, setCurrentStep] = useState(0);
   const [highlightedNode, setHighlightedNode] = useState<string | null>(null);
@@ -927,16 +935,26 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
         id: step.id,
         type: 'default',
         position: { x: 250, y: i * 120 },
-        data: { label: step.label },
+        data: { 
+          label: (
+            <Markdown 
+              className="text-black dark:text-black" 
+              components={{ p: ({ children }) => <>{children}</> }}
+            >
+              {step.label}
+            </Markdown>
+          ) 
+        },
         style: {
           padding: '16px',
           borderRadius: '8px',
-          border: isActive ? '2px solid hsl(var(--primary))' : '1px solid hsl(var(--border))',
-          background: isActive ? 'hsl(var(--primary) / 0.05)' : 'hsl(var(--card))',
+          border: isActive ? '2px solid hsl(var(--primary))' : '1px solid #e2e8f0',
+          background: isActive ? '#f0f9ff' : '#ffffff',
           opacity: isPast ? 0.4 : 1,
           fontSize: '14px',
           fontWeight: isActive ? 600 : 400,
           width: 300,
+          color: '#000000',
         },
       };
     });
@@ -987,12 +1005,13 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
           </div>
         </div>
 
-        <Card className="border-2 overflow-hidden">
-          <CardContent className="p-0">
+        <div className="overflow-hidden rounded-xl">
+          <div className="p-0">
             <div style={{ height: '600px', width: '100%' }}>
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
+                colorMode={theme === 'dark' ? 'dark' : 'light'}
                 fitView
                 fitViewOptions={{ padding: 0.2 }}
                 nodesDraggable={false}
@@ -1010,8 +1029,8 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
                 <Background gap={16} size={1} color="hsl(var(--muted-foreground))" style={{ opacity: 0.2 }} />
               </ReactFlow>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {currentStep < steps.length && (
           <Card className="border-2 bg-primary/5">
@@ -1032,91 +1051,161 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
         id: 'adt', 
         type: 'default',
         position: { x: 400, y: 50 },
-        data: { label: 'Abstract Data Type' },
+        data: { 
+          label: (
+            <Markdown 
+              className="text-black dark:text-black" 
+              components={{ p: ({ children }) => <>{children}</> }}
+            >
+              Abstract Data Type
+            </Markdown>
+          ) 
+        },
         style: {
           padding: '16px 24px',
           borderRadius: '8px',
-          border: highlightedNode === 'adt' ? '2px solid hsl(var(--primary))' : '1px solid hsl(var(--border))',
-          background: highlightedNode === 'adt' ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--card))',
+          border: highlightedNode === 'adt' ? '2px solid hsl(var(--primary))' : '1px solid #e2e8f0',
+          background: highlightedNode === 'adt' ? '#f0f9ff' : '#ffffff',
           fontWeight: 600,
+          color: '#000000',
         },
       },
       { 
         id: 'interface', 
         type: 'default',
         position: { x: 150, y: 200 },
-        data: { label: 'Interface' },
+        data: { 
+          label: (
+            <Markdown 
+              className="text-black dark:text-black" 
+              components={{ p: ({ children }) => <>{children}</> }}
+            >
+              Interface
+            </Markdown>
+          ) 
+        },
         style: {
           padding: '16px 24px',
           borderRadius: '8px',
-          border: highlightedNode === 'interface' ? '2px solid hsl(var(--primary))' : '1px solid hsl(var(--border))',
-          background: highlightedNode === 'interface' ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--card))',
+          border: highlightedNode === 'interface' ? '2px solid hsl(var(--primary))' : '1px solid #e2e8f0',
+          background: highlightedNode === 'interface' ? '#f0f9ff' : '#ffffff',
           fontWeight: 600,
+          color: '#000000',
         },
       },
       { 
         id: 'impl', 
         type: 'default',
         position: { x: 650, y: 200 },
-        data: { label: 'Implementation' },
+        data: { 
+          label: (
+            <Markdown 
+              className="text-black dark:text-black" 
+              components={{ p: ({ children }) => <>{children}</> }}
+            >
+              Implementation
+            </Markdown>
+          ) 
+        },
         style: {
           padding: '16px 24px',
           borderRadius: '8px',
-          border: highlightedNode === 'impl' ? '2px solid hsl(var(--primary))' : '1px solid hsl(var(--border))',
-          background: highlightedNode === 'impl' ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--card))',
+          border: highlightedNode === 'impl' ? '2px solid hsl(var(--primary))' : '1px solid #e2e8f0',
+          background: highlightedNode === 'impl' ? '#f0f9ff' : '#ffffff',
           fontWeight: 600,
+          color: '#000000',
         },
       },
       { 
         id: 'stack', 
         type: 'default',
         position: { x: 50, y: 350 },
-        data: { label: 'Stack (LIFO)' },
+        data: { 
+          label: (
+            <Markdown 
+              className="text-black dark:text-black" 
+              components={{ p: ({ children }) => <>{children}</> }}
+            >
+              Stack (LIFO)
+            </Markdown>
+          ) 
+        },
         style: {
           padding: '12px 20px',
           borderRadius: '8px',
-          border: highlightedNode === 'stack' ? '2px solid hsl(var(--primary))' : '1px solid hsl(var(--border))',
-          background: highlightedNode === 'stack' ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--card))',
+          border: highlightedNode === 'stack' ? '2px solid hsl(var(--primary))' : '1px solid #e2e8f0',
+          background: highlightedNode === 'stack' ? '#f0f9ff' : '#ffffff',
           fontSize: '13px',
+          color: '#000000',
         },
       },
       { 
         id: 'queue', 
         type: 'default',
         position: { x: 250, y: 350 },
-        data: { label: 'Queue (FIFO)' },
+        data: { 
+          label: (
+            <Markdown 
+              className="text-black dark:text-black" 
+              components={{ p: ({ children }) => <>{children}</> }}
+            >
+              Queue (FIFO)
+            </Markdown>
+          ) 
+        },
         style: {
           padding: '12px 20px',
           borderRadius: '8px',
-          border: highlightedNode === 'queue' ? '2px solid hsl(var(--primary))' : '1px solid hsl(var(--border))',
-          background: highlightedNode === 'queue' ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--card))',
+          border: highlightedNode === 'queue' ? '2px solid hsl(var(--primary))' : '1px solid #e2e8f0',
+          background: highlightedNode === 'queue' ? '#f0f9ff' : '#ffffff',
           fontSize: '13px',
+          color: '#000000',
         },
       },
       { 
         id: 'array', 
         type: 'default',
         position: { x: 600, y: 350 },
-        data: { label: 'Array-based' },
+        data: { 
+          label: (
+            <Markdown 
+              className="text-black dark:text-black" 
+              components={{ p: ({ children }) => <>{children}</> }}
+            >
+              Array-based
+            </Markdown>
+          ) 
+        },
         style: {
           padding: '12px 20px',
           borderRadius: '8px',
-          border: highlightedNode === 'array' ? '2px solid hsl(var(--primary))' : '1px solid hsl(var(--border))',
-          background: highlightedNode === 'array' ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--card))',
+          border: highlightedNode === 'array' ? '2px solid hsl(var(--primary))' : '1px solid #e2e8f0',
+          background: highlightedNode === 'array' ? '#f0f9ff' : '#ffffff',
           fontSize: '13px',
+          color: '#000000',
         },
       },
       { 
         id: 'linked', 
         type: 'default',
         position: { x: 750, y: 350 },
-        data: { label: 'Linked-based' },
+        data: { 
+          label: (
+            <Markdown 
+              className="text-black dark:text-black" 
+              components={{ p: ({ children }) => <>{children}</> }}
+            >
+              Linked-based
+            </Markdown>
+          ) 
+        },
         style: {
           padding: '12px 20px',
           borderRadius: '8px',
-          border: highlightedNode === 'linked' ? '2px solid hsl(var(--primary))' : '1px solid hsl(var(--border))',
-          background: highlightedNode === 'linked' ? 'hsl(var(--primary) / 0.1)' : 'hsl(var(--card))',
+          border: highlightedNode === 'linked' ? '2px solid hsl(var(--primary))' : '1px solid #e2e8f0',
+          background: highlightedNode === 'linked' ? '#f0f9ff' : '#ffffff',
           fontSize: '13px',
+          color: '#000000',
         },
       },
     ];
@@ -1235,12 +1324,13 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
           <p className="text-sm text-muted-foreground">Hover over concepts to see how they connect</p>
         </div>
 
-        <Card className="border-2 overflow-hidden">
-          <CardContent className="p-0">
+        <div className="overflow-hidden rounded-xl">
+          <div className="p-0">
             <div style={{ height: '500px', width: '100%' }}>
               <ReactFlow
                 nodes={conceptNodes}
                 edges={relationshipEdges}
+                colorMode={theme === 'dark' ? 'dark' : 'light'}
                 fitView
                 fitViewOptions={{ padding: 0.2 }}
                 nodesDraggable={false}
@@ -1259,8 +1349,8 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
                 <Controls />
               </ReactFlow>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   };
@@ -1272,7 +1362,16 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
         id: 'empty',
         type: 'default',
         position: { x: 100, y: 200 },
-        data: { label: 'Empty\nsize = 0' },
+        data: { 
+          label: (
+            <Markdown 
+              className="text-black dark:text-black" 
+              components={{ p: ({ children }) => <>{children}</> }}
+            >
+              {`Empty\nsize = 0`}
+            </Markdown>
+          ) 
+        },
         style: {
           padding: '24px',
           borderRadius: '50%',
@@ -1283,16 +1382,26 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
           justifyContent: 'center',
           textAlign: 'center',
           border: '3px solid hsl(142 76% 36%)',
-          background: 'hsl(142 76% 36% / 0.1)',
+          background: '#f0fdf4',
           fontWeight: 600,
           fontSize: '14px',
+          color: '#000000',
         },
       },
       {
         id: 'normal',
         type: 'default',
         position: { x: 400, y: 200 },
-        data: { label: 'Normal\n0 < size < capacity' },
+        data: { 
+          label: (
+            <Markdown 
+              className="text-black dark:text-black" 
+              components={{ p: ({ children }) => <>{children}</> }}
+            >
+              {`Normal\n0 < size < capacity`}
+            </Markdown>
+          ) 
+        },
         style: {
           padding: '24px',
           borderRadius: '50%',
@@ -1303,16 +1412,26 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
           justifyContent: 'center',
           textAlign: 'center',
           border: '3px solid hsl(var(--primary))',
-          background: 'hsl(var(--primary) / 0.1)',
+          background: '#f0f9ff',
           fontWeight: 600,
           fontSize: '14px',
+          color: '#000000',
         },
       },
       {
         id: 'full',
         type: 'default',
         position: { x: 700, y: 200 },
-        data: { label: 'Full\nsize = capacity' },
+        data: { 
+          label: (
+            <Markdown 
+              className="text-black dark:text-black" 
+              components={{ p: ({ children }) => <>{children}</> }}
+            >
+              {`Full\nsize = capacity`}
+            </Markdown>
+          ) 
+        },
         style: {
           padding: '24px',
           borderRadius: '50%',
@@ -1323,9 +1442,10 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
           justifyContent: 'center',
           textAlign: 'center',
           border: '3px solid hsl(25 95% 53%)',
-          background: 'hsl(25 95% 53% / 0.1)',
+          background: '#fff7ed',
           fontWeight: 600,
           fontSize: '14px',
+          color: '#000000',
         },
       },
     ];
@@ -1384,12 +1504,13 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
           <p className="text-sm text-muted-foreground">How operations move the stack between states</p>
         </div>
 
-        <Card className="border-2 overflow-hidden">
-          <CardContent className="p-0">
+        <div className="overflow-hidden rounded-xl">
+          <div className="p-0">
             <div style={{ height: '500px', width: '100%' }}>
               <ReactFlow
                 nodes={stateNodes}
                 edges={stateEdges}
+                colorMode={theme === 'dark' ? 'dark' : 'light'}
                 fitView
                 fitViewOptions={{ padding: 0.2 }}
                 nodesDraggable={false}
@@ -1406,8 +1527,8 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
                 <Controls />
               </ReactFlow>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         <Card className="border bg-muted/30">
           <CardContent className="p-4">
@@ -1443,7 +1564,13 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
         id: 'root',
         type: 'default',
         position: { x: 400, y: 50 },
-        data: { label: 'Abstract Data Types' },
+        data: { 
+          label: (
+            <Markdown components={{ p: ({ children }) => <>{children}</> }}>
+              Abstract Data Types
+            </Markdown>
+          ) 
+        },
         style: {
           padding: '20px 32px',
           borderRadius: '8px',
@@ -1464,28 +1591,48 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
           id: 'behavior',
           type: 'default',
           position: { x: 200, y: 200 },
-          data: { label: 'Behavior Definition' },
+          data: { 
+            label: (
+              <Markdown 
+                className="text-black dark:text-black" 
+                components={{ p: ({ children }) => <>{children}</> }}
+              >
+                Behavior Definition
+              </Markdown>
+            ) 
+          },
           style: {
             padding: '16px 24px',
             borderRadius: '8px',
-            border: '2px solid hsl(var(--border))',
-            background: 'hsl(var(--card))',
+            border: '2px solid #e2e8f0',
+            background: '#ffffff',
             fontWeight: 600,
             cursor: 'pointer',
+            color: '#000000',
           },
         },
         {
           id: 'implementation',
           type: 'default',
           position: { x: 600, y: 200 },
-          data: { label: 'Implementation Choices' },
+          data: { 
+            label: (
+              <Markdown 
+                className="text-black dark:text-black" 
+                components={{ p: ({ children }) => <>{children}</> }}
+              >
+                Implementation Choices
+              </Markdown>
+            ) 
+          },
           style: {
             padding: '16px 24px',
             borderRadius: '8px',
-            border: '2px solid hsl(var(--border))',
-            background: 'hsl(var(--card))',
+            border: '2px solid #e2e8f0',
+            background: '#ffffff',
             fontWeight: 600,
             cursor: 'pointer',
+            color: '#000000',
           },
         }
       );
@@ -1516,30 +1663,50 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
           id: 'stack-interface',
           type: 'default',
           position: { x: 100, y: 350 },
-          data: { label: 'Stack Interface\npush(), pop(), peek()' },
+          data: { 
+            label: (
+              <Markdown 
+                className="text-black dark:text-black" 
+                components={{ p: ({ children }) => <>{children}</> }}
+              >
+                {`Stack Interface\npush(), pop(), peek()`}
+              </Markdown>
+            ) 
+          },
           style: {
             padding: '12px 20px',
             borderRadius: '8px',
-            border: '1px solid hsl(var(--border))',
-            background: 'hsl(var(--card))',
+            border: '1px solid #e2e8f0',
+            background: '#ffffff',
             fontSize: '12px',
             textAlign: 'center',
             whiteSpace: 'pre-line',
+            color: '#000000',
           },
         },
         {
           id: 'queue-interface',
           type: 'default',
           position: { x: 300, y: 350 },
-          data: { label: 'Queue Interface\nenqueue(), dequeue()' },
+          data: { 
+            label: (
+              <Markdown 
+                className="text-black dark:text-black" 
+                components={{ p: ({ children }) => <>{children}</> }}
+              >
+                {`Queue Interface\nenqueue(), dequeue()`}
+              </Markdown>
+            ) 
+          },
           style: {
             padding: '12px 20px',
             borderRadius: '8px',
-            border: '1px solid hsl(var(--border))',
-            background: 'hsl(var(--card))',
+            border: '1px solid #e2e8f0',
+            background: '#ffffff',
             fontSize: '12px',
             textAlign: 'center',
             whiteSpace: 'pre-line',
+            color: '#000000',
           },
         }
       );
@@ -1570,30 +1737,50 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
           id: 'array-based',
           type: 'default',
           position: { x: 550, y: 350 },
-          data: { label: 'Array-Based\nFast access, fixed capacity' },
+          data: { 
+            label: (
+              <Markdown 
+                className="text-black dark:text-black" 
+                components={{ p: ({ children }) => <>{children}</> }}
+              >
+                {`Array-Based\nFast access, fixed capacity`}
+              </Markdown>
+            ) 
+          },
           style: {
             padding: '12px 20px',
             borderRadius: '8px',
-            border: '1px solid hsl(var(--border))',
-            background: 'hsl(var(--muted) / 0.3)',
+            border: '1px solid #e2e8f0',
+            background: '#f8fafc',
             fontSize: '12px',
             textAlign: 'center',
             whiteSpace: 'pre-line',
+            color: '#000000',
           },
         },
         {
           id: 'linked-based',
           type: 'default',
           position: { x: 750, y: 350 },
-          data: { label: 'Linked Structure\nDynamic size, pointer overhead' },
+          data: { 
+            label: (
+              <Markdown 
+                className="text-black dark:text-black" 
+                components={{ p: ({ children }) => <>{children}</> }}
+              >
+                {`Linked Structure\nDynamic size, pointer overhead`}
+              </Markdown>
+            ) 
+          },
           style: {
             padding: '12px 20px',
             borderRadius: '8px',
-            border: '1px solid hsl(var(--border))',
-            background: 'hsl(var(--muted) / 0.3)',
+            border: '1px solid #e2e8f0',
+            background: '#f8fafc',
             fontSize: '12px',
             textAlign: 'center',
             whiteSpace: 'pre-line',
+            color: '#000000',
           },
         }
       );
@@ -1631,12 +1818,13 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
           <p className="text-sm text-muted-foreground">Click on Behavior or Implementation nodes to expand/collapse</p>
         </div>
 
-        <Card className="border-2 overflow-hidden">
-          <CardContent className="p-0">
+        <div className="overflow-hidden rounded-xl">
+          <div className="p-0">
             <div style={{ height: '500px', width: '100%' }}>
               <ReactFlow
                 nodes={structureNodes}
                 edges={structureEdges}
+                colorMode={theme === 'dark' ? 'dark' : 'light'}
                 fitView
                 fitViewOptions={{ padding: 0.2 }}
                 nodesDraggable={false}
@@ -1650,8 +1838,8 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
                 <Controls />
               </ReactFlow>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   };

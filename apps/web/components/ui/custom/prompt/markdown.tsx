@@ -122,7 +122,7 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
   );
 
   return (
-    <div className={cn("prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:overflow-x-auto break-words prose-code:before:content-none prose-code:after:content-none text-foreground", className)}>
+    <div className={cn("prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:overflow-x-auto break-words prose-code:before:content-none prose-code:after:content-none", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}

@@ -336,13 +336,14 @@ Respond with JSON only in this structure:
             "data": { "label": "Node text" },
             "type": "default",
             "style": {
-              "background": "#e0f2fe",
-              "border": "2px solid #0284c7",
+              "background": "hsl(var(--primary) / 0.1)",
+              "border": "1px solid hsl(var(--primary) / 0.2)",
               "borderRadius": "8px",
               "padding": "16px 24px",
               "fontSize": "14px",
               "fontWeight": 600,
-              "width": 200
+              "width": 200,
+              "color": "#000000"
             }
           }
         ],
@@ -354,8 +355,8 @@ Respond with JSON only in this structure:
             "label": "connects to",
             "type": "smoothstep",
             "animated": false,
-            "style": { "stroke": "#0284c7", "strokeWidth": 2 },
-            "markerEnd": { "type": "arrowclosed", "color": "#0284c7" }
+            "style": { "stroke": "hsl(var(--primary) / 0.3)", "strokeWidth": 2 },
+            "markerEnd": { "type": "arrowclosed", "color": "hsl(var(--primary) / 0.5)" }
           }
         ]
       }
@@ -364,6 +365,8 @@ Respond with JSON only in this structure:
 }
 
 Guidelines:
+- Use CSS variables for colors in visuals (e.g., hsl(var(--primary) / 0.1)) to ensure theme compatibility.
+- For node text color, ALWAYS use pure black "#000000" to ensure maximum readability on the light-colored nodes, regardless of the user's theme.
 - Create 2-4 chapters with rich content
 - Each chapter should take 5-15 minutes to read
 - Include 1-2 quiz questions per chapter (simple questions to check understanding)

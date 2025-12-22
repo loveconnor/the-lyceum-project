@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
@@ -325,9 +326,11 @@ const ImmersiveTextView = ({
                       />
                     ))}
                   </div>
-                  <p className="text-base font-medium leading-relaxed">
-                    {currentQuiz.question}
-                  </p>
+                  <div className="text-base font-medium leading-relaxed">
+                    <Markdown components={{ p: ({ children }) => <>{children}</> }}>
+                      {currentQuiz.question}
+                    </Markdown>
+                  </div>
                 </div>
                 
                 <div className="grid gap-2">
@@ -352,7 +355,11 @@ const ImmersiveTextView = ({
                       )}>
                         {option.id}
                       </div>
-                      <span className="text-sm font-medium flex-1">{option.text}</span>
+                      <div className="text-sm font-medium flex-1">
+                        <Markdown components={{ p: ({ children }) => <>{children}</> }}>
+                          {option.text}
+                        </Markdown>
+                      </div>
                       
                       {selectedOption === option.id && isCorrect && (
                         <motion.div 
@@ -386,6 +393,13 @@ const ImmersiveTextView = ({
                               ? "Reading completed! Check out the other tabs."
                               : "Correct"}
                           </p>
+                          {currentQuiz.explanation && (
+                            <div className="text-xs text-green-600/80 dark:text-green-400/80 mt-1">
+                              <Markdown components={{ p: ({ children }) => <>{children}</> }}>
+                                {currentQuiz.explanation}
+                              </Markdown>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1210,6 +1224,7 @@ const VisualsView = ({
   isVisualsComplete: boolean; 
   setIsVisualsComplete: (v: boolean) => void 
 }) => {
+  const { theme } = useTheme();
   const [currentVisualIndex, setCurrentVisualIndex] = useState(0);
   const [viewedVisuals, setViewedVisuals] = useState<Set<number>>(new Set());
 
@@ -1262,14 +1277,25 @@ const VisualsView = ({
     position: node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number'
       ? node.position
       : { x: 300, y: index * 120 }, // Fallback: vertical stack layout
-    data: node.data || { label: node.id },
-    style: node.style as React.CSSProperties || {
-      background: '#e0f2fe',
-      border: '2px solid #0284c7',
+    data: {
+      label: (
+        <Markdown 
+          className="text-black dark:text-black prose-p:text-black dark:prose-p:text-black" 
+          components={{ p: ({ children }) => <>{children}</> }}
+        >
+          {node.data?.label || node.id}
+        </Markdown>
+      )
+    },
+    style: {
+      background: 'hsl(var(--primary) / 0.1)',
+      border: '1px solid hsl(var(--primary) / 0.2)',
       borderRadius: '8px',
       padding: '12px 20px',
       fontSize: '14px',
       fontWeight: 500,
+      color: '#000000', // Force pure black text for maximum contrast
+      ...(node.style as React.CSSProperties),
     },
   }));
 
@@ -1281,14 +1307,17 @@ const VisualsView = ({
     label: edge.label,
     type: edge.type || 'smoothstep',
     animated: edge.animated || false,
-    style: edge.style as React.CSSProperties,
+    style: edge.style as React.CSSProperties || {
+      stroke: 'hsl(var(--primary) / 0.3)',
+      strokeWidth: 2,
+    },
     labelStyle: edge.labelStyle as React.CSSProperties,
     markerEnd: edge.markerEnd ? {
       type: edge.markerEnd.type === 'arrowclosed' ? MarkerType.ArrowClosed : MarkerType.Arrow,
-      color: edge.markerEnd.color,
+      color: edge.markerEnd.color || 'hsl(var(--primary) / 0.5)',
     } : {
       type: MarkerType.ArrowClosed,
-      color: '#0284c7',
+      color: 'hsl(var(--primary) / 0.5)',
     },
   }));
 
@@ -1365,12 +1394,13 @@ const VisualsView = ({
           )}
         </div>
 
-        <Card className="border-2 overflow-hidden">
-          <CardContent className="p-0">
+        <div className="overflow-hidden rounded-xl">
+          <div className="p-0">
             <div style={{ height: '500px', width: '100%' }}>
               <ReactFlow
                 nodes={nodes}
                 edges={edges}
+                colorMode={theme === 'dark' ? 'dark' : 'light'}
                 fitView
                 fitViewOptions={{ padding: 0.3 }}
                 nodesDraggable={true}
@@ -1384,8 +1414,8 @@ const VisualsView = ({
                 <Controls />
               </ReactFlow>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Navigation buttons */}
         <div className="flex items-center justify-between">
