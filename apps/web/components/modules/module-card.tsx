@@ -87,11 +87,9 @@ export default function ModuleCard({ module, moduleNumber, pathId }: ModuleCardP
   // Status icon
   const StatusIcon = status === "completed" ? CheckCircle2 : status === "in-progress" ? PlayCircle : Circle;
 
-  // Handle navigation to module view (placeholder route for now)
+  // Handle navigation to module view
   const handleClick = () => {
-    // In a real implementation, this would navigate to the module view
-    // e.g., router.push(`/paths/${pathId}/modules/${module.id}`);
-    console.log(`Navigate to module: ${module.id}`);
+    router.push(`/paths/${pathId}/modules/${module.id}`);
   };
 
   return (

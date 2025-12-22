@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 import { FilterTab, Lab, LabStatus, Difficulty, LabType } from "@/app/(main)/labs/types";
 
@@ -29,6 +30,7 @@ interface LabListProps {
 }
 
 export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: LabListProps) {
+  const router = useRouter();
   const {
     labs,
     updateLab,
@@ -127,7 +129,10 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
   };
 
   const handleDeleteLab = (id: string) => {
-    deleteLab(id);
+    deleteLab(id, () => {
+      // Refresh the dashboard page to update statistics
+      router.refresh();
+    });
     toast.success("Lab has been deleted");
   };
 

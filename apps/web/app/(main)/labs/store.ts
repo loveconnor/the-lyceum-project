@@ -49,7 +49,7 @@ interface LabStore {
   addLab: (lab: CreateLabPayload) => Promise<void>;
   generateLab: (learningGoal: string, context?: string) => Promise<Lab>;
   updateLab: (id: string, updatedLab: Partial<Lab>) => Promise<void>;
-  deleteLab: (id: string) => Promise<void>;
+  deleteLab: (id: string, onSuccess?: () => void) => Promise<void>;
   setSelectedLabId: (id: string | null) => void;
   setActiveTab: (tab: FilterTab) => void;
   setAddDialogOpen: (isOpen: boolean) => void;
@@ -61,7 +61,7 @@ interface LabStore {
   setFilterLabType: (labType: LabTemplateType | null) => void;
   setFilterEstimatedTime: (time: string | null) => void;
   setSearchQuery: (query: string) => void;
-  updateProgress: (labId: string, stepId: string, stepData?: any, completed?: boolean) => Promise<void>;
+  updateProgress: (labId: string, stepId: string, stepData?: any, completed?: boolean, onSuccess?: () => void) => Promise<void>;
   toggleStarred: (labId: string) => Promise<void>;
 }
 
@@ -132,7 +132,7 @@ export const useLabStore = create<LabStore>((set, get) => ({
     }
   },
 
-  deleteLab: async (id) => {
+  deleteLab: async (id, onSuccess) => {
     set({ loading: true, error: null });
     try {
       await apiDeleteLab(id);
@@ -140,6 +140,9 @@ export const useLabStore = create<LabStore>((set, get) => ({
         labs: state.labs.filter((lab) => lab.id !== id),
         loading: false
       }));
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (error) {
       set({ error: (error as Error).message, loading: false });
       throw error;
@@ -217,13 +220,16 @@ export const useLabStore = create<LabStore>((set, get) => ({
       searchQuery: query
     })),
 
-  updateProgress: async (labId, stepId, stepData, completed = false) => {
+  updateProgress: async (labId, stepId, stepData, completed = false, onSuccess) => {
     set({ loading: true, error: null });
     try {
       await updateLabProgress(labId, { step_id: stepId, step_data: stepData, completed });
       // Refetch labs to get updated progress
       const labs = await fetchLabs();
       set({ labs, loading: false });
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (error) {
       set({ error: (error as Error).message, loading: false });
       throw error;

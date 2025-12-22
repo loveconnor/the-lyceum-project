@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from "./supabaseAdmin";
 
 export interface ActivityData {
-  activityType: 'lab_completed' | 'lab_started' | 'path_completed' | 'path_started' | 'lab_progress' | 'general';
+  activityType: 'lab_completed' | 'lab_started' | 'path_completed' | 'path_started' | 'lab_progress' | 'lab_deleted' | 'general';
   minutes?: number;
   topics?: string[];
   successRate?: number;
@@ -44,6 +44,76 @@ export async function updateDashboardActivity(
   activityData: ActivityData
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
+
+  // For lab deletion, recalculate everything from scratch
+  if (activityData.activityType === 'lab_deleted') {
+    // Get all remaining labs
+    const { data: labs, error: labsError } = await supabase
+      .from('labs')
+      .select('id, status, topics, estimated_duration, completed_at, created_at')
+      .eq('user_id', userId);
+
+    if (labsError) {
+      console.error('Error fetching labs after deletion:', labsError);
+      throw labsError;
+    }
+
+    // Calculate fresh statistics
+    const completedLabs = labs?.filter(l => l.status === 'completed') || [];
+    const inProgressLabs = labs?.filter(l => l.status === 'in-progress') || [];
+    
+    const engagedLabs = completedLabs.length + inProgressLabs.length;
+    const successRate = engagedLabs > 0 ? (completedLabs.length / engagedLabs) * 100 : 0;
+    
+    let totalMinutes = 0;
+    const topicCounts: Record<string, number> = {};
+
+    completedLabs.forEach(lab => {
+      if (lab.estimated_duration) {
+        totalMinutes += lab.estimated_duration;
+      }
+      if (lab.topics && Array.isArray(lab.topics)) {
+        lab.topics.forEach(topic => {
+          topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+        });
+      }
+    });
+
+    // Build top topics
+    const top_topics: DashboardTopic[] = Object.entries(topicCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([name, count]) => ({
+        name,
+        category: 'Topic',
+        confidence: 'From completed labs',
+        progress: Math.min(100, count * 10),
+        count,
+      }));
+
+    // Update dashboard state with recalculated values
+    const { error: updateError } = await supabase
+      .from('dashboard_state')
+      .update({
+        total_courses: completedLabs.length,
+        total_minutes: totalMinutes,
+        overall_success_rate: successRate,
+        top_topics,
+        stats: {
+          in_progress: inProgressLabs.length,
+          completed: completedLabs.length,
+        },
+      })
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('Error updating dashboard after lab deletion:', updateError);
+      throw updateError;
+    }
+
+    console.log(`Dashboard recalculated after lab deletion for user ${userId}`);
+    return;
+  }
 
   // Get or create dashboard state
   let { data: state, error: fetchError } = await supabase

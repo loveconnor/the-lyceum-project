@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { 
   MessageSquareText, 
   ChevronLeft, 
@@ -38,7 +39,101 @@ import {
 import '@xyflow/react/dist/style.css';
 import './reactflow.css';
 import Link from "next/link";
+import { fetchPathItem } from "@/lib/api/paths";
+import { toast } from "sonner";
+
 // --- Types & Constants ---
+
+interface Chapter {
+  id: number;
+  title: string;
+  duration: string;
+  content: string;
+  quizzes: Array<{
+    question: string;
+    options: Array<{ id: string; text: string }>;
+    correct: string;
+    explanation?: string;
+  }>;
+}
+
+interface ModuleData {
+  id: string;
+  title: string;
+  description: string;
+  content_data: {
+    overview: string;
+    learning_objectives: string[];
+    chapters?: Chapter[];
+    key_concepts: Array<{
+      concept: string;
+      explanation: string;
+      examples: string[];
+    }>;
+    practical_exercises: Array<{
+      title: string;
+      description: string;
+      difficulty: string;
+      estimated_time?: string;
+    }>;
+    resources: Array<{
+      type: 'reading' | 'video' | 'interactive';
+      title: string;
+      description: string;
+    }>;
+    assessment: {
+      questions: Array<{
+        question: string;
+        type: 'multiple-choice' | 'short-answer' | 'practical';
+        options?: string[];
+        correct_answer?: string;
+        explanation?: string;
+      }>;
+    };
+    visuals?: Array<{
+      title: string;
+      description?: string;
+      nodes: Array<{
+        id: string;
+        position: { x: number; y: number };
+        data: { label: string };
+        type?: 'default' | 'input' | 'output';
+        style?: {
+          background?: string;
+          border?: string;
+          borderRadius?: string;
+          padding?: string;
+          fontSize?: string;
+          fontWeight?: number;
+          width?: number;
+          color?: string;
+        };
+      }>;
+      edges: Array<{
+        id: string;
+        source: string;
+        target: string;
+        label?: string;
+        type?: 'default' | 'straight' | 'step' | 'smoothstep' | 'bezier';
+        animated?: boolean;
+        style?: {
+          stroke?: string;
+          strokeWidth?: number;
+        };
+        labelStyle?: {
+          fontSize?: number;
+          fontWeight?: number;
+        };
+        markerEnd?: {
+          type: 'arrow' | 'arrowclosed';
+          color?: string;
+        };
+      }>;
+    }>;
+  } | null;
+  item_type: string;
+  status: string;
+}
 
 type ViewMode = "immersive_text" | "examples" | "visuals";
 
@@ -50,7 +145,15 @@ const TABS: { key: ViewMode; label: string; icon: React.ElementType }[] = [
 
 // --- Components ---
 
-const ImmersiveTextView = ({ isQuizPassed, setIsQuizPassed }: { isQuizPassed: boolean; setIsQuizPassed: (v: boolean) => void }) => {
+const ImmersiveTextView = ({ 
+  chapters,
+  isQuizPassed, 
+  setIsQuizPassed 
+}: { 
+  chapters: Chapter[];
+  isQuizPassed: boolean; 
+  setIsQuizPassed: (v: boolean) => void 
+}) => {
   const [currentChapter, setCurrentChapter] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -59,133 +162,13 @@ const ImmersiveTextView = ({ isQuizPassed, setIsQuizPassed }: { isQuizPassed: bo
   const [completedQuestions, setCompletedQuestions] = useState<Set<number>>(new Set());
   const [showQuiz, setShowQuiz] = useState(false);
 
-  const chapters = [
-    {
-      id: 0,
-      title: "Introduction to Abstraction",
-      duration: "5 min",
-      content: `
-# Introduction to Abstraction
-
-In computer science, **abstraction** is a technique for managing complexity of computer systems. It works by establishing a level of complexity on which a person interacts with the system, suppressing the more complex details below the current level.
-
-### Why Abstraction Matters
-Think of a car. You interact with the steering wheel and pedals (the abstraction), without needing to understand the internal combustion engine or the fuel injection system (the implementation). This separation of concerns allows users to focus on what the system does rather than how it does it.
-
-### The Layers of Complexity
-Abstraction is not a single step but a series of layers. In modern computing, we move from high-level programming languages down to assembly, then to machine code, and finally to the physical logic gates of the processor. Each layer provides a simplified interface to the one below it.
-
-> "The art of abstraction is the art of finding the common thread in a sea of complexity."
-
-By mastering abstraction, engineers can build systems that are far more complex than any single human could understand in full detail. It is the fundamental tool that makes modern software development possible.
-      `,
-      quizzes: [
-        {
-          question: "Which of the following best describes the primary goal of 'abstraction' in software engineering?",
-          options: [
-            { id: 'A', text: "To make the code run faster on modern hardware." },
-            { id: 'B', text: "To hide complex implementation details and reduce cognitive load." },
-            { id: 'C', text: "To ensure that all data is stored in a relational database." },
-            { id: 'D', text: "To prevent other developers from seeing your source code." }
-          ],
-          correct: 'B'
-        },
-        {
-          question: "In the car analogy, which part represents the 'abstraction'?",
-          options: [
-            { id: 'A', text: "The internal combustion engine." },
-            { id: 'B', text: "The fuel injection system." },
-            { id: 'C', text: "The steering wheel and pedals." },
-            { id: 'D', text: "The spark plugs." }
-          ],
-          correct: 'C'
-        }
-      ]
-    },
-    {
-      id: 1,
-      title: "Data Types & Classifications",
-      duration: "8 min",
-      content: `
-# Data Types & Classifications
-
-Data types are a classification of data which tells the compiler or interpreter how the programmer intends to use the data. Most programming languages support basic data types of integer, real, character or boolean.
-
-### Primitive vs Composite
-* **Primitive**: The most basic data types available within a language. These are the building blocks of all other data types. Examples include \`int\`, \`float\`, \`char\`, and \`bool\`.
-* **Composite**: Data types derived from more than one primitive type. These allow for more complex structures like \`arrays\`, \`structs\`, and \`classes\`.
-
-### Static vs Dynamic Typing
-Understanding how a language handles these types is crucial. Static typing (like in C++ or Java) requires types to be known at compile time, while dynamic typing (like in Python or JavaScript) allows types to be determined at runtime. This choice significantly impacts how abstraction is implemented in a given system.
-
-Data types are the first level of abstraction we encounter in programming. They allow us to treat a sequence of bits as a meaningful concept, like a number or a letter.
-      `,
-      quizzes: [
-        {
-          question: "What is the main difference between primitive and composite data types?",
-          options: [
-            { id: 'A', text: "Primitive types are faster than composite types." },
-            { id: 'B', text: "Composite types are built from multiple primitive types." },
-            { id: 'C', text: "Primitive types can only store numbers." },
-            { id: 'D', text: "There is no real difference between them." }
-          ],
-          correct: 'B'
-        },
-        {
-          question: "Which of these is an example of a primitive data type?",
-          options: [
-            { id: 'A', text: "Array" },
-            { id: 'B', text: "Class" },
-            { id: 'C', text: "Boolean" },
-            { id: 'D', text: "Struct" }
-          ],
-          correct: 'C'
-        }
-      ]
-    },
-    {
-      id: 2,
-      title: "Abstract Data Types (ADTs)",
-      duration: "10 min",
-      content: `
-# Abstract Data Types (ADTs)
-
-An Abstract Data Type (ADT) is a mathematical model for data types. An ADT is defined by its behavior (semantics) from the point of view of a user of the data, specifically in terms of possible values, possible operations on data of this type, and the behavior of these operations.
-
-### Common ADTs and Their Uses
-* **Stack**: A Last-In-First-Out (LIFO) structure. Think of a stack of plates; you can only add or remove from the top.
-* **Queue**: A First-In-First-Out (FIFO) structure. Like a line at a grocery store; the first person in is the first person served.
-* **List**: A sequence of elements that can be accessed by position.
-
-### Implementation Independence
-The key power of an ADT is that it is independent of its implementation. A Stack can be implemented using an array or a linked list, but the user of the Stack ADT doesn't need to know which one is being used. They only care about the \`push\` and \`pop\` operations.
-
-This level of abstraction allows developers to swap out implementations for better performance without changing the code that uses the ADT.
-      `,
-      quizzes: [
-        {
-          question: "Which principle defines an Abstract Data Type (ADT)?",
-          options: [
-            { id: 'A', text: "The specific memory address where data is stored." },
-            { id: 'B', text: "The behavior and operations from the user's perspective." },
-            { id: 'C', text: "The programming language used to implement it." },
-            { id: 'D', text: "The speed at which it processes data." }
-          ],
-          correct: 'B'
-        },
-        {
-          question: "Which ADT follows the Last-In-First-Out (LIFO) principle?",
-          options: [
-            { id: 'A', text: "Queue" },
-            { id: 'B', text: "List" },
-            { id: 'C', text: "Stack" },
-            { id: 'D', text: "Tree" }
-          ],
-          correct: 'C'
-        }
-      ]
-    }
-  ];
+  if (!chapters || chapters.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[400px]">
+        <p className="text-muted-foreground">No chapter content available for this module.</p>
+      </div>
+    );
+  }
 
   const currentQuiz = chapters[currentChapter].quizzes[currentQuestionIndex];
 
@@ -230,7 +213,7 @@ This level of abstraction allows developers to swap out implementations for bett
       {/* Left Chapter Outline Sidebar */}
       <div className="w-80 flex-shrink-0 hidden xl:block">
         <div className="sticky top-[calc(var(--header-height)+6rem)]">
-          <Card className="py-0">
+          <Card className="py-0 overflow-hidden">
             <CardContent className="p-2">
               <div className="flex items-center justify-between px-2 py-2 mb-1">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Chapter Outline</h3>
@@ -446,7 +429,320 @@ This level of abstraction allows developers to swap out implementations for bett
   );
 };
 
-const ExamplesView = ({ isExamplesComplete, setIsExamplesComplete }: { isExamplesComplete: boolean; setIsExamplesComplete: (v: boolean) => void }) => {
+const ExamplesView = ({ 
+  keyConcepts, 
+  practicalExercises,
+  isExamplesComplete, 
+  setIsExamplesComplete 
+}: { 
+  keyConcepts: Array<{
+    concept: string;
+    explanation: string;
+    examples: string[];
+  }>;
+  practicalExercises: Array<{
+    title: string;
+    description: string;
+    difficulty: string;
+    estimated_time?: string;
+  }>;
+  isExamplesComplete: boolean; 
+  setIsExamplesComplete: (v: boolean) => void 
+}) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [viewedConcepts, setViewedConcepts] = useState<Set<number>>(new Set());
+  const [viewedExercises, setViewedExercises] = useState<Set<number>>(new Set());
+  const [activeTab, setActiveTab] = useState<'concepts' | 'exercises'>('concepts');
+
+  // Helper to strip markdown syntax for preview text
+  const stripMarkdown = (text: string): string => {
+    return text
+      .replace(/\*\*(.+?)\*\*/g, '$1') // Bold
+      .replace(/\*(.+?)\*/g, '$1') // Italic
+      .replace(/`(.+?)`/g, '$1') // Inline code
+      .replace(/#{1,6}\s/g, '') // Headers
+      .replace(/\[(.+?)\]\(.+?\)/g, '$1') // Links
+      .replace(/^>\s/gm, '') // Blockquotes
+      .replace(/^[-*+]\s/gm, '') // List items
+      .replace(/\n/g, ' ') // Newlines to spaces
+      .trim();
+  };
+
+  // Mark item as viewed when user stays on it
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (activeTab === 'concepts') {
+        if (!viewedConcepts.has(currentIndex)) {
+          setViewedConcepts(prev => {
+            const newViewed = new Set(prev);
+            newViewed.add(currentIndex);
+            
+            // Mark complete when all key concepts are viewed
+            if (newViewed.size >= keyConcepts.length && !isExamplesComplete) {
+              setIsExamplesComplete(true);
+            }
+            
+            return newViewed;
+          });
+        }
+      } else {
+        if (!viewedExercises.has(currentIndex)) {
+          setViewedExercises(prev => new Set(prev).add(currentIndex));
+        }
+      }
+    }, 2000); // Mark as viewed after 2 seconds
+
+    return () => clearTimeout(timer);
+  }, [currentIndex, activeTab, viewedConcepts, viewedExercises, keyConcepts.length, isExamplesComplete, setIsExamplesComplete]);
+
+  if (!keyConcepts || keyConcepts.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <Card className="max-w-2xl border-2 border-dashed">
+          <CardContent className="p-12 text-center space-y-4">
+            <Lightbulb className="w-16 h-16 mx-auto text-muted-foreground opacity-20" />
+            <h3 className="text-2xl font-display text-foreground">No Examples Available</h3>
+            <p className="text-muted-foreground leading-relaxed">
+              The AI hasn't generated key concepts or examples for this module yet.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const currentConcept = keyConcepts[currentIndex];
+  const currentExercise = practicalExercises[currentIndex];
+
+  return (
+    <div className="flex gap-6 h-full">
+      {/* Left sidebar - Navigation */}
+      <div className="w-80 flex-shrink-0 min-w-0">
+        <div className="sticky top-[calc(var(--header-height)+6rem)]">
+          <Card className="py-0">
+            <CardContent className="p-2">
+              <Tabs value={activeTab} onValueChange={(v) => {
+                setActiveTab(v as 'concepts' | 'exercises');
+                setCurrentIndex(0);
+              }}>
+                <TabsList className="w-full grid grid-cols-2 mb-2">
+                  <TabsTrigger value="concepts" className="text-xs">
+                    <Lightbulb className="w-3 h-3 mr-1" />
+                    Concepts ({keyConcepts.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="exercises" className="text-xs">
+                    <BookOpen className="w-3 h-3 mr-1" />
+                    Exercises ({practicalExercises.length})
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="concepts" className="mt-0 space-y-0.5">
+                  {keyConcepts.map((concept, i) => {
+                    const isViewed = viewedConcepts.has(i);
+                    const isActive = currentIndex === i && activeTab === 'concepts';
+
+                    return (
+                      <Button
+                        key={i}
+                        variant="ghost"
+                        onClick={() => setCurrentIndex(i)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 h-auto flex-col items-start gap-1 overflow-hidden",
+                          isActive && "bg-muted hover:bg-muted"
+                        )}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1 min-w-0">
+                          <div className="font-medium text-sm truncate flex-1 min-w-0">{i + 1}. {concept.concept}</div>
+                          {isViewed && (
+                            <CheckCircle2 className="w-3 h-3 ml-2 text-green-600 dark:text-green-400 flex-shrink-0" />
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground line-clamp-2 w-full overflow-hidden">
+                          {stripMarkdown(concept.explanation)}
+                        </div>
+                      </Button>
+                    );
+                  })}
+                </TabsContent>
+
+                <TabsContent value="exercises" className="mt-0 space-y-0.5">
+                  {practicalExercises.map((exercise, i) => {
+                    const isViewed = viewedExercises.has(i);
+                    const isActive = currentIndex === i && activeTab === 'exercises';
+
+                    return (
+                      <Button
+                        key={i}
+                        variant="ghost"
+                        onClick={() => setCurrentIndex(i)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 h-auto flex-col items-start gap-1 overflow-hidden",
+                          isActive && "bg-muted hover:bg-muted"
+                        )}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1 min-w-0">
+                          <div className="font-medium text-sm truncate flex-1 min-w-0">{exercise.title}</div>
+                          {isViewed && (
+                            <CheckCircle2 className="w-3 h-3 ml-2 text-green-600 dark:text-green-400 flex-shrink-0" />
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground w-full overflow-hidden">
+                          <Badge variant="outline" className="text-xs h-4 px-1 flex-shrink-0">
+                            {exercise.difficulty}
+                          </Badge>
+                          {exercise.estimated_time && (
+                            <span className="truncate flex-1">{exercise.estimated_time}</span>
+                          )}
+                        </div>
+                      </Button>
+                    );
+                  })}
+                </TabsContent>
+              </Tabs>
+
+              {/* Progress indicator */}
+              {isExamplesComplete && (
+                <Card className="border shadow-none bg-green-500/5 border-green-500/20 mt-2">
+                  <CardContent className="p-2">
+                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span className="text-xs font-medium">All concepts viewed!</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Main content area */}
+      <div className="flex-1 max-w-3xl">
+        <AnimatePresence mode="wait">
+          {activeTab === 'concepts' && currentConcept && (
+            <motion.div
+              key={`concept-${currentIndex}`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <div>
+                <Badge variant="outline" className="mb-3">
+                  Key Concept {currentIndex + 1} of {keyConcepts.length}
+                </Badge>
+                <h2 className="text-2xl font-semibold mb-2">{currentConcept.concept}</h2>
+                <div className="prose prose-stone dark:prose-invert max-w-none break-words">
+                  <Markdown>{currentConcept.explanation}</Markdown>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Lightbulb className="w-5 h-5" />
+                  Real-world Examples
+                </h3>
+                <div className="space-y-3">
+                  {currentConcept.examples.map((example, i) => (
+                    <Card key={i} className="border shadow-none">
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-xs font-semibold text-primary">{i + 1}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="prose prose-sm prose-stone dark:prose-invert max-w-none break-words overflow-hidden">
+                              <Markdown>{example}</Markdown>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              {/* Navigation buttons */}
+              <div className="flex items-center justify-between pt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+                  disabled={currentIndex === 0}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentIndex(Math.min(keyConcepts.length - 1, currentIndex + 1))}
+                  disabled={currentIndex === keyConcepts.length - 1}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'exercises' && currentExercise && (
+            <motion.div
+              key={`exercise-${currentIndex}`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Badge variant="outline">
+                    Exercise {currentIndex + 1} of {practicalExercises.length}
+                  </Badge>
+                  <Badge variant="secondary">
+                    {currentExercise.difficulty}
+                  </Badge>
+                  {currentExercise.estimated_time && (
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {currentExercise.estimated_time}
+                    </Badge>
+                  )}
+                </div>
+                <h2 className="text-2xl font-semibold mb-3">{currentExercise.title}</h2>
+                <div className="prose prose-stone dark:prose-invert max-w-none break-words overflow-hidden">
+                  <Markdown>{currentExercise.description}</Markdown>
+                </div>
+              </div>
+
+              {/* Navigation buttons */}
+              <div className="flex items-center justify-between pt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+                  disabled={currentIndex === 0}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentIndex(Math.min(practicalExercises.length - 1, currentIndex + 1))}
+                  disabled={currentIndex === practicalExercises.length - 1}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
+const ExamplesViewOld_Unused = ({ isExamplesComplete, setIsExamplesComplete }: { isExamplesComplete: boolean; setIsExamplesComplete: (v: boolean) => void }) => {
   const [currentExample, setCurrentExample] = useState(0);
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set([0]));
   const [viewedExamples, setViewedExamples] = useState<Set<number>>(new Set());
@@ -881,7 +1177,242 @@ function greet(name: string, age: number): string {
   );
 };
 
-const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsComplete: boolean; setIsVisualsComplete: (v: boolean) => void }) => {
+const VisualsView = ({ 
+  visuals,
+  isVisualsComplete, 
+  setIsVisualsComplete 
+}: { 
+  visuals: Array<{
+    title: string;
+    description?: string;
+    nodes: Array<{
+      id: string;
+      position: { x: number; y: number };
+      data: { label: string };
+      type?: 'default' | 'input' | 'output';
+      style?: Record<string, unknown>;
+    }>;
+    edges: Array<{
+      id: string;
+      source: string;
+      target: string;
+      label?: string;
+      type?: string;
+      animated?: boolean;
+      style?: Record<string, unknown>;
+      labelStyle?: Record<string, unknown>;
+      markerEnd?: {
+        type: 'arrow' | 'arrowclosed';
+        color?: string;
+      };
+    }>;
+  }>;
+  isVisualsComplete: boolean; 
+  setIsVisualsComplete: (v: boolean) => void 
+}) => {
+  const [currentVisualIndex, setCurrentVisualIndex] = useState(0);
+  const [viewedVisuals, setViewedVisuals] = useState<Set<number>>(new Set());
+
+  // Mark visual as viewed after a delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!viewedVisuals.has(currentVisualIndex)) {
+        setViewedVisuals(prev => {
+          const newViewed = new Set(prev);
+          newViewed.add(currentVisualIndex);
+          
+          if (newViewed.size >= visuals.length && !isVisualsComplete) {
+            setIsVisualsComplete(true);
+          }
+          
+          return newViewed;
+        });
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [currentVisualIndex, viewedVisuals, visuals.length, isVisualsComplete, setIsVisualsComplete]);
+
+  if (!visuals || visuals.length === 0) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <Card className="max-w-2xl border-2 border-dashed">
+          <CardContent className="p-12 text-center space-y-4">
+            <Eye className="w-16 h-16 mx-auto text-muted-foreground opacity-20" />
+            <h3 className="text-2xl font-display text-foreground">No Visuals Available</h3>
+            <p className="text-muted-foreground leading-relaxed">
+              The AI hasn't generated visual diagrams for this module yet.
+              <br />
+              Visual diagrams help illustrate concepts like processes, hierarchies, and relationships.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const currentVisual = visuals[currentVisualIndex];
+  
+  // Convert AI-generated nodes to ReactFlow format with fallback positioning
+  const nodes: Node[] = currentVisual.nodes.map((node, index) => ({
+    id: node.id,
+    type: node.type || 'default',
+    position: node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number'
+      ? node.position
+      : { x: 300, y: index * 120 }, // Fallback: vertical stack layout
+    data: node.data || { label: node.id },
+    style: node.style as React.CSSProperties || {
+      background: '#e0f2fe',
+      border: '2px solid #0284c7',
+      borderRadius: '8px',
+      padding: '12px 20px',
+      fontSize: '14px',
+      fontWeight: 500,
+    },
+  }));
+
+  // Convert AI-generated edges to ReactFlow format with proper markerEnd
+  const edges: Edge[] = currentVisual.edges.map((edge) => ({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    label: edge.label,
+    type: edge.type || 'smoothstep',
+    animated: edge.animated || false,
+    style: edge.style as React.CSSProperties,
+    labelStyle: edge.labelStyle as React.CSSProperties,
+    markerEnd: edge.markerEnd ? {
+      type: edge.markerEnd.type === 'arrowclosed' ? MarkerType.ArrowClosed : MarkerType.Arrow,
+      color: edge.markerEnd.color,
+    } : {
+      type: MarkerType.ArrowClosed,
+      color: '#0284c7',
+    },
+  }));
+
+  return (
+    <div className="flex gap-6 h-full">
+      {/* Left sidebar - Visual navigation */}
+      <div className="w-80 flex-shrink-0 min-w-0">
+        <div className="sticky top-[calc(var(--header-height)+6rem)]">
+          <Card className="py-0">
+            <CardContent className="p-2">
+              <div className="flex items-center justify-between px-2 py-2 mb-1">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Diagrams</h3>
+                <Badge variant="outline" className="text-xs h-5">
+                  {visuals.length}
+                </Badge>
+              </div>
+              <nav className="flex flex-col space-y-0.5">
+                {visuals.map((visual, i) => {
+                  const isViewed = viewedVisuals.has(i);
+                  const isActive = currentVisualIndex === i;
+
+                  return (
+                    <Button
+                      key={i}
+                      variant="ghost"
+                      onClick={() => setCurrentVisualIndex(i)}
+                      className={cn(
+                        "w-full text-left px-3 py-2 h-auto flex-col items-start gap-1 overflow-hidden",
+                        isActive && "bg-muted hover:bg-muted"
+                      )}
+                    >
+                      <div className="flex items-center justify-between w-full mb-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Network className="w-3 h-3" />
+                          <span className="font-medium text-sm truncate">{visual.title}</span>
+                        </div>
+                        {isViewed && (
+                          <CheckCircle2 className="w-3 h-3 ml-2 text-green-600 dark:text-green-400 flex-shrink-0" />
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground line-clamp-1 w-full overflow-hidden">
+                        {visual.description || `${visual.nodes.length} nodes`}
+                      </div>
+                    </Button>
+                  );
+                })}
+              </nav>
+
+              {/* Progress indicator */}
+              {isVisualsComplete && (
+                <Card className="border shadow-none bg-green-500/5 border-green-500/20 mt-2">
+                  <CardContent className="p-2">
+                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span className="text-xs font-medium">All visuals viewed!</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Main content - ReactFlow diagram */}
+      <div className="flex-1 space-y-6">
+        <div>
+          <Badge variant="outline" className="mb-3">
+            Diagram
+          </Badge>
+          <h2 className="text-2xl font-semibold mb-2">{currentVisual.title}</h2>
+          {currentVisual.description && (
+            <p className="text-muted-foreground">{currentVisual.description}</p>
+          )}
+        </div>
+
+        <Card className="border-2 overflow-hidden">
+          <CardContent className="p-0">
+            <div style={{ height: '500px', width: '100%' }}>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                fitView
+                fitViewOptions={{ padding: 0.3 }}
+                nodesDraggable={true}
+                nodesConnectable={false}
+                elementsSelectable={true}
+                zoomOnScroll={true}
+                panOnScroll={true}
+                proOptions={{ hideAttribution: true }}
+              >
+                <Background gap={16} size={1} color="hsl(var(--muted-foreground))" style={{ opacity: 0.2 }} />
+                <Controls />
+              </ReactFlow>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Navigation buttons */}
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            onClick={() => setCurrentVisualIndex(Math.max(0, currentVisualIndex - 1))}
+            disabled={currentVisualIndex === 0}
+          >
+            <ChevronLeft className="w-4 h-4 mr-1" />
+            Previous
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            {currentVisualIndex + 1} of {visuals.length}
+          </span>
+          <Button
+            variant="outline"
+            onClick={() => setCurrentVisualIndex(Math.min(visuals.length - 1, currentVisualIndex + 1))}
+            disabled={currentVisualIndex === visuals.length - 1}
+          >
+            Next
+            <ChevronRight className="w-4 h-4 ml-1" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const VisualsViewOld_Unused = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsComplete: boolean; setIsVisualsComplete: (v: boolean) => void }) => {
   const [activeVisual, setActiveVisual] = useState<"flow" | "relationship" | "states" | "structure">("flow");
   const [currentStep, setCurrentStep] = useState(0);
   const [highlightedNode, setHighlightedNode] = useState<string | null>(null);
@@ -1772,11 +2303,62 @@ const VisualsView = ({ isVisualsComplete, setIsVisualsComplete }: { isVisualsCom
 
 // --- Main Page Component ---
 
-export default function DemoModulePage() {
+export default function ModulePage() {
+  const params = useParams();
+  const router = useRouter();
+  const pathId = params.id as string;
+  const moduleId = params.moduleId as string;
+
   const [activeMode, setActiveMode] = useState<ViewMode>("immersive_text");
   const [isQuizPassed, setIsQuizPassed] = useState(false);
   const [isExamplesComplete, setIsExamplesComplete] = useState(false);
   const [isVisualsComplete, setIsVisualsComplete] = useState(false);
+  const [module, setModule] = useState<ModuleData | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const loadModule = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchPathItem(pathId, moduleId);
+        setModule(data);
+        setIsQuizPassed(data.status === 'completed');
+      } catch (error) {
+        console.error("Error loading module:", error);
+        toast.error("Failed to load module content");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadModule();
+  }, [pathId, moduleId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
+          <p className="text-muted-foreground">Loading module...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!module || !module.content_data || !module.content_data.chapters) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <p className="text-muted-foreground">Module content not available</p>
+          <Link href={`/paths/${pathId}`}>
+            <Button variant="outline">Back to Path</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const chapters = module.content_data.chapters;
   
   // Module is complete when: Reading is done AND (Examples OR Visuals viewed)
   const isModuleComplete = isQuizPassed && (isExamplesComplete || isVisualsComplete);
@@ -1810,14 +2392,14 @@ export default function DemoModulePage() {
       {/* Header Section */}
       <div className="relative flex items-center justify-center min-h-[80px]">
         <div className="absolute left-0">
-          <Link href="/paths">
+          <Link href={`/paths/${pathId}`}>
             <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Path
             </Button>
           </Link>
         </div>
-        <h1 className="text-3xl font-display">Module 1: Foundations of Logic</h1>
+        <h1 className="text-3xl font-display">{module.title}</h1>
       </div>
 
       {/* View Mode Tabs */}
@@ -1867,15 +2449,24 @@ export default function DemoModulePage() {
 
         <div className="min-h-[600px]">
           <TabsContent value="immersive_text" className="mt-0 focus-visible:outline-none">
-            <ImmersiveTextView isQuizPassed={isQuizPassed} setIsQuizPassed={setIsQuizPassed} />
+            <ImmersiveTextView chapters={chapters} isQuizPassed={isQuizPassed} setIsQuizPassed={setIsQuizPassed} />
           </TabsContent>
           
           <TabsContent value="examples" className="mt-0 focus-visible:outline-none">
-            <ExamplesView isExamplesComplete={isExamplesComplete} setIsExamplesComplete={setIsExamplesComplete} />
+            <ExamplesView 
+              keyConcepts={module.content_data.key_concepts || []}
+              practicalExercises={module.content_data.practical_exercises || []}
+              isExamplesComplete={isExamplesComplete} 
+              setIsExamplesComplete={setIsExamplesComplete} 
+            />
           </TabsContent>
           
           <TabsContent value="visuals" className="mt-0 focus-visible:outline-none">
-            <VisualsView isVisualsComplete={isVisualsComplete} setIsVisualsComplete={setIsVisualsComplete} />
+            <VisualsView 
+              visuals={module.content_data.visuals || []} 
+              isVisualsComplete={isVisualsComplete} 
+              setIsVisualsComplete={setIsVisualsComplete} 
+            />
           </TabsContent>
 
           <TabsContent value="source" className="mt-0 focus-visible:outline-none">

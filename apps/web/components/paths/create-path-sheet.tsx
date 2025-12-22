@@ -25,13 +25,13 @@ interface CreatePathSheetProps {
 }
 
 const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, editPathId }) => {
-  const { addPath, updatePath, paths } = usePathStore();
+  const { addPath, updatePath, generatePathWithAI, paths } = usePathStore();
   const [selectedRecommendation, setSelectedRecommendation] = React.useState<string | null>(null);
   const [contextFiles, setContextFiles] = React.useState<File[]>([]);
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [difficulty, setDifficulty] = React.useState<"intro" | "intermediate" | "advanced">("intermediate");
-  const [estimatedDuration, setEstimatedDuration] = React.useState("8-12 weeks");
+  const [isGenerating, setIsGenerating] = React.useState(false);
 
   // Placeholder for AI-generated recommendations based on user's learning context
   const recommendedPaths = [
@@ -72,80 +72,81 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
         setTitle(pathToEdit.title);
         setDescription(pathToEdit.description || "");
         setDifficulty(pathToEdit.difficulty || "intermediate");
-        setEstimatedDuration(pathToEdit.estimatedDuration || "8-12 weeks");
       }
     } else {
       setTitle("");
       setDescription("");
       setDifficulty("intermediate");
-      setEstimatedDuration("8-12 weeks");
     }
   }, [editPathId, paths, isOpen]);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (selectedRecommendation) {
-      // Use recommended path data
-      const rec = recommendedPaths.find(r => r.id === selectedRecommendation);
-      if (rec) {
-        const newPath = {
-          id: `path-${Date.now()}`,
-          title: rec.title,
-          description: rec.description,
-          difficulty: rec.difficulty as "intro" | "intermediate" | "advanced",
-          estimatedDuration: rec.estimatedDuration,
+    if (isGenerating) return;
+    
+    try {
+      setIsGenerating(true);
+      
+      if (selectedRecommendation) {
+        // Use recommended path data
+        const rec = recommendedPaths.find(r => r.id === selectedRecommendation);
+        if (rec) {
+          const pathData = {
+            title: rec.title,
+            description: rec.description,
+            difficulty: rec.difficulty as "intro" | "intermediate" | "advanced",
+            status: EnumPathStatus.NotStarted,
+          };
+          
+          if (editPathId) {
+            await updatePath(editPathId, pathData);
+            toast.success("Your learning path has been updated successfully.");
+          } else {
+            // Use AI to generate the full path with modules and content
+            toast.loading("Generating learning path with AI...", { id: "generating-path" });
+            await generatePathWithAI(pathData);
+            toast.success("Learning path created with modules and content!", { id: "generating-path" });
+          }
+        }
+      } else {
+        // Create custom path from form
+        if (!description.trim()) {
+          toast.error("Please describe what you want to learn");
+          setIsGenerating(false);
+          return;
+        }
+        
+        const pathData = {
+          title: "", // AI will generate the title
+          description,
+          difficulty,
           status: EnumPathStatus.NotStarted,
-          starred: false,
-          modules: [],
-          completedModules: 0,
-          totalModules: rec.moduleCount
         };
         
         if (editPathId) {
-          updatePath(editPathId, newPath);
+          await updatePath(editPathId, pathData);
           toast.success("Your learning path has been updated successfully.");
         } else {
-          addPath(newPath);
-          toast.success("Learning path created! You can now add modules.");
+          // Use AI to generate the full path with modules and content
+          toast.loading("Generating learning path with AI...", { id: "generating-path" });
+          await generatePathWithAI(pathData);
+          toast.success("Learning path created with modules and content!", { id: "generating-path" });
         }
       }
-    } else {
-      // Create custom path from form
-      if (!title.trim()) {
-        toast.error("Please enter a title");
-        return;
-      }
-      
-      const pathData = {
-        id: `path-${Date.now()}`,
-        title,
-        description,
-        difficulty,
-        estimatedDuration,
-        status: EnumPathStatus.NotStarted,
-        starred: false,
-        modules: [],
-        completedModules: 0,
-        totalModules: 0
-      };
-      
-      if (editPathId) {
-        updatePath(editPathId, pathData);
-        toast.success("Your learning path has been updated successfully.");
-      } else {
-        addPath(pathData);
-        toast.success("Learning path created! You can now add modules.");
-      }
-    }
 
-    setTitle("");
-    setDescription("");
-    setDifficulty("intermediate");
-    setEstimatedDuration("8-12 weeks");
-    setSelectedRecommendation(null);
-    setContextFiles([]);
-    onClose();
+      setTitle("");
+      setDescription("");
+      setDifficulty("intermediate");
+      setSelectedRecommendation(null);
+      setContextFiles([]);
+      onClose();
+    } catch (error) {
+      console.error("Error saving path:", error);
+      toast.error("Failed to generate learning path. Please try again.", { id: "generating-path" });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -173,10 +174,10 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
         <SheetHeader>
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            <SheetTitle>{editPathId ? "Edit Learning Path" : "Create Learning Path"}</SheetTitle>
+            <SheetTitle>{editPathId ? "Edit Learning Path" : "Generate Learning Path"}</SheetTitle>
           </div>
           <p className="text-sm text-muted-foreground">
-            Select a recommended path or create your own custom learning journey.
+            Describe what you want to learn and AI will create a complete learning path with modules.
           </p>
         </SheetHeader>
 
@@ -256,70 +257,56 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
             {/* Custom Path Creation */}
             <div className="space-y-4">
               <div>
-                <label htmlFor="title" className="text-sm font-medium">Path Title</label>
-                <Input
-                  id="title"
-                  placeholder="Full-Stack Web Development"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  disabled={!!selectedRecommendation}
-                  className="mt-1.5"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="description" className="text-sm font-medium">Description</label>
+                <label htmlFor="description" className="text-sm font-medium">
+                  What do you want to learn? <span className="text-destructive">*</span>
+                </label>
                 <Textarea
                   id="description"
-                  placeholder="A comprehensive learning path covering frontend and backend development, databases, APIs, and deployment."
+                  placeholder="I want to learn full-stack web development, covering frontend technologies like React, backend with Node.js and Express, working with databases, building REST APIs, and deploying applications to production."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   disabled={!!selectedRecommendation}
-                  rows={4}
+                  rows={6}
                   className="mt-1.5"
                 />
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Be specific about topics, skills, and your learning goals. The AI will generate a title, modules, and complete content.
+                </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="difficulty" className="text-sm font-medium">Difficulty</label>
-                  <Select
-                    value={difficulty}
-                    onValueChange={(value: any) => setDifficulty(value)}
-                    disabled={!!selectedRecommendation}
-                  >
-                    <SelectTrigger className="mt-1.5">
-                      <SelectValue placeholder="Select difficulty" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="intro">Introductory</SelectItem>
-                      <SelectItem value="intermediate">Intermediate</SelectItem>
-                      <SelectItem value="advanced">Advanced</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label htmlFor="duration" className="text-sm font-medium">Estimated Duration</label>
-                  <Input
-                    id="duration"
-                    placeholder="8-12 weeks"
-                    value={estimatedDuration}
-                    onChange={(e) => setEstimatedDuration(e.target.value)}
-                    disabled={!!selectedRecommendation}
-                    className="mt-1.5"
-                  />
-                </div>
+              <div>
+                <label htmlFor="difficulty" className="text-sm font-medium">Difficulty Level</label>
+                <Select
+                  value={difficulty}
+                  onValueChange={(value: any) => setDifficulty(value)}
+                  disabled={!!selectedRecommendation}
+                >
+                  <SelectTrigger className="mt-1.5 w-full">
+                    <SelectValue placeholder="Select difficulty" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="intro">Introductory</SelectItem>
+                    <SelectItem value="intermediate">Intermediate</SelectItem>
+                    <SelectItem value="advanced">Advanced</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  The AI will determine the optimal duration based on your goals and chosen difficulty.
+                </p>
               </div>
             </div>
 
             <Button 
               className="w-full" 
               type="submit"
-              disabled={!selectedRecommendation && !title.trim()}
+              disabled={(!selectedRecommendation && !description.trim()) || isGenerating}
             >
               <Sparkles className="h-4 w-4" />
-              {selectedRecommendation ? "Add This Path" : "Create Learning Path"}
+              {isGenerating 
+                ? "Generating with AI..." 
+                : selectedRecommendation 
+                  ? "Generate This Path with AI" 
+                  : "Generate Learning Path with AI"}
             </Button>
           </form>
       </SheetContent>

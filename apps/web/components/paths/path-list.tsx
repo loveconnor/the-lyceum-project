@@ -77,9 +77,14 @@ export default function PathList({ activeTab, onSelectPath, onAddPathClick }: Pa
     return true;
   });
 
-  const handleStatusChange = (id: string, status: PathStatus) => {
-    updatePath(id, { status });
-    toast.success(`Path progress updated`);
+  const handleStatusChange = async (id: string, status: PathStatus) => {
+    try {
+      await updatePath(id, { status });
+      toast.success(`Path progress updated`);
+    } catch (error) {
+      console.error("Error updating status:", error);
+      toast.error("Failed to update path status");
+    }
   };
 
   const clearFilters = () => {
@@ -91,24 +96,39 @@ export default function PathList({ activeTab, onSelectPath, onAddPathClick }: Pa
     }
   };
 
-  const handleCoreToggle = (id: string) => {
-    toggleStarred(id);
-  };
-
-  const handleRestartPath = (id: string) => {
-    updatePath(id, { status: "not-started" as PathStatus });
-    // Reset all modules to incomplete
-    const path = paths.find(p => p.id === id);
-    if (path?.modules) {
-      const resetModules = path.modules.map(m => ({ ...m, completed: false }));
-      updatePath(id, { modules: resetModules });
+  const handleCoreToggle = async (id: string) => {
+    try {
+      await toggleStarred(id);
+    } catch (error) {
+      console.error("Error toggling starred:", error);
+      toast.error("Failed to update path");
     }
-    toast.success("Path has been restarted");
   };
 
-  const handleDeletePath = (id: string) => {
-    deletePath(id);
-    toast.success("Path has been deleted");
+  const handleRestartPath = async (id: string) => {
+    try {
+      await updatePath(id, { status: "not-started" as PathStatus });
+      // Reset all modules to incomplete
+      const path = paths.find(p => p.id === id);
+      if (path?.modules) {
+        const resetModules = path.modules.map(m => ({ ...m, completed: false }));
+        await updatePath(id, { modules: resetModules });
+      }
+      toast.success("Path has been restarted");
+    } catch (error) {
+      console.error("Error restarting path:", error);
+      toast.error("Failed to restart path");
+    }
+  };
+
+  const handleDeletePath = async (id: string) => {
+    try {
+      await deletePath(id);
+      toast.success("Path has been deleted");
+    } catch (error) {
+      console.error("Error deleting path:", error);
+      toast.error("Failed to delete path");
+    }
   };
 
   const renderFilterContent = () => (

@@ -7,6 +7,7 @@ import {
   PathFile,
   Difficulty
 } from "./types";
+import { createPath, updatePath as updatePathAPI, deletePath as deletePathAPI, generatePath } from "@/lib/api/paths";
 
 interface PathStore {
   paths: LearningPath[];
@@ -27,9 +28,15 @@ interface PathStore {
       LearningPath,
       "id" | "createdAt" | "comments" | "files" | "modules" | "starred" | "reminderDate"
     >
-  ) => void;
-  updatePath: (id: string, updatedPath: Partial<Omit<LearningPath, "id">>) => void;
-  deletePath: (id: string) => void;
+  ) => Promise<void>;
+  generatePathWithAI: (
+    path: Omit<
+      LearningPath,
+      "id" | "createdAt" | "comments" | "files" | "modules" | "starred" | "reminderDate"
+    >
+  ) => Promise<void>;
+  updatePath: (id: string, updatedPath: Partial<Omit<LearningPath, "id">>) => Promise<void>;
+  deletePath: (id: string) => Promise<void>;
   setSelectedPathId: (id: string | null) => void;
   setActiveTab: (tab: FilterTab) => void;
   setAddDialogOpen: (isOpen: boolean) => void;
@@ -47,7 +54,7 @@ interface PathStore {
   addModule: (pathId: string, title: string, description?: string) => void;
   updateModule: (pathId: string, moduleId: string, completed: boolean) => void;
   removeModule: (pathId: string, moduleId: string) => void;
-  toggleStarred: (pathId: string) => void;
+  toggleStarred: (pathId: string) => Promise<void>;
 }
 
 export const usePathStore = create<PathStore>((set) => ({
@@ -66,31 +73,78 @@ export const usePathStore = create<PathStore>((set) => ({
     set(() => ({
       paths: paths
     })),
-  addPath: (path) =>
-    set((state) => ({
-      paths: [
-        ...state.paths,
-        {
-          ...path,
-          id: uuidv4(),
-          createdAt: new Date(),
-          comments: [],
-          files: [],
-          modules: [],
-          starred: false
-        }
-      ]
-    })),
+    
+  addPath: async (path) => {
+    try {
+      const newPath = await createPath({
+        title: path.title,
+        description: path.description,
+        topics: [],
+        difficulty: path.difficulty,
+        estimated_duration: 0,
+      });
+      set((state) => ({
+        paths: [...state.paths, newPath]
+      }));
+    } catch (error) {
+      console.error("Error creating path:", error);
+      throw error;
+    }
+  },
 
-  updatePath: (id, updatedPath) =>
-    set((state) => ({
-      paths: state.paths.map((path) => (path.id === id ? { ...path, ...updatedPath } : path))
-    })),
+  generatePathWithAI: async (path) => {
+    try {
+      const newPath = await generatePath({
+        title: path.title,
+        description: path.description,
+        topics: [],
+        difficulty: path.difficulty,
+        estimated_duration: 0,
+      });
+      set((state) => ({
+        paths: [...state.paths, newPath]
+      }));
+    } catch (error) {
+      console.error("Error generating path with AI:", error);
+      throw error;
+    }
+  },
 
-  deletePath: (id) =>
-    set((state) => ({
-      paths: state.paths.filter((path) => path.id !== id)
-    })),
+  updatePath: async (id, updatedPath) => {
+    try {
+      // Optimistically update UI
+      set((state) => ({
+        paths: state.paths.map((path) => (path.id === id ? { ...path, ...updatedPath } : path))
+      }));
+      
+      // Update on server
+      await updatePathAPI(id, {
+        title: updatedPath.title,
+        description: updatedPath.description,
+        status: updatedPath.status,
+        starred: updatedPath.starred,
+        difficulty: updatedPath.difficulty,
+      });
+    } catch (error) {
+      console.error("Error updating path:", error);
+      throw error;
+    }
+  },
+
+  deletePath: async (id) => {
+    try {
+      // Optimistically update UI
+      set((state) => ({
+        paths: state.paths.filter((path) => path.id !== id)
+      }));
+      
+      // Delete on server
+      await deletePathAPI(id);
+    } catch (error) {
+      console.error("Error deleting path:", error);
+      throw error;
+    }
+  },
 
   setSelectedPathId: (id) =>
     set(() => ({
@@ -259,10 +313,31 @@ export const usePathStore = create<PathStore>((set) => ({
       )
     })),
 
-  toggleStarred: (pathId) =>
-    set((state) => ({
-      paths: state.paths.map((path) =>
-        path.id === pathId ? { ...path, starred: !path.starred } : path
-      )
-    }))
+  toggleStarred: async (pathId) => {
+    try {
+      const path = usePathStore.getState().paths.find(p => p.id === pathId);
+      if (!path) return;
+      
+      const newStarredValue = !path.starred;
+      
+      // Optimistically update UI
+      set((state) => ({
+        paths: state.paths.map((p) =>
+          p.id === pathId ? { ...p, starred: newStarredValue } : p
+        )
+      }));
+      
+      // Update on server
+      await updatePathAPI(pathId, { starred: newStarredValue });
+    } catch (error) {
+      console.error("Error toggling starred:", error);
+      // Revert on error
+      set((state) => ({
+        paths: state.paths.map((p) =>
+          p.id === pathId ? { ...p, starred: !p.starred } : p
+        )
+      }));
+      throw error;
+    }
+  }
 }));
