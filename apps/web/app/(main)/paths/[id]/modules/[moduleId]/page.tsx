@@ -1220,18 +1220,20 @@ const VisualsView = ({
         setViewedVisuals(prev => {
           const newViewed = new Set(prev);
           newViewed.add(currentVisualIndex);
-          
-          if (newViewed.size >= visuals.length && !isVisualsComplete) {
-            setIsVisualsComplete(true);
-          }
-          
           return newViewed;
         });
       }
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [currentVisualIndex, viewedVisuals, visuals.length, isVisualsComplete, setIsVisualsComplete]);
+  }, [currentVisualIndex, viewedVisuals]);
+
+  // Check if all visuals have been viewed
+  useEffect(() => {
+    if (viewedVisuals.size >= visuals.length && !isVisualsComplete) {
+      setIsVisualsComplete(true);
+    }
+  }, [viewedVisuals.size, visuals.length, isVisualsComplete, setIsVisualsComplete]);
 
   if (!visuals || visuals.length === 0) {
     return (

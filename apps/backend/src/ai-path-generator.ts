@@ -40,15 +40,71 @@ const stripCodeFences = (text: string): string => {
   return cleaned.trim();
 };
 
+// Attempt to repair common JSON issues
+const repairJson = (text: string): string => {
+  let repaired = text;
+  
+  // Fix unescaped backslashes in LaTeX (common issue)
+  // Match patterns like \frac, \int, \sum, etc. that should be \\frac, \\int, \\sum
+  repaired = repaired.replace(/(?<!\\)\\([a-zA-Z]+)/g, '\\\\$1');
+  
+  // Fix unescaped newlines inside strings (replace literal newlines with \n)
+  // This is a simplified approach - find strings and ensure newlines are escaped
+  
+  // Fix trailing commas before ] or }
+  repaired = repaired.replace(/,(\s*[}\]])/g, '$1');
+  
+  return repaired;
+};
+
 const tryParseJson = <T>(text: string): T | null => {
+  const cleaned = stripCodeFences(text);
+  
+  // First attempt: try parsing as-is
   try {
-    const cleaned = stripCodeFences(text);
     return JSON.parse(cleaned) as T;
-  } catch (error) {
-    console.error('JSON parse error:', error);
-    console.error('Text that failed to parse:', text.substring(0, 500));
-    return null;
+  } catch (firstError) {
+    console.log('First parse attempt failed, trying to repair JSON...');
+    
+    // Second attempt: try with repairs
+    try {
+      const repaired = repairJson(cleaned);
+      return JSON.parse(repaired) as T;
+    } catch (secondError) {
+      console.error('JSON parse error after repair attempt:', secondError);
+      console.error('First 1000 chars:', text.substring(0, 1000));
+      console.error('Last 500 chars:', text.substring(text.length - 500));
+      
+      // Try to find the error location
+      if (secondError instanceof SyntaxError) {
+        const match = secondError.message.match(/position (\d+)/);
+        if (match) {
+          const pos = parseInt(match[1]);
+          console.error('Context around error position:', cleaned.substring(Math.max(0, pos - 100), pos + 100));
+        }
+      }
+      return null;
+    }
   }
+};
+
+// Fix literal \n strings in content (AI sometimes generates \\n which becomes literal \n after JSON parse)
+const fixLiteralNewlines = (obj: unknown): unknown => {
+  if (typeof obj === 'string') {
+    // Replace literal \n with actual newlines
+    return obj.replace(/\\n/g, '\n');
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(fixLiteralNewlines);
+  }
+  if (obj && typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = fixLiteralNewlines(value);
+    }
+    return result;
+  }
+  return obj;
 };
 
 export interface GeneratePathRequest {
@@ -314,10 +370,15 @@ Guidelines:
 - Include 3-5 key concepts with thorough explanations
 - Include 2-4 practical exercises
 - Include 4-6 assessment questions (more comprehensive)
-- Use markdown formatting for better readability (headings, bold, lists, code blocks)
+- Use markdown formatting for better readability (headings, bold, lists, code blocks for CODE only)
 - Make content specific, actionable, and pedagogically sound
 - Write in an engaging, conversational but professional tone
 - Include real-world examples and applications
+- IMPORTANT: For mathematical content, use LaTeX syntax with dollar sign delimiters:
+  - Inline math: wrap in single dollar signs like $x^2 + y^2 = z^2$
+  - Block math: wrap in double dollar signs on own line like $$\\int_0^1 f(x) dx$$
+  - NEVER use triple backtick code blocks for math - only use $ delimiters
+  - Remember to escape backslashes in JSON strings (use \\\\ for a single backslash)
 - Generate 2-4 visual diagrams using ReactFlow format:
   - Position nodes using x,y coordinates (canvas is roughly 800x600)
   - For vertical flows: increment y by 100-120 for each row
@@ -407,13 +468,19 @@ Create comprehensive learning content with chapters, quizzes, concepts, exercise
       { role: 'user', content: userPrompt }
     ],
     temperature: 0.7,
-    max_tokens: 8000,
+    max_tokens: 12000,
     response_format: { type: 'json_object' },
   });
 
   const rawResponse = completion.choices[0]?.message?.content || '{}';
+  const finishReason = completion.choices[0]?.finish_reason;
   
-  console.log(`Module "${moduleTitle}" content generated (${rawResponse.length} chars)`);
+  console.log(`Module "${moduleTitle}" content generated (${rawResponse.length} chars, finish_reason: ${finishReason})`);
+  
+  // Check if response was truncated
+  if (finishReason === 'length') {
+    console.error('WARNING: Response was truncated due to max_tokens limit!');
+  }
   
   const parsed = tryParseJson<{ content: GeneratedModule['content'] }>(rawResponse);
 
@@ -422,5 +489,6 @@ Create comprehensive learning content with chapters, quizzes, concepts, exercise
     throw new Error('Failed to parse AI response for module content');
   }
 
-  return parsed.content;
+  // Fix any literal \n strings in the content
+  return fixLiteralNewlines(parsed.content) as GeneratedModule['content'];
 }
