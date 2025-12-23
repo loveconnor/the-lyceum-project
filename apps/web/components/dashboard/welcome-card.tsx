@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useUserProfile } from "@/components/providers/user-provider";
 import { useUserSettings } from "@/components/providers/settings-provider";
+import Link from "next/link";
 
 export function WelcomeCard() {
   const user = useUserProfile();
@@ -22,12 +23,12 @@ export function WelcomeCard() {
             <div className="font-display text-3xl">
               Hi, {firstName} <span className="text-4xl">{"\u{1F44B}"}</span>
             </div>
-            <div className="text-2xl">What do you want to learn today with your partner?</div>
+            <div className="text-2xl">What do you want to learn or practice today?</div>
             <div className="text-muted-foreground">
-              Discover courses, track progress, and achieve your learning goods seamlessly.
+              Start a learning path, continue a lab, or explore concepts at your own pace.
             </div>
             <div className="pt-2">
-              <Button>Explorer Course</Button>
+              <Link href="/paths"><Button>Explore Learning Paths</Button></Link>
             </div>
           </div>
           <figure className="hidden lg:col-span-1 lg:block">
