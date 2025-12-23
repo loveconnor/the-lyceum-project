@@ -43,12 +43,10 @@ export type UserSettings = {
     font: "inter" | "manrope" | "system";
   };
   notifications: {
-    type: "all" | "mentions" | "none";
-    mobile: boolean;
-    communication_emails: boolean;
-    social_emails: boolean;
-    marketing_emails: boolean;
-    security_emails: boolean;
+    learning_reminders: boolean;
+    path_milestones: boolean;
+    lab_milestones: boolean;
+    email_enabled: boolean;
   };
   display: {
     sidebarItems: SidebarItemId[];
@@ -96,12 +94,10 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     font: "inter"
   },
   notifications: {
-    type: "all",
-    mobile: false,
-    communication_emails: false,
-    marketing_emails: false,
-    social_emails: true,
-    security_emails: true
+    learning_reminders: true,
+    path_milestones: true,
+    lab_milestones: true,
+    email_enabled: true
   },
   display: {
     sidebarItems: SIDEBAR_ITEMS.map((item) => item.id)

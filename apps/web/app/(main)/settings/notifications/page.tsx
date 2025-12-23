@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { useUserSettings } from "@/components/providers/settings-provider";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -18,20 +16,16 @@ import {
   FormLabel,
   FormMessage
 } from "@/components/ui/form";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BellIcon, BookOpen, Target, Award } from "lucide-react";
 
 const notificationsFormSchema = z.object({
-  type: z.enum(["all", "mentions", "none"], {
-    required_error: "You need to select a notification type."
-  }),
-  mobile: z.boolean().default(false).optional(),
-  communication_emails: z.boolean().default(false).optional(),
-  social_emails: z.boolean().default(false).optional(),
-  marketing_emails: z.boolean().default(false).optional(),
-  security_emails: z.boolean()
+  learning_reminders: z.boolean().default(true),
+  path_milestones: z.boolean().default(true),
+  lab_milestones: z.boolean().default(true),
+  email_enabled: z.boolean().default(true)
 });
 
 type NotificationsFormValues = z.infer<typeof notificationsFormSchema>;
@@ -42,23 +36,19 @@ export default function Page() {
   const form = useForm<NotificationsFormValues>({
     resolver: zodResolver(notificationsFormSchema),
     defaultValues: {
-      type: settings.notifications.type,
-      mobile: settings.notifications.mobile,
-      communication_emails: settings.notifications.communication_emails,
-      marketing_emails: settings.notifications.marketing_emails,
-      social_emails: settings.notifications.social_emails,
-      security_emails: settings.notifications.security_emails
+      learning_reminders: settings.notifications.learning_reminders,
+      path_milestones: settings.notifications.path_milestones,
+      lab_milestones: settings.notifications.lab_milestones,
+      email_enabled: settings.notifications.email_enabled
     }
   });
 
   useEffect(() => {
     form.reset({
-      type: settings.notifications.type,
-      mobile: settings.notifications.mobile,
-      communication_emails: settings.notifications.communication_emails,
-      marketing_emails: settings.notifications.marketing_emails,
-      social_emails: settings.notifications.social_emails,
-      security_emails: settings.notifications.security_emails
+      learning_reminders: settings.notifications.learning_reminders,
+      path_milestones: settings.notifications.path_milestones,
+      lab_milestones: settings.notifications.lab_milestones,
+      email_enabled: settings.notifications.email_enabled
     });
   }, [form, settings]);
 
@@ -67,64 +57,42 @@ export default function Page() {
       await saveSettings({
         notifications: data
       });
-      toast.success("Notifications updated");
+      toast.success("Notification preferences updated");
     } catch (error: any) {
-      toast.error(error.message || "Unable to update notifications");
+      toast.error(error.message || "Unable to update notification preferences");
     }
   }
 
   return (
-    <Card>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel>Notify me about...</FormLabel>
-                  <FormControl>
-                    <RadioGroup
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      className="flex flex-col space-y-1">
-                      <FormItem className="flex items-center">
-                        <FormControl>
-                          <RadioGroupItem value="all" />
-                        </FormControl>
-                        <FormLabel className="font-normal">All new messages</FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center">
-                        <FormControl>
-                          <RadioGroupItem value="mentions" />
-                        </FormControl>
-                        <FormLabel className="font-normal">Direct messages and mentions</FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center">
-                        <FormControl>
-                          <RadioGroupItem value="none" />
-                        </FormControl>
-                        <FormLabel className="font-normal">Nothing</FormLabel>
-                      </FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div>
-              <h3 className="mb-4 text-lg font-medium">Email Notifications</h3>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BellIcon className="h-5 w-5" />
+            Learning Notifications
+          </CardTitle>
+          <CardDescription>
+            Manage when and how you receive notifications about your learning progress. 
+            Notifications are designed to be minimal and focused on helping you stay consistent.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="space-y-4">
                 <FormField
                   control={form.control}
-                  name="communication_emails"
+                  name="learning_reminders"
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                       <div className="space-y-0.5">
-                        <FormLabel className="text-base">Communication emails</FormLabel>
+                        <FormLabel className="text-base flex items-center gap-2">
+                          <BookOpen className="h-4 w-4" />
+                          Learning Reminders
+                        </FormLabel>
                         <FormDescription>
-                          Receive emails about your account activity.
+                          Get gentle reminders to continue your learning paths when you haven't 
+                          studied in a few days. Example: "You haven't continued Introduction to Integrals in 3 days."
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -133,15 +101,20 @@ export default function Page() {
                     </FormItem>
                   )}
                 />
+                
                 <FormField
                   control={form.control}
-                  name="marketing_emails"
+                  name="path_milestones"
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                       <div className="space-y-0.5">
-                        <FormLabel className="text-base">Marketing emails</FormLabel>
+                        <FormLabel className="text-base flex items-center gap-2">
+                          <Target className="h-4 w-4" />
+                          Learning Path Milestones
+                        </FormLabel>
                         <FormDescription>
-                          Receive emails about new products, features, and more.
+                          Celebrate when you complete a learning path or are close to finishing. 
+                          Example: "You completed JavaScript Fundamentals!" or "You're one lab away from completing this path."
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -150,71 +123,77 @@ export default function Page() {
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
-                  name="social_emails"
+                  name="lab_milestones"
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                       <div className="space-y-0.5">
-                        <FormLabel className="text-base">Social emails</FormLabel>
+                        <FormLabel className="text-base flex items-center gap-2">
+                          <Award className="h-4 w-4" />
+                          Lab & Module Completions
+                        </FormLabel>
                         <FormDescription>
-                          Receive emails for friend requests, follows, and more.
+                          Get notified when you complete labs or modules within your learning paths. 
+                          Positive reinforcement for your progress.
                         </FormDescription>
                       </div>
                       <FormControl>
                         <Switch checked={field.value} onCheckedChange={field.onChange} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="security_emails"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                      <div className="space-y-0.5">
-                        <FormLabel className="text-base">Security emails</FormLabel>
-                        <FormDescription>
-                          Receive emails about your account activity and security.
-                        </FormDescription>
-                      </div>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          disabled
-                          aria-readonly
-                        />
                       </FormControl>
                     </FormItem>
                   )}
                 />
               </div>
-            </div>
-            <FormField
-              control={form.control}
-              name="mobile"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start">
-                  <FormControl>
-                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel>Use different settings for my mobile devices</FormLabel>
-                    <FormDescription>
-                      You can manage your mobile notifications in the{" "}
-                      <Link href="/examples/forms">mobile settings</Link> page.
-                    </FormDescription>
-                  </div>
-                </FormItem>
-              )}
-            />
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving..." : "Update notifications"}
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+
+              <div className="border-t pt-6">
+                <h3 className="mb-4 text-lg font-medium">Delivery Method</h3>
+                <FormField
+                  control={form.control}
+                  name="email_enabled"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">Email Notifications</FormLabel>
+                        <FormDescription>
+                          Receive notification emails at your registered email address. 
+                          Emails will only be sent for the notification types you've enabled above.
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save Preferences"}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-muted/50">
+        <CardContent className="pt-6">
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium">About Lyceum Notifications</h4>
+            <p className="text-muted-foreground text-sm">
+              Our notification system is designed to support your learning journey without becoming 
+              a distraction. Notifications are:
+            </p>
+            <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
+              <li>Sparse and meaningful - only when it matters</li>
+              <li>Focused on your progress and consistency</li>
+              <li>Never about social activity or non-learning events</li>
+              <li>Delivered primarily via email for a calm experience</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

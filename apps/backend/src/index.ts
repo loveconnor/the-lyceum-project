@@ -7,6 +7,7 @@ import aiRouter from './routes/ai';
 import dashboardRouter from './routes/dashboard';
 import labsRouter from './routes/labs';
 import pathsRouter from './routes/paths';
+import notificationsRouter from './routes/notifications';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -27,6 +28,7 @@ app.use('/ai', requireAuth, aiRouter);
 app.use('/dashboard', requireAuth, dashboardRouter);
 app.use('/labs', requireAuth, labsRouter);
 app.use('/paths', requireAuth, pathsRouter);
+app.use('/notifications', requireAuth, notificationsRouter);
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);

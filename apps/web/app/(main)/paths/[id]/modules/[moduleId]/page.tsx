@@ -490,12 +490,6 @@ const ExamplesView = ({
           setViewedConcepts(prev => {
             const newViewed = new Set(prev);
             newViewed.add(currentIndex);
-            
-            // Mark complete when all key concepts are viewed
-            if (newViewed.size >= keyConcepts.length && !isExamplesComplete) {
-              setIsExamplesComplete(true);
-            }
-            
             return newViewed;
           });
         }
@@ -507,7 +501,14 @@ const ExamplesView = ({
     }, 2000); // Mark as viewed after 2 seconds
 
     return () => clearTimeout(timer);
-  }, [currentIndex, activeTab, viewedConcepts, viewedExercises, keyConcepts.length, isExamplesComplete, setIsExamplesComplete]);
+  }, [currentIndex, activeTab, viewedConcepts, viewedExercises]);
+
+  // Separate effect to mark examples complete when all concepts are viewed
+  useEffect(() => {
+    if (viewedConcepts.size >= keyConcepts.length && !isExamplesComplete) {
+      setIsExamplesComplete(true);
+    }
+  }, [viewedConcepts.size, keyConcepts.length, isExamplesComplete, setIsExamplesComplete]);
 
   if (!keyConcepts || keyConcepts.length === 0) {
     return (

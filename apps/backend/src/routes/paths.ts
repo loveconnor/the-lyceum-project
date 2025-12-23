@@ -2,6 +2,10 @@ import { Router, Request, Response } from "express";
 import { getSupabaseAdmin } from "../supabaseAdmin";
 import { updateDashboardActivity } from "../dashboardService";
 import { generatePathOutline, generateModuleContent } from "../ai-path-generator";
+import { 
+  createModuleCompletionNotification, 
+  createPathCompletionNotification 
+} from "../notificationService";
 
 const router = Router();
 
@@ -529,6 +533,27 @@ router.patch("/:pathId/items/:itemId", async (req: Request, res: Response) => {
       return res.status(500).json({ error: "Failed to update path item" });
     }
 
+    // Check if module just completed and send notification
+    const wasJustCompleted = updatedItem.status === 'completed' && 
+      (status === 'completed' || 
+       (progress_data && 
+        progress_data.reading_completed && 
+        (progress_data.examples_completed || progress_data.visuals_completed)));
+    
+    if (wasJustCompleted) {
+      try {
+        await createModuleCompletionNotification(
+          userId,
+          itemId,
+          updatedItem.title,
+          pathId
+        );
+      } catch (notifError) {
+        console.error('Error creating module completion notification:', notifError);
+        // Don't fail the request if notification fails
+      }
+    }
+
     // Check if the entire path is completed
     const { data: allItems } = await supabase
       .from("learning_path_items")
@@ -538,6 +563,12 @@ router.patch("/:pathId/items/:itemId", async (req: Request, res: Response) => {
     const allCompleted = allItems?.every(item => item.status === 'completed');
 
     if (allCompleted) {
+      const { data: pathData } = await supabase
+        .from("learning_paths")
+        .select("title")
+        .eq("id", pathId)
+        .single();
+
       await supabase
         .from("learning_paths")
         .update({ 
@@ -546,6 +577,17 @@ router.patch("/:pathId/items/:itemId", async (req: Request, res: Response) => {
           progress: 100
         })
         .eq("id", pathId);
+
+      // Send path completion notification
+      try {
+        await createPathCompletionNotification(
+          userId,
+          pathId,
+          pathData?.title || 'Learning Path'
+        );
+      } catch (notifError) {
+        console.error('Error creating path completion notification:', notifError);
+      }
 
       // Update dashboard with path completion
       try {
