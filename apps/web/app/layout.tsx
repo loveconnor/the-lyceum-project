@@ -1,4 +1,5 @@
 import React from "react";
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "next-themes";
@@ -12,6 +13,16 @@ import "katex/dist/katex.min.css";
 import { ActiveThemeProvider } from "@/components/active-theme";
 import { DEFAULT_THEME } from "@/lib/themes";
 import { Toaster } from "@/components/ui/sonner";
+
+export const metadata: Metadata = {
+  title: "The Lyceum Project",
+  description: "A modern learning platform",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
+  manifest: "/manifest.json",
+};
 
 export default async function RootLayout({
   children

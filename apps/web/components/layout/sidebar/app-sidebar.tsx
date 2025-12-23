@@ -11,23 +11,22 @@ import {
   SidebarSeparator,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar
 } from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
 import { useIsTablet } from "@/hooks/use-mobile";
 import { useUserProfile } from "@/components/providers/user-provider";
 import { getInitials } from "@/lib/user-profile";
 import { createClient } from "@/utils/supabase/client";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { NavUser } from "./nav-user";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { SIDEBAR_ITEMS } from "@/lib/settings";
 import { useUserSettings } from "@/components/providers/settings-provider";
+import logo from "../logo.png"
+import Image from "next/image";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
@@ -68,8 +67,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton className="hover:text-foreground h-10 group-data-[collapsible=icon]:px-0! hover:bg-[var(--primary)]/5">
-              <span className="text-foreground font-semibold">The Lyceum Project</span>
+            <SidebarMenuButton size="lg" className="hover:bg-[var(--primary)]/5">
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg">
+                <Image src={logo} alt="Logo" className="h-5 w-5 dark:invert" width={20} height={20} />
+              </div>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="text-foreground font-semibold">The Lyceum Project</span>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -77,7 +81,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <SidebarContent>
         <ScrollArea className="h-full">
-          <div className="space-y-4 p-3">
+          <div className="space-y-4 py-3">
             {hasAssistant && (
               <SidebarGroup>
                 <SidebarGroupContent>
