@@ -25,6 +25,15 @@ export interface Module {
   title: string;
   description?: string;
   completed: boolean;
+  status?: 'not-started' | 'in-progress' | 'completed';
+  progress_data?: {
+    reading_completed?: boolean;
+    examples_completed?: boolean;
+    visuals_completed?: boolean;
+    completed_chapters?: number[];
+    viewed_concepts?: number[];
+    viewed_visuals?: number[];
+  };
   labCount?: number;
   textCount?: number;
   slideCount?: number;

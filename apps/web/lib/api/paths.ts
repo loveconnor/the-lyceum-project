@@ -34,6 +34,14 @@ interface UpdatePathItemPayload {
   status?: string;
   title?: string;
   description?: string;
+  progress_data?: {
+    reading_completed?: boolean;
+    examples_completed?: boolean;
+    visuals_completed?: boolean;
+    completed_chapters?: number[];
+    viewed_concepts?: number[];
+    viewed_visuals?: number[];
+  };
 }
 
 async function getAuthHeaders(): Promise<HeadersInit> {
@@ -125,7 +133,7 @@ export async function deletePath(id: string): Promise<void> {
   }
 }
 
-// Update a path item status
+// Update a path item status or progress
 export async function updatePathItemStatus(
   pathId: string, 
   itemId: string, 
@@ -136,6 +144,21 @@ export async function updatePathItemStatus(
     method: "PATCH",
     headers,
     body: JSON.stringify({ status }),
+  });
+  return handleResponse<any>(response);
+}
+
+// Update path item progress data
+export async function updatePathItemProgress(
+  pathId: string,
+  itemId: string,
+  progressData: UpdatePathItemPayload['progress_data']
+): Promise<any> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_BASE_URL}/paths/${pathId}/items/${itemId}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ progress_data: progressData }),
   });
   return handleResponse<any>(response);
 }

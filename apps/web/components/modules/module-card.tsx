@@ -26,20 +26,31 @@ interface ModuleCardProps {
 
 // Helper function to determine module status
 function getModuleStatus(module: Module): "not-started" | "in-progress" | "completed" {
-  if (module.completed) {
+  // Check if module is completed
+  if (module.completed || module.status === 'completed') {
     return "completed";
   }
 
-  // Calculate if module has been started based on content counts
-  const totalContent =
-    (module.labCount || 0) +
-    (module.textCount || 0) +
-    (module.slideCount || 0) +
-    (module.audioCount || 0) +
-    (module.mindmapCount || 0);
+  // Check progress_data if available
+  if (module.progress_data) {
+    const { reading_completed, examples_completed, visuals_completed } = module.progress_data;
+    
+    // If reading is complete and at least one other section, mark as completed
+    if (reading_completed && (examples_completed || visuals_completed)) {
+      return "completed";
+    }
+    
+    // If any section has progress, mark as in-progress
+    if (reading_completed || examples_completed || visuals_completed) {
+      return "in-progress";
+    }
+  }
 
-  // For this example, we'll consider it in-progress if it's marked completed: false
-  // In a real implementation, you'd track individual content item completion
+  // Check status field as fallback
+  if (module.status === 'in-progress') {
+    return "in-progress";
+  }
+
   return "not-started";
 }
 
@@ -66,6 +77,16 @@ export default function ModuleCard({ module, moduleNumber, pathId }: ModuleCardP
   const router = useRouter();
   const status = getModuleStatus(module);
   const config = statusConfig[status];
+
+  // Calculate progress from progress_data
+  const progressData = module.progress_data || {};
+  const completedSections = [
+    progressData.reading_completed,
+    progressData.examples_completed,
+    progressData.visuals_completed,
+  ].filter(Boolean).length;
+  const totalSections = 3; // Reading, Examples, Visuals
+  const progressPercentage = totalSections > 0 ? (completedSections / totalSections) * 100 : 0;
 
   // Calculate total content items
   const totalContent =
@@ -158,9 +179,9 @@ export default function ModuleCard({ module, moduleNumber, pathId }: ModuleCardP
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Progress</span>
-              <span className="font-medium">3 of {totalContent} steps</span>
+              <span className="font-medium">{completedSections} of {totalSections} sections</span>
             </div>
-            <Progress value={30} className="h-1.5" />
+            <Progress value={progressPercentage} className="h-1.5" />
           </div>
         )}
       </CardContent>

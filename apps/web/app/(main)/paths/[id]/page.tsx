@@ -63,6 +63,7 @@ export default async function PathModulesPage({ params }: { params: Promise<{ id
           item_type,
           status,
           completed_at,
+          progress_data,
           labs (
             id,
             title,
@@ -92,6 +93,7 @@ export default async function PathModulesPage({ params }: { params: Promise<{ id
         completed: item.status === 'completed',
         item_type: item.item_type,
         status: item.status,
+        progress_data: item.progress_data,
         content_data: item.content_data,
         lab_id: item.lab_id,
         labs: item.labs

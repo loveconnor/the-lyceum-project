@@ -40,7 +40,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import './reactflow.css';
 import Link from "next/link";
-import { fetchPathItem } from "@/lib/api/paths";
+import { fetchPathItem, updatePathItemProgress, fetchPathById } from "@/lib/api/paths";
 import { toast } from "sonner";
 
 // --- Types & Constants ---
@@ -2346,15 +2346,28 @@ export default function ModulePage() {
   const [isExamplesComplete, setIsExamplesComplete] = useState(false);
   const [isVisualsComplete, setIsVisualsComplete] = useState(false);
   const [module, setModule] = useState<ModuleData | null>(null);
+  const [allModules, setAllModules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Load module data and progress
   useEffect(() => {
     const loadModule = async () => {
       try {
         setLoading(true);
         const data = await fetchPathItem(pathId, moduleId);
         setModule(data);
-        setIsQuizPassed(data.status === 'completed');
+        
+        // Load progress from database
+        const progressData = data.progress_data || {};
+        setIsQuizPassed(progressData.reading_completed || false);
+        setIsExamplesComplete(progressData.examples_completed || false);
+        setIsVisualsComplete(progressData.visuals_completed || false);
+
+        // Load all modules from the path to enable navigation
+        const pathData = await fetchPathById(pathId);
+        if (pathData.learning_path_items) {
+          setAllModules(pathData.learning_path_items.sort((a: any, b: any) => a.order_index - b.order_index));
+        }
       } catch (error) {
         console.error("Error loading module:", error);
         toast.error("Failed to load module content");
@@ -2365,6 +2378,41 @@ export default function ModulePage() {
 
     loadModule();
   }, [pathId, moduleId]);
+
+  // Save progress whenever it changes
+  useEffect(() => {
+    if (!module || loading) return;
+
+    const saveProgress = async () => {
+      try {
+        await updatePathItemProgress(pathId, moduleId, {
+          reading_completed: isQuizPassed,
+          examples_completed: isExamplesComplete,
+          visuals_completed: isVisualsComplete,
+        });
+      } catch (error) {
+        console.error("Error saving progress:", error);
+        // Don't show toast error to avoid annoying the user
+      }
+    };
+
+    // Debounce the save to avoid too many requests
+    const timeoutId = setTimeout(saveProgress, 500);
+    return () => clearTimeout(timeoutId);
+  }, [isQuizPassed, isExamplesComplete, isVisualsComplete, pathId, moduleId, module, loading]);
+
+  // Handle navigation to next module
+  const handleContinueToNext = () => {
+    const currentIndex = allModules.findIndex((m: any) => m.id === moduleId);
+    if (currentIndex !== -1 && currentIndex < allModules.length - 1) {
+      const nextModule = allModules[currentIndex + 1];
+      router.push(`/paths/${pathId}/modules/${nextModule.id}`);
+    } else {
+      // No next module, go back to path overview
+      router.push(`/paths/${pathId}`);
+      toast.success("Path completed! Great work!");
+    }
+  };
 
   if (loading) {
     return (
@@ -2414,7 +2462,7 @@ export default function ModulePage() {
                 You've completed the reading and explored {isExamplesComplete && isVisualsComplete ? 'both examples and visuals' : isExamplesComplete ? 'the examples' : 'the visuals'}. Ready to move forward?
               </p>
             </div>
-            <Button className="bg-green-600 hover:bg-green-700">
+            <Button className="bg-green-600 hover:bg-green-700" onClick={handleContinueToNext}>
               Continue to Next Module
             </Button>
           </div>

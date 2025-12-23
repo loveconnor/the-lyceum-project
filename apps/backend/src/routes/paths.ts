@@ -484,10 +484,10 @@ router.patch("/:pathId/items/:itemId", async (req: Request, res: Response) => {
     }
 
     const { pathId, itemId } = req.params;
-    const { status } = req.body;
+    const { status, progress_data } = req.body;
 
-    if (!status) {
-      return res.status(400).json({ error: "Status is required" });
+    if (!status && !progress_data) {
+      return res.status(400).json({ error: "Status or progress_data is required" });
     }
 
     // Verify the path belongs to the user
@@ -502,10 +502,18 @@ router.patch("/:pathId/items/:itemId", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Learning path not found" });
     }
 
-    // Update the item
-    const updateData: any = { status };
-    if (status === 'completed') {
-      updateData.completed_at = new Date().toISOString();
+    // Build update data
+    const updateData: any = {};
+    
+    if (status) {
+      updateData.status = status;
+      if (status === 'completed') {
+        updateData.completed_at = new Date().toISOString();
+      }
+    }
+    
+    if (progress_data) {
+      updateData.progress_data = progress_data;
     }
 
     const { data: updatedItem, error } = await supabase
