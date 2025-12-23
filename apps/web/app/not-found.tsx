@@ -16,7 +16,7 @@ export default function NotFound() {
         </p>
         <div className="mt-10 flex items-center justify-center gap-x-2">
           <Button size="lg">
-            <Link href="/dashboard">Go back home</Link>
+            <Link href="/">Go back home</Link>
           </Button>
           <Button size="lg" variant="ghost">
             Contact support <ArrowRight className="ms-2 h-4 w-4" />

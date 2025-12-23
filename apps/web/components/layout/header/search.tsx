@@ -33,21 +33,10 @@ const searchGroups: SearchGroup[] = [
     title: "Navigation",
     items: [
       { label: "Dashboard", href: "/" },
-      { label: "Learning Paths", href: "/learning-paths" },
+      { label: "AI Assistant", href: "/assistant" },
+      { label: "Learning Paths", href: "/paths" },
       { label: "Labs", href: "/labs" },
       { label: "Reflections", href: "/reflections" },
-      { label: "Planner / Time Coach", href: "/planner" },
-      { label: "Relevance Explorer", href: "/relevance-explorer" },
-      { label: "Community", href: "/community" },
-      { label: "Instructor", href: "/instructor" }
-    ]
-  },
-  {
-    title: "Quick Links",
-    items: [
-      { label: "Start New Lab", href: "/labs/new" },
-      { label: "Continue Reflection", href: "/reflections/continue" },
-      { label: "View Goals", href: "/goals" }
     ]
   }
 ];

@@ -139,43 +139,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarGroup>
             )}
 
-            {otherPrimary.length > 0 && quickLinks.length > 0 && <SidebarSeparator />}
-
-            {quickLinks.length > 0 && (
-              <SidebarGroup>
-                <SidebarGroupLabel className="text-muted-foreground h-4 pb-2 pt-1 text-xs">
-                  Quick Links
-                </SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {quickLinks.map((item) => (
-                      <SidebarMenuItem key={item.id}>
-                        <SidebarMenuButton
-                          className={menuButtonClass}
-                          asChild={Boolean(item.href)}>
-                          {item.href ? (
-                            <Link href={item.href}>
-                              <item.icon className="size-4" />
-                              <span>{item.label}</span>
-                            </Link>
-                          ) : (
-                            <>
-                              <item.icon className="size-4" />
-                              <span>{item.label}</span>
-                            </>
-                          )}
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
           </div>
         </ScrollArea>
       </SidebarContent>
 
       <SidebarFooter>
+        {/*
         <Card className="gap-4 overflow-hidden py-4 group-data-[collapsible=icon]:hidden">
           <CardHeader className="px-3">
             <CardTitle>Complete Onboarding</CardTitle>
@@ -189,6 +158,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </Button>
           </CardContent>
         </Card>
+        */}
         <NavUser />
       </SidebarFooter>
     </Sidebar>
