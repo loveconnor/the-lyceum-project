@@ -124,6 +124,7 @@ Include 5-10 realistic data rows and 4-5 analysis steps.`,
   "estimated_duration": number (in minutes),
   "topics": string[],
   "data": {
+    "problemStatement": "Detailed description of the coding challenge (use LaTeX for math: $x^2$)",
     "initialCode": "// Starting code template with function signature and comments",
     "language": "javascript" | "typescript" | "python" | "java" | "cpp",
     "testCases": [
@@ -139,31 +140,60 @@ Include 5-10 realistic data rows and 4-5 analysis steps.`,
       {
         "id": "unique-id",
         "title": "Step title",
-        "instruction": "What the learner should do in this step",
-        "keyQuestions": ["Question 1?", "Question 2?", ...],
-        "prompt": "Specific guidance and hints for this step"
+        "widgets": [
+          {
+            "type": "text-input",
+            "config": {
+              "label": "Label for the input",
+              "placeholder": "Placeholder text",
+              "description": "Optional guidance",
+              "showPreview": false
+            }
+          },
+          {
+            "type": "multiple-choice",
+            "config": {
+              "label": "Question text",
+              "choices": [
+                {"id": "c1", "name": "Option 1"},
+                {"id": "c2", "name": "Option 2"}
+              ]
+            }
+          },
+          {
+            "type": "code-editor",
+            "config": {
+              "label": "Implementation",
+              "description": "Write your code here"
+            }
+          }
+        ]
       }
     ]
   }
 }
-Create 4-6 structured steps for the coding process. Each step should have:
-- Unique id (e.g., "understand-problem", "plan-approach", "implement-solution", "test-debug", "analyze-complexity")
-- Clear title and detailed instructions
-- 2-4 key questions to guide thinking
-- Helpful prompts with specific hints
+Create 4-6 structured steps for the coding process. Each step should use appropriate widgets to guide the learner.
 
 Example step sequence:
-1. Understand the problem (identify inputs, outputs, constraints)
-2. Plan your approach (algorithm design, data structures)
-3. Implement solution (write the code)
-4. Test and debug (run tests, fix issues - MUST include detailed instruction about using print statements, checking edge cases, and debugging strategies)
-5. Analyze complexity (time/space complexity analysis)
+1. Understand the problem: Use text-input or multiple-choice to check understanding of requirements.
+2. Plan your approach: Use text-input for pseudocode or algorithm design.
+3. Implement solution: Use code-editor widget.
+4. Test and debug: Use code-editor widget and provide guidance on debugging.
+5. Analyze complexity: Use multiple-choice or text-input to discuss time/space complexity.
 
-IMPORTANT: The test-debug step MUST have detailed instruction, keyQuestions, and prompt fields with specific guidance on:
-- How to add print/debug statements
-- What edge cases to test
-- Common mistakes to check for
-- How to interpret test failures
+WIDGET CONFIGURATION DETAILS:
+**text-input**: 
+  - label: Question or instruction (can use LaTeX)
+  - description: Helper text (can use LaTeX, optional)
+  - placeholder: Example text in PLAIN ENGLISH ONLY (no LaTeX)
+  - showPreview: true (for math) or false (for normal text/pseudocode)
+  - mathMode: true (for multi-line math equations) or false (default)
+
+**multiple-choice**:
+  - label: Question text (can use LaTeX)
+  - choices: Array of {id, name, formula (optional)}
+  - multiSelect: true/false
+  - showExplanation: true/false
 
 Include 3-5 test cases with clear descriptions.
 Provide realistic starter code (5-15 lines) with function signature and helpful comments.`,

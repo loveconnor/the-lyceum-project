@@ -56,6 +56,10 @@ export interface BuildLabData {
     instruction?: string;
     keyQuestions?: string[];
     prompt?: string;
+    widgets?: Array<{
+      type: "text-input" | "multiple-choice" | "code-editor";
+      config: any;
+    }>;
   }>;
 }
 

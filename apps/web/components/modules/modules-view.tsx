@@ -71,13 +71,6 @@ export default function ModulesView({ path }: ModulesViewProps) {
               <span>{path.estimatedDuration}</span>
             </div>
           )}
-
-          {totalModules > 0 && (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <BookOpen className="h-4 w-4" />
-              <span>{totalModules} modules</span>
-            </div>
-          )}
         </div>
 
         {/* Overall progress indicator */}

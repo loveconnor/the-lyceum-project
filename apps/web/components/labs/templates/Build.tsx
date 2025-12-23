@@ -37,13 +37,17 @@ import {
   Eye,
   Loader2,
   ThumbsUp,
-  ThumbsDown
+  ThumbsDown,
+  Info
 } from "lucide-react";
 import { cn, extractJSON } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { useLabAI } from "@/hooks/use-lab-ai";
 import { toast } from "sonner";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
+import { TextInputWidget } from "@/components/labs/widgets/text-input-widget";
+import { MultipleChoiceWidget } from "@/components/labs/widgets/multiple-choice-widget";
+import { CodeEditorWidget } from "@/components/labs/widgets/code-editor-widget";
 
 interface Step {
   id: string;
@@ -53,6 +57,10 @@ interface Step {
   keyQuestions?: string[];
   prompt?: string;
   requiresInput?: boolean;
+  widgets?: Array<{
+    type: "text-input" | "multiple-choice" | "code-editor";
+    config: any;
+  }>;
 }
 
 const INITIAL_STEPS = (stepPrompts?: BuildLabData['stepPrompts'], aiSteps?: BuildLabData['steps']): Step[] => {
@@ -65,7 +73,8 @@ const INITIAL_STEPS = (stepPrompts?: BuildLabData['stepPrompts'], aiSteps?: Buil
       instruction: step.instruction,
       keyQuestions: step.keyQuestions,
       prompt: step.prompt,
-      requiresInput: true
+      requiresInput: true,
+      widgets: (step as any).widgets
     }));
   }
   
@@ -136,7 +145,7 @@ export default function BuildTemplate({ data, labId }: BuildTemplateProps) {
   const [accessedSteps, setAccessedSteps] = useState<Set<string>>(new Set());
   
   // AI feedback state
-  const [feedback, setFeedback] = useState<{ text: string; approved: boolean } | null>(null);
+  const [stepFeedback, setStepFeedback] = useState<Record<string, { text: string; approved: boolean; correctIds?: string[]; incorrectIds?: string[] }>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { getAssistance, loading: aiLoading } = labId ? useLabAI(labId) : { getAssistance: null, loading: false };
   const currentStepRef = React.useRef<HTMLButtonElement>(null);
@@ -165,6 +174,52 @@ export default function BuildTemplate({ data, labId }: BuildTemplateProps) {
   const [testResults, setTestResults] = useState<Array<{ passed: boolean; description: string; feedback?: string }>>([]);
   const [isLoadingProgress, setIsLoadingProgress] = useState(true);
 
+  // Helper function to auto-wrap math notation for preview
+  const previewWithMath = (text: string): string => {
+    // If already has $ signs, return as is
+    if (text.includes('$')) return text;
+    
+    // If it contains LaTeX commands or complex operators and is relatively short,
+    // treat the whole thing as a single mathematical expression.
+    const words = text.trim().split(/\s+/);
+    const hasComplexMath = /\\|[\^_{}]/.test(text);
+    if (hasComplexMath && words.length <= 5) {
+      return `$${text.trim()}$`;
+    }
+    
+    // Split by periods and newlines to handle sentences separately
+    const sentences = text.split(/([.!?\n]+)/);
+    
+    return sentences.map(sentence => {
+      // Check if this sentence/fragment contains math patterns
+      const hasMathOperators = /[\^*/+\-=\\__{}]|sin|cos|tan|log|ln|sqrt|exp|lim|int|sum|prod|alpha|beta|gamma|delta|theta|pi/i.test(sentence);
+      
+      if (hasMathOperators) {
+        // Wrap entire mathematical expressions in inline math
+        return sentence
+          // Wrap expressions with operators or LaTeX commands
+          .replace(/((?:[a-zA-Z0-9()\s\^*/+\-=\\__{}]+)?(?:sin|cos|tan|log|ln|sqrt|exp|int|sum|prod|lim|frac|partial|alpha|beta|gamma|delta|theta|pi)[a-zA-Z0-9()\s\^*/+\-=\\__{}]*)/gi, (match) => {
+            // Don't wrap if it's just plain words without operators or backslashes
+            if (/[\^*/+\-=\\__{}]/.test(match) || /sin|cos|tan|log|ln|sqrt|exp|int|sum|prod|lim|frac|partial|\\/.test(match)) {
+              // If it's just a word like "integral" or "sum" without operators, don't wrap
+              if (/^[a-zA-Z]+$/.test(match.trim()) && !/sin|cos|tan|log|ln|sqrt|exp/.test(match.trim())) {
+                return match;
+              }
+              return `$${match.trim()}$`;
+            }
+            return match;
+          })
+          // Catch remaining patterns: standalone x^2, e^x, etc.
+          .replace(/\b([a-zA-Z]+\^[a-zA-Z0-9]+)\b/g, '$$$1$$')
+          .replace(/\b([a-zA-Z]+_[a-zA-Z0-9]+)\b/g, '$$$1$$') // subscripts
+          // Clean up double wrapping
+          .replace(/\$\$+/g, '$');
+      }
+      
+      return sentence;
+    }).join('');
+  };
+
   // Load progress when component mounts
   React.useEffect(() => {
     if (!labId) {
@@ -178,6 +233,15 @@ export default function BuildTemplate({ data, labId }: BuildTemplateProps) {
         const progress = await fetchLabProgress(labId);
         
         if (progress && progress.length > 0) {
+          // Restore step feedback from all progress entries
+          const feedbackMap: Record<string, any> = {};
+          progress.forEach((p: any) => {
+            if (p.step_data?.feedback) {
+              feedbackMap[p.step_id] = p.step_data.feedback;
+            }
+          });
+          setStepFeedback(feedbackMap);
+
           // Sort progress by timestamp to get the most recent
           const sortedProgress = [...progress].sort((a, b) => {
             const timeA = new Date(a.updated_at || a.created_at).getTime();
@@ -300,7 +364,7 @@ export default function BuildTemplate({ data, labId }: BuildTemplateProps) {
     }
 
     setIsRunning(true);
-    setFeedback(null);
+    setStepFeedback(prev => ({ ...prev, [currentStep?.id || '']: { ...prev[currentStep?.id || ''], text: '', approved: false } }));
     
     const isTestDebugStep = currentStep?.id.includes("test") || currentStep?.id.includes("debug");
     
@@ -416,28 +480,36 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
         
         // If all tests pass, move to next step (skip test/debug if from implement step)
         if (passedCount === results.length) {
-          setFeedback({ 
-            text: parsed.overallFeedback || "All tests passed! Great work. Moving to the next step.", 
-            approved: true 
-          });
+          setStepFeedback(prev => ({
+            ...prev,
+            [currentStep?.id || '']: {
+              text: parsed.overallFeedback || "All tests passed! Great work. Moving to the next step.",
+              approved: true
+            }
+          }));
           setTimeout(() => {
             completeStep(currentStep?.id || "", isImplementStep);
-            setFeedback(null);
           }, 2000);
         } else {
           // Tests failed
           if (isTestDebugStep) {
             // On test/debug steps, provide specific debugging feedback without "Continue" button
-            setFeedback({ 
-              text: parsed.overallFeedback || "Some tests failed. Review the output above, use print statements to inspect values, and try again.", 
-              approved: false 
-            });
+            setStepFeedback(prev => ({
+              ...prev,
+              [currentStep?.id || '']: {
+                text: parsed.overallFeedback || "Some tests failed. Review the output above, use print statements to inspect values, and try again.",
+                approved: false
+              }
+            }));
           } else {
             // On implementation steps, allow continuing to debug step
-            setFeedback({ 
-              text: parsed.overallFeedback || "Some tests failed. Review the feedback and try again, or continue to debug.", 
-              approved: false 
-            });
+            setStepFeedback(prev => ({
+              ...prev,
+              [currentStep?.id || '']: {
+                text: parsed.overallFeedback || "Some tests failed. Review the feedback and try again, or continue to debug.",
+                approved: false
+              }
+            }));
           }
         }
       } else {
@@ -494,7 +566,8 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
           stepResponses,
           code,
           testResults,
-          output
+          output,
+          feedback: stepFeedback[stepId]
         },
         completed
       });
@@ -556,51 +629,85 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
     if (!currentStep || !getAssistance) return;
 
     const userResponse = stepResponses[currentStep.id];
+    const choiceResponse = stepResponses[`${currentStep.id}-choice`];
     const stepName = currentStep.title;
 
-    if (!userResponse?.trim() && currentStep.requiresInput) {
+    const hasResponse = userResponse?.trim() || choiceResponse?.trim();
+
+    if (!hasResponse && currentStep.requiresInput) {
       toast.error("Please provide an answer before submitting");
       return;
     }
 
     setIsSubmitting(true);
-    setFeedback(null);
+    setStepFeedback(prev => ({ ...prev, [currentStep.id]: { ...prev[currentStep.id], text: '', approved: false } }));
 
     try {
       // Save progress as user submits (not completed yet)
       await saveProgress(currentStep.id, false);
       
-      const prompt = `You are a coding instructor reviewing a student's ${stepName.toLowerCase()} for learning to code.
+    // Build context about what the student did
+    let studentWork = '';
+    if (userResponse) studentWork += `Text response: ${userResponse}\n`;
+    
+    if (choiceResponse) {
+      const selectedIds = choiceResponse.split(',').filter(Boolean);
+      const selectedChoiceTexts = currentStep.widgets
+        ?.filter(w => w.type === 'multiple-choice')
+        .flatMap(w => w.config.choices || [])
+        .filter(c => selectedIds.includes(c.id))
+        .map(c => c.name) || [];
+      
+      if (selectedChoiceTexts.length > 0) {
+        studentWork += `Selected options: ${selectedChoiceTexts.join(', ')}\n`;
+      } else {
+        studentWork += `Selected options: ${choiceResponse}\n`;
+      }
+    }
+    
+    const prompt = `You are a coding instructor reviewing a student's ${stepName.toLowerCase()} for learning to code.
 
 Step instruction: ${currentStep.instruction || currentStep.title}
 ${currentStep.keyQuestions ? `Key questions: ${currentStep.keyQuestions.join(', ')}` : ''}
 
-Student's response:
-${userResponse}
+Student's work:
+${studentWork}
 
 Current code they're working on:
 \`\`\`${detectedLanguage}
 ${code}
 \`\`\`
 
-Evaluate if their response demonstrates understanding. Respond ONLY in this JSON format:
+Evaluate if their response demonstrates understanding. 
+IMPORTANT: If the student provided a multiple-choice answer, evaluate if it is correct. Do NOT ask for a written explanation if they have already answered the question correctly via multiple choice.
+
+Respond ONLY in this JSON format:
 {
   "approved": true/false,
-  "feedback": "Brief constructive feedback (2-3 sentences)"
+  "feedback": "Brief constructive feedback (2-3 sentences). If they were wrong, explain why and what the correct answer is.",
+  "correctIds": ["id1", "id2"], // If multiple choice, the IDs of the correct options
+  "incorrectIds": ["id3"] // If multiple choice, the IDs of the incorrect options the student selected
 }
 
-Approve if they show reasonable understanding. If not approved, explain what's missing.`;
+Approve if they show reasonable understanding or selected the correct option. If not approved, explain what's missing or incorrect.`;
 
       const response = await getAssistance(prompt, { step: currentStep.id, code });
       
       try {
-        const parsed = extractJSON<{ approved: boolean; feedback: string }>(response);
-        setFeedback({ text: parsed.feedback, approved: parsed.approved });
+        const parsed = extractJSON<{ approved: boolean; feedback: string; correctIds?: string[]; incorrectIds?: string[] }>(response);
+        setStepFeedback(prev => ({
+          ...prev,
+          [currentStep.id]: {
+            text: parsed.feedback,
+            approved: parsed.approved,
+            correctIds: parsed.correctIds,
+            incorrectIds: parsed.incorrectIds
+          }
+        }));
         
         if (parsed.approved) {
           setTimeout(async () => {
             await completeStep(currentStep.id, false);
-            setFeedback(null);
           }, 2000);
         }
       } catch {
@@ -633,6 +740,9 @@ Approve if they show reasonable understanding. If not approved, explain what's m
       }
       return s;
     }));
+
+    // Clear feedback when moving to a different step
+    // setFeedback(null);
   };
 
   const currentStep = steps.find(s => s.status === "current") || steps[steps.length - 1];
@@ -646,8 +756,12 @@ Approve if they show reasonable understanding. If not approved, explain what's m
     currentStep.id.includes("write") ||
     currentStep.id.includes("test") ||
     currentStep.id.includes("debug") ||
-    !currentStep.requiresInput
+    !currentStep.requiresInput ||
+    currentStep.widgets?.some(w => w.type === "code-editor")
   );
+
+  const hasCodeEditor = currentStep?.widgets?.some(w => w.type === "code-editor") || 
+                        (!currentStep?.widgets && (currentStep?.id.includes("implement") || currentStep?.id.includes("code") || currentStep?.id.includes("write") || currentStep?.id.includes("test") || currentStep?.id.includes("debug")));
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground rounded-xl border shadow-sm">
@@ -663,284 +777,399 @@ Approve if they show reasonable understanding. If not approved, explain what's m
 
         <ResizableHandle withHandle />
 
-        {/* Center Panel: Primary Workspace (Code Editor) */}
-        <ResizablePanel defaultSize={55} minSize={40}>
-          <ResizablePanelGroup direction="vertical">
-            <ResizablePanel defaultSize={75} minSize={30}>
-              <div className="flex flex-col h-full">
-                <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/20">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5 px-2 py-1 bg-background rounded border text-xs font-medium">
-                      <Code2 className="w-3.5 h-3.5 text-blue-500" />
-                      solution.{getFileExtension()}
-                    </div>
-                    {!isCodeEditable && (
-                      <Badge variant="secondary" className="text-[10px] uppercase tracking-wider font-bold py-0 h-5">
-                        Read Only
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-8 text-xs"
-                      onClick={() => setCode(initialCode)}
-                      disabled={!isCodeEditable}
-                    >
-                      Reset
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      className="h-8 text-xs gap-1.5 shadow-sm"
-                      onClick={handleRunCode}
-                      disabled={isRunning || !isCodeEditable}
-                    >
-                      {isRunning ? (
-                        <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Play className="w-3.5 h-3.5 fill-current" />
-                      )}
-                      {(currentStep?.id.includes("test") || currentStep?.id.includes("debug")) ? "Run" : "Run Tests"}
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex-1 relative bg-[#1e1e1e]">
-                  <Editor
-                    height="100%"
-                    language={detectedLanguage}
-                    theme="vs-dark"
-                    value={code}
-                    onChange={(value) => setCode(value || "")}
-                    options={{
-                      minimap: { enabled: false },
-                      fontSize: 14,
-                      lineNumbers: "on",
-                      roundedSelection: false,
-                      scrollBeyondLastLine: false,
-                      readOnly: !isCodeEditable,
-                      automaticLayout: true,
-                      padding: { top: 16, bottom: 16 },
-                      domReadOnly: !isCodeEditable,
-                    }}
-                  />
-                </div>
-              </div>
-            </ResizablePanel>
-
-            <ResizableHandle withHandle />
-
-            <ResizablePanel defaultSize={25} minSize={10}>
-              <div className="flex flex-col h-full border-t bg-[#0d1117]">
-                <div className="flex items-center justify-between px-4 py-2 border-b border-white/5 bg-white/5">
-                  <div className="flex items-center gap-2">
-                    <Terminal className="w-3.5 h-3.5 text-white/40" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Console Output</span>
-                  </div>
-                  <span className="text-[10px] text-white/20 font-mono">Type 'help' for commands</span>
-                </div>
-                <ScrollArea className="flex-1 h-0">
-                  <div className="p-4 font-mono text-xs space-y-1.5">
-                    {output.length === 0 ? (
-                      <p className="text-white/20 italic">Click "Run Tests" or type 'test' in the console...</p>
-                    ) : (
-                      output.map((line, i) => (
-                        <div key={i} className={cn(
-                          "py-0.5 break-all",
-                          line.startsWith(">") ? "text-blue-400 font-bold" :
-                          line.startsWith("[") ? "text-white/40" : 
-                          line.includes("✗") ? "text-red-400" : 
-                          line.includes("✓") ? "text-emerald-400" : "text-gray-300"
-                        )}>
-                          {line}
+        {/* Center Panel: Primary Workspace */}
+        <ResizablePanel defaultSize={75} minSize={40}>
+          {hasCodeEditor ? (
+            <ResizablePanelGroup direction="vertical">
+              {/* Instructions Section */}
+              <ResizablePanel defaultSize={20} minSize={10}>
+                <ScrollArea className="h-full w-full">
+                  <div className="p-6 max-w-4xl mx-auto w-full space-y-6">
+                    {/* Problem Statement */}
+                    {data.problemStatement && data.problemStatement !== "No problem statement provided." && (
+                      <div className="space-y-3">
+                        <Badge variant="outline" className="px-2 py-0.5 text-[10px] uppercase tracking-widest font-bold">
+                          Instructions
+                        </Badge>
+                        <div className="text-lg font-serif leading-relaxed">
+                          <Markdown>{data.problemStatement}</Markdown>
                         </div>
-                      ))
+                      </div>
+                    )}
+
+                    {/* Dynamic Widget Rendering (Non-code) */}
+                    {currentStep && (
+                      <div className="space-y-6 pb-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
+                            <span className="text-xs font-bold text-primary">{steps.findIndex(s => s.id === currentStep.id) + 1}</span>
+                          </div>
+                          <h3 className="text-base font-semibold">
+                            <Markdown>{currentStep.title}</Markdown>
+                          </h3>
+                        </div>
+
+                        {currentStep.widgets ? (
+                          <div className="space-y-6">
+                            {currentStep.widgets.filter(w => w.type !== "code-editor").map((widget, idx) => {
+                              if (widget.type === "text-input") {
+                                return (
+                                  <TextInputWidget
+                                    key={idx}
+                                    label={widget.config.label || ""}
+                                    description={widget.config.description}
+                                    placeholder={widget.config.placeholder || ""}
+                                    value={stepResponses[currentStep.id] || ''}
+                                    onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: value})}
+                                    minHeight={widget.config.minHeight || "120px"}
+                                    showPreview={widget.config.showPreview !== false}
+                                    previewWithMath={widget.config.showPreview ? previewWithMath : undefined}
+                                    mathMode={widget.config.mathMode === true}
+                                  />
+                                );
+                              }
+                              
+                              if (widget.type === "multiple-choice") {
+                                const currentFeedback = stepFeedback[currentStep.id];
+                                return (
+                                  <MultipleChoiceWidget
+                                    key={idx}
+                                    label={widget.config.label || ""}
+                                    description={widget.config.description}
+                                    choices={widget.config.choices || []}
+                                    selectedIds={(stepResponses[`${currentStep.id}-choice`] || '').split(',').filter(Boolean)}
+                                    onSelectionChange={(ids) => setStepResponses({...stepResponses, [`${currentStep.id}-choice`]: ids.join(',')})}
+                                    multiSelect={widget.config.multiSelect !== false}
+                                    correctIds={currentFeedback?.correctIds}
+                                    incorrectIds={currentFeedback?.incorrectIds}
+                                    disabled={isSubmitting || aiLoading || currentFeedback?.approved}
+                                  />
+                                );
+                              }
+                              return null;
+                            })}
+                          </div>
+                        ) : (
+                          /* Legacy Fallback (Non-code) */
+                          <div className="space-y-4">
+                            {currentStep.instruction && (
+                              <Markdown className="text-sm text-muted-foreground leading-relaxed">
+                                {currentStep.instruction}
+                              </Markdown>
+                            )}
+                            {currentStep.requiresInput && (
+                              <TextInputWidget
+                                label="Your Response"
+                                placeholder="Type your answer here..."
+                                value={stepResponses[currentStep.id] || ""}
+                                onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: value})}
+                                minHeight="150px"
+                                showPreview={true}
+                                previewWithMath={previewWithMath}
+                              />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Feedback Display */}
+                        {stepFeedback[currentStep.id] && (
+                          <Card className={cn(
+                            "border-2",
+                            stepFeedback[currentStep.id].approved ? "border-green-500/50 bg-green-500/5" : "border-amber-500/50 bg-amber-500/5"
+                          )}>
+                            <CardContent className="p-3 space-y-2">
+                              <div className="flex items-start gap-3">
+                                {stepFeedback[currentStep.id].approved ? (
+                                  <Check className="w-4 h-4 text-green-500 mt-0.5" />
+                                ) : (
+                                  <Info className="w-4 h-4 text-amber-500 mt-0.5" />
+                                )}
+                                <div className="flex-1">
+                                  <p className="text-xs font-medium mb-0.5">
+                                    {stepFeedback[currentStep.id].approved ? "Great work!" : "Keep going!"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">{stepFeedback[currentStep.id].text}</p>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Action Buttons (Non-code) */}
+                        <div className="flex justify-end gap-3 pt-2">
+                          {currentStep.widgets?.some(w => w.type !== "code-editor") && (
+                            <Button 
+                              onClick={handleSubmit}
+                              disabled={isSubmitting || aiLoading || (currentStep.requiresInput && !stepResponses[currentStep.id]?.trim() && !stepResponses[`${currentStep.id}-choice`]?.trim())}
+                              size="sm"
+                              className="min-w-[120px]"
+                            >
+                              {isSubmitting || aiLoading ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                                  Reviewing...
+                                </>
+                              ) : (
+                                "Submit for Feedback"
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </ScrollArea>
-                <form onSubmit={handleCommandSubmit} className="p-2 border-t border-white/5 bg-black/20">
-                  <div className="flex items-center gap-2 px-2 py-1 bg-black/40 rounded border border-white/10 focus-within:border-primary/50 transition-colors">
-                    <span className="text-primary font-bold text-xs select-none">$</span>
-                    <input 
-                      type="text"
-                      value={commandInput}
-                      onChange={(e) => setCommandInput(e.target.value)}
-                      placeholder="Enter command..."
-                      className="flex-1 bg-transparent border-none outline-none text-xs font-mono text-gray-300 placeholder:text-white/10"
-                    />
-                  </div>
-                </form>
-              </div>
-            </ResizablePanel>
-          </ResizablePanelGroup>
-        </ResizablePanel>
+              </ResizablePanel>
 
-        <ResizableHandle withHandle />
+              <ResizableHandle withHandle />
 
-        {/* Right Panel: Coach Workspace */}
-        <ResizablePanel defaultSize={25} minSize={20} maxSize={35} className="border-l bg-muted/5">
-          <div className="flex flex-col h-full">
-            <div className="p-4 border-b bg-background">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Lightbulb className="w-4 h-4 text-primary" />
-                Coding Workspace
-              </h3>
-            </div>
-            <ScrollArea className="flex-1 h-0">
-              <div className="p-5 space-y-6">
-                {currentStep ? (
-                  <div className="space-y-4">
-                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      {steps.findIndex(s => s.status === "current") + 1}. {currentStep.title}
-                    </label>
-                    
-                    {currentStep.instruction ? (
-                      <Markdown className="text-sm text-muted-foreground leading-relaxed">
-                        {currentStep.instruction}
-                      </Markdown>
-                    ) : (currentStep.id.includes("test") || currentStep.id.includes("debug")) && (
-                      <Markdown className="text-sm text-muted-foreground leading-relaxed">
-                        Run the provided test cases. If a test fails, use print statements or a debugger to inspect variable values and fix the logic. Add a main method to test your code manually if needed.
-                      </Markdown>
-                    )}
-                    
-                    {currentStep.keyQuestions && currentStep.keyQuestions.length > 0 ? (
-                      <Card className="border-none bg-primary/5 shadow-none">
-                        <CardContent className="p-4 space-y-2">
-                          <p className="text-xs font-medium">Key Questions:</p>
-                          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground">
-                            {currentStep.keyQuestions.map((q: string, i: number) => (
-                              <li key={i}><Markdown className="inline">{q}</Markdown></li>
-                            ))}
-                          </ul>
-                        </CardContent>
-                      </Card>
-                    ) : (currentStep.id.includes("test") || currentStep.id.includes("debug")) && (
-                      <Card className="border-none bg-primary/5 shadow-none">
-                        <CardContent className="p-4 space-y-2">
-                          <p className="text-xs font-medium">Key Questions:</p>
-                          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground">
-                            <li>Does the method produce the expected output for the sample inputs?</li>
-                            <li>What happens with edge cases (empty arrays, negative numbers, etc.)?</li>
-                            <li>Are there off-by-one errors in loop bounds?</li>
-                          </ul>
-                        </CardContent>
-                      </Card>
-                    )}
-                    
-                    {currentStep.prompt ? (
-                      <div className="flex items-start gap-2 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                        <Eye className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
-                        <Markdown className="text-xs text-blue-700 leading-relaxed font-medium">
-                          {currentStep.prompt}
-                        </Markdown>
-                      </div>
-                    ) : (currentStep.id.includes("test") || currentStep.id.includes("debug")) && (
-                      <div className="flex items-start gap-2 p-3 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                        <Eye className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" />
-                        <Markdown className="text-xs text-blue-700 leading-relaxed font-medium">
-                          If a test fails, add System.out.println() statements to check variable values at key points. Double-check the loop condition and modulo checks. Remember that &apos;||&apos; means logical OR.
-                        </Markdown>
-                      </div>
-                    )}
-                    
-                    {!isCodeEditable && currentStep.requiresInput && (
-                      <Textarea 
-                        placeholder="Type your answer here..."
-                        className="min-h-[120px] text-sm"
-                        value={stepResponses[currentStep.id] || ""}
-                        onChange={(e) => setStepResponses({...stepResponses, [currentStep.id]: e.target.value})}
+              {/* Editor Section */}
+              <ResizablePanel defaultSize={55} minSize={30}>
+                <div className="h-full w-full overflow-hidden">
+                  {currentStep?.widgets ? (
+                    currentStep.widgets.filter(w => w.type === "code-editor").map((widget, idx) => (
+                      <CodeEditorWidget
+                        key={idx}
+                        label={widget.config.label}
+                        description={widget.config.description}
+                        language={detectedLanguage}
+                        value={code}
+                        onChange={setCode}
+                        onRun={handleRunCode}
+                        isRunning={isRunning}
+                        readOnly={!isCodeEditable}
+                        variant="full"
                       />
+                    ))
+                  ) : (
+                    <CodeEditorWidget
+                      label="Implementation"
+                      language={detectedLanguage}
+                      value={code}
+                      onChange={setCode}
+                      onRun={handleRunCode}
+                      isRunning={isRunning}
+                      readOnly={!isCodeEditable}
+                      variant="full"
+                    />
+                  )}
+                </div>
+              </ResizablePanel>
+
+              <ResizableHandle withHandle />
+
+              {/* Console Section */}
+              <ResizablePanel defaultSize={25} minSize={10}>
+                <div className="flex flex-col h-full border-t bg-[#0d1117]">
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-white/5 bg-white/5">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="w-3.5 h-3.5 text-white/40" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Console Output</span>
+                    </div>
+                    <span className="text-[10px] text-white/20 font-mono">Type 'help' for commands</span>
+                  </div>
+                  <ScrollArea className="flex-1 h-0">
+                    <div className="p-4 font-mono text-xs space-y-1.5">
+                      {output.length === 0 ? (
+                        <p className="text-white/20 italic">Click "Run Tests" or type 'test' in the console...</p>
+                      ) : (
+                        output.map((line, i) => (
+                          <div key={i} className={cn(
+                            "py-0.5 break-all",
+                            line.startsWith(">") ? "text-blue-400 font-bold" :
+                            line.startsWith("[") ? "text-white/40" : 
+                            line.includes("✗") ? "text-red-400" : 
+                            line.includes("✓") ? "text-emerald-400" : "text-gray-300"
+                          )}>
+                            {line}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+                  <form onSubmit={handleCommandSubmit} className="p-2 border-t border-white/5 bg-black/20">
+                    <div className="flex items-center gap-2 px-2 py-1 bg-black/40 rounded border border-white/10 focus-within:border-primary/50 transition-colors">
+                      <span className="text-primary font-bold text-xs select-none">$</span>
+                      <input 
+                        type="text"
+                        value={commandInput}
+                        onChange={(e) => setCommandInput(e.target.value)}
+                        placeholder="Enter command..."
+                        className="flex-1 bg-transparent border-none outline-none text-xs font-mono text-gray-300 placeholder:text-white/10"
+                      />
+                    </div>
+                  </form>
+                </div>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          ) : (
+            /* No Editor Layout */
+            <ScrollArea className="h-full w-full">
+              <div className="p-8 max-w-4xl mx-auto w-full space-y-8">
+                {/* Problem Statement */}
+                <div className="space-y-4">
+                  <Badge variant="outline" className="px-2 py-0.5 text-[10px] uppercase tracking-widest font-bold">
+                    Problem Statement
+                  </Badge>
+                  <div className="text-xl font-serif leading-relaxed">
+                    <Markdown>{data.problemStatement || description || "No problem statement provided."}</Markdown>
+                  </div>
+                </div>
+
+                {/* Reference Code */}
+                <div className="space-y-4">
+                  <Badge variant="outline" className="px-2 py-0.5 text-[10px] uppercase tracking-widest font-bold">
+                    Reference Code
+                  </Badge>
+                  <div className="rounded-lg overflow-hidden border bg-[#1e1e1e]">
+                    <div className="px-4 py-2 border-b border-white/5 bg-white/5 flex items-center justify-between">
+                      <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
+                        {detectedLanguage} (Read Only)
+                      </span>
+                    </div>
+                    <div className="h-[200px]">
+                      <Editor
+                        height="100%"
+                        language={detectedLanguage}
+                        theme="vs-dark"
+                        value={code}
+                        options={{
+                          minimap: { enabled: false },
+                          fontSize: 13,
+                          lineNumbers: "on",
+                          readOnly: true,
+                          domReadOnly: true,
+                          scrollBeyondLastLine: false,
+                          automaticLayout: true,
+                          padding: { top: 12, bottom: 12 },
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <Separator className="opacity-50" />
+
+                {/* Dynamic Widget Rendering */}
+                {currentStep && (
+                  <div className="space-y-8 pb-20">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <span className="text-sm font-bold text-primary">{steps.findIndex(s => s.id === currentStep.id) + 1}</span>
+                      </div>
+                      <h3 className="text-lg font-semibold">
+                        <Markdown>{currentStep.title}</Markdown>
+                      </h3>
+                    </div>
+
+                    {currentStep.widgets ? (
+                      <div className="space-y-8">
+                        {currentStep.widgets.map((widget, idx) => {
+                          if (widget.type === "text-input") {
+                            return (
+                              <TextInputWidget
+                                key={idx}
+                                label={widget.config.label || ""}
+                                description={widget.config.description}
+                                placeholder={widget.config.placeholder || ""}
+                                value={stepResponses[currentStep.id] || ''}
+                                onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: value})}
+                                minHeight={widget.config.minHeight || "150px"}
+                                showPreview={widget.config.showPreview !== false}
+                                previewWithMath={widget.config.showPreview ? previewWithMath : undefined}
+                                mathMode={widget.config.mathMode === true}
+                              />
+                            );
+                          }
+                          
+                          if (widget.type === "multiple-choice") {
+                            const currentFeedback = stepFeedback[currentStep.id];
+                            return (
+                              <MultipleChoiceWidget
+                                key={idx}
+                                label={widget.config.label || ""}
+                                description={widget.config.description}
+                                choices={widget.config.choices || []}
+                                selectedIds={(stepResponses[`${currentStep.id}-choice`] || '').split(',').filter(Boolean)}
+                                onSelectionChange={(ids) => setStepResponses({...stepResponses, [`${currentStep.id}-choice`]: ids.join(',')})}
+                                multiSelect={widget.config.multiSelect !== false}
+                                correctIds={currentFeedback?.correctIds}
+                                incorrectIds={currentFeedback?.incorrectIds}
+                                disabled={isSubmitting || aiLoading || currentFeedback?.approved}
+                              />
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    ) : (
+                      /* Legacy Fallback */
+                      <div className="space-y-6">
+                        {currentStep.instruction && (
+                          <Markdown className="text-base text-muted-foreground leading-relaxed">
+                            {currentStep.instruction}
+                          </Markdown>
+                        )}
+                        {currentStep.requiresInput && (
+                          <TextInputWidget
+                            label="Your Response"
+                            placeholder="Type your answer here..."
+                            value={stepResponses[currentStep.id] || ""}
+                            onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: value})}
+                            minHeight="200px"
+                            showPreview={true}
+                            previewWithMath={previewWithMath}
+                          />
+                        )}
+                      </div>
                     )}
-                    
-                    {!currentStep.instruction && !currentStep.keyQuestions && !currentStep.prompt && (
-                      <Card className="border-none bg-muted/5 shadow-none">
-                        <CardContent className="p-4 text-sm text-muted-foreground">
-                          <p>Work on this step in the code editor and mark it as complete when you're done.</p>
+
+                    {/* Feedback Display */}
+                    {stepFeedback[currentStep.id] && (
+                      <Card className={cn(
+                        "border-2",
+                        stepFeedback[currentStep.id].approved ? "border-green-500/50 bg-green-500/5" : "border-amber-500/50 bg-amber-500/5"
+                      )}>
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex items-start gap-3">
+                            {stepFeedback[currentStep.id].approved ? (
+                              <Check className="w-5 h-5 text-green-500 mt-0.5" />
+                            ) : (
+                              <Info className="w-5 h-5 text-amber-500 mt-0.5" />
+                            )}
+                            <div className="flex-1">
+                              <p className="text-sm font-medium mb-1">
+                                {stepFeedback[currentStep.id].approved ? "Great work!" : "Keep going!"}
+                              </p>
+                              <p className="text-sm text-muted-foreground">{stepFeedback[currentStep.id].text}</p>
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
                     )}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center py-8">
-                    <p className="text-sm text-muted-foreground">No current step</p>
+
+                    {/* Action Buttons */}
+                    <div className="flex justify-end gap-3 pt-4">
+                      <Button 
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || aiLoading || (currentStep.requiresInput && !stepResponses[currentStep.id]?.trim() && !stepResponses[`${currentStep.id}-choice`]?.trim())}
+                        className="min-w-[150px]"
+                      >
+                        {isSubmitting || aiLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Reviewing...
+                          </>
+                        ) : (
+                          "Submit for Feedback"
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
             </ScrollArea>
-            
-            {feedback && (
-              <div className={cn(
-                "mx-4 mb-4 p-4 rounded-lg border-2",
-                feedback.approved 
-                  ? "bg-green-50 border-green-500 dark:bg-green-950" 
-                  : "bg-amber-50 border-amber-500 dark:bg-amber-950"
-              )}>
-                <div className="flex items-start gap-3">
-                  {feedback.approved ? (
-                    <ThumbsUp className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
-                  ) : (
-                    <ThumbsDown className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                  )}
-                  <div className="flex-1">
-                    <p className={cn(
-                      "text-sm font-semibold mb-1",
-                      feedback.approved ? "text-green-700 dark:text-green-300" : "text-amber-700 dark:text-amber-300"
-                    )}>
-                      {feedback.approved ? "Great work!" : "Needs improvement"}
-                    </p>
-                    <p className="text-sm text-foreground/80">{feedback.text}</p>
-                    {feedback.approved ? (
-                      (() => {
-                        const currentStepIndex = steps.findIndex(s => s.status === "current");
-                        const isLastStep = currentStepIndex === steps.length - 1;
-                        return (
-                          <p className="text-xs text-muted-foreground mt-2 italic">
-                            {isLastStep ? "Completing lab..." : "Moving to next step..."}
-                          </p>
-                        );
-                      })()
-                    ) : (
-                      // Show continue button for failed tests ONLY if in implementation step (not test/debug)
-                      isCodeEditable && !(currentStep?.id.includes("test") || currentStep?.id.includes("debug")) && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="mt-3 w-full"
-                          onClick={() => {
-                            completeStep(currentStep?.id || "", false);
-                            setFeedback(null);
-                          }}
-                        >
-                          Continue to Debug
-                        </Button>
-                      )
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {!isCodeEditable && currentStep?.requiresInput && (
-              <div className="p-4 border-t bg-background">
-                <Button 
-                  className="w-full shadow-sm" 
-                  variant="default"
-                  onClick={handleSubmit}
-                  disabled={!currentStep || !stepResponses[currentStep.id]?.trim() || isSubmitting || aiLoading}
-                >
-                  {isSubmitting || aiLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Reviewing...
-                    </>
-                  ) : (
-                    "Submit for Feedback"
-                  )}
-                </Button>
-              </div>
-            )}
-          </div>
+          )}
         </ResizablePanel>
       </ResizablePanelGroup>
 

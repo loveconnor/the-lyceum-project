@@ -71,7 +71,7 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
   const [selectedRule, setSelectedRule] = useState<typeof availableRules[0] | null>(null);
   const [stepResponses, setStepResponses] = useState<Record<string, any>>({});
   const [isLoadingProgress, setIsLoadingProgress] = useState(false);
-  const [feedback, setFeedback] = useState<{ text: string; approved: boolean } | null>(null);
+  const [stepFeedback, setStepFeedback] = useState<Record<string, { text: string; approved: boolean; correctIds?: string[]; incorrectIds?: string[] }>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accessedSteps, setAccessedSteps] = useState<Set<string>>(new Set([initialSteps[0]?.id]));
   
@@ -113,12 +113,18 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
 
           // Merge all step_data so each step retains its own answers
           const mergedResponses: Record<string, any> = {};
+          const mergedFeedback: Record<string, any> = {};
           sortedProgress.forEach((entry: any) => {
             const data = entry.step_data || {};
             const responses = data.stepResponses || {};
 
             // Copy stepResponses
             Object.assign(mergedResponses, responses);
+
+            // Copy feedback
+            if (data.feedback) {
+              mergedFeedback[entry.step_id] = data.feedback;
+            }
 
             // Migrate old derivationSteps field (pre-per-step storage)
             if (data.derivationSteps) {
@@ -127,6 +133,7 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
           });
 
           setStepResponses(mergedResponses);
+          setStepFeedback(mergedFeedback);
 
           // Restore step completion status
           const completedStepIds = progress.filter((p: any) => p.completed).map((p: any) => p.step_id);
@@ -180,7 +187,8 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
       await updateLabProgress(labId, {
         step_id: stepId,
         step_data: {
-          stepResponses
+          stepResponses,
+          feedback: stepFeedback[stepId]
         },
         completed
       });
@@ -285,7 +293,7 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
     }));
     
     // Clear feedback when navigating
-    setFeedback(null);
+    // setFeedback(null);
   };
 
   const completeStep = (id: string) => {
@@ -308,7 +316,7 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
     });
     
     // Clear feedback when moving to next step
-    setFeedback(null);
+    // setFeedback(null); // No longer needed with per-step feedback
   };
 
   const handleSubmit = async () => {
@@ -329,32 +337,52 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
     }
 
     setIsSubmitting(true);
-    setFeedback(null);
+    setStepFeedback(prev => ({ ...prev, [currentStep.id]: { ...prev[currentStep.id], text: '', approved: false } }));
 
     try {
       const { getLabAIAssistance } = await import("@/lib/api/labs");
       const { extractJSON } = await import("@/lib/utils");
       
-      // Build context about what the student did
-      let studentWork = '';
-      if (userResponse) studentWork += `Text response: ${userResponse}\n`;
-      if (choiceResponse) studentWork += `Selected options: ${choiceResponse}\n`;
-      if (explainResponse) studentWork += `Explanation: ${explainResponse}\n`;
-      if (derivationSteps.length > 0 && derivationSteps.some(s => s.expression)) {
-        studentWork += `Derivation steps:\n${derivationSteps.map(s => `- ${s.expression} (${s.rule || 'no rule'}: ${s.justification || 'no justification'})`).join('\n')}`;
-      }
+    // Build context about what the student did
+    let studentWork = '';
+    if (userResponse) studentWork += `Text response: ${userResponse}\n`;
+    
+    if (choiceResponse) {
+      const selectedIds = choiceResponse.split(',').filter(Boolean);
+      const selectedChoiceTexts = currentStep.widgets
+        ?.filter(w => w.type === 'multiple-choice')
+        .flatMap(w => w.config.choices || [])
+        .filter(c => selectedIds.includes(c.id))
+        .map(c => c.name) || [];
       
-      const prompt = `You are a mathematics instructor reviewing a student's work on: ${problemStatement}
+      if (selectedChoiceTexts.length > 0) {
+        studentWork += `Selected options: ${selectedChoiceTexts.join(', ')}\n`;
+      } else {
+        studentWork += `Selected options: ${choiceResponse}\n`;
+      }
+    }
+    
+    if (explainResponse) studentWork += `Explanation: ${explainResponse}\n`;
+    if (derivationSteps.length > 0 && derivationSteps.some(s => s.expression)) {
+      studentWork += `Derivation steps:\n${derivationSteps.map(s => `- ${s.expression} (${s.rule || 'no rule'}: ${s.justification || 'no justification'})`).join('\n')}`;
+    }
+    
+    const prompt = `You are a mathematics instructor reviewing a student's work on: ${problemStatement}
 
 Step: ${currentStep.title}
 
 Student's work:
 ${studentWork}
 
-Evaluate if their response demonstrates understanding and mathematical correctness. Respond ONLY in this JSON format:
+Evaluate if their response demonstrates understanding and mathematical correctness.
+IMPORTANT: If the student provided a multiple-choice answer, evaluate if it is correct. Do NOT ask for a written explanation if they have already answered the question correctly via multiple choice.
+
+Respond ONLY in this JSON format:
 {
   "approved": true/false,
-  "feedback": "Brief constructive feedback (2-3 sentences)"
+  "feedback": "Brief constructive feedback (2-3 sentences). If they were wrong, explain why and what the correct answer is.",
+  "correctIds": ["id1", "id2"], // If multiple choice, the IDs of the correct options
+  "incorrectIds": ["id3"] // If multiple choice, the IDs of the incorrect options the student selected
 }
 
 Approve if they show reasonable understanding and correct approach. If not approved, explain what's missing or incorrect.`;
@@ -362,8 +390,16 @@ Approve if they show reasonable understanding and correct approach. If not appro
       const result = await getLabAIAssistance(labId, prompt, {});
       
       try {
-        const parsed = extractJSON<{ approved: boolean; feedback: string }>(result.assistance);
-        setFeedback({ text: parsed.feedback, approved: parsed.approved });
+        const parsed = extractJSON<{ approved: boolean; feedback: string; correctIds?: string[]; incorrectIds?: string[] }>(result.assistance);
+        setStepFeedback(prev => ({
+          ...prev,
+          [currentStep.id]: {
+            text: parsed.feedback,
+            approved: parsed.approved,
+            correctIds: parsed.correctIds,
+            incorrectIds: parsed.incorrectIds
+          }
+        }));
         
         if (parsed.approved) {
           setTimeout(() => {
@@ -445,6 +481,7 @@ Approve if they show reasonable understanding and correct approach. If not appro
                           }
                           
                           if (widget.type === "multiple-choice") {
+                            const currentFeedback = stepFeedback[currentStep.id];
                             return (
                               <MultipleChoiceWidget
                                 key={idx}
@@ -459,6 +496,9 @@ Approve if they show reasonable understanding and correct approach. If not appro
                                 onExplanationChange={(value) => setStepResponses({...stepResponses, [`${currentStep.id}-explain`]: value})}
                                 explanationLabel={widget.config.explanationLabel}
                                 explanationPlaceholder={widget.config.explanationPlaceholder}
+                                correctIds={currentFeedback?.correctIds}
+                                incorrectIds={currentFeedback?.incorrectIds}
+                                disabled={isSubmitting || currentFeedback?.approved}
                               />
                             );
                           }
@@ -481,23 +521,23 @@ Approve if they show reasonable understanding and correct approach. If not appro
                         })}
 
                         {/* Feedback Display */}
-                        {feedback && (
+                        {stepFeedback[currentStep.id] && (
                           <Card className={cn(
                             "border-2",
-                            feedback.approved ? "border-green-500/50 bg-green-500/5" : "border-amber-500/50 bg-amber-500/5"
+                            stepFeedback[currentStep.id].approved ? "border-green-500/50 bg-green-500/5" : "border-amber-500/50 bg-amber-500/5"
                           )}>
                             <CardContent className="p-4 space-y-3">
                               <div className="flex items-start gap-3">
-                                {feedback.approved ? (
+                                {stepFeedback[currentStep.id].approved ? (
                                   <Check className="w-5 h-5 text-green-500 mt-0.5" />
                                 ) : (
                                   <Info className="w-5 h-5 text-amber-500 mt-0.5" />
                                 )}
                                 <div className="flex-1">
                                   <p className="text-sm font-medium mb-1">
-                                    {feedback.approved ? "Great work!" : "Keep going!"}
+                                    {stepFeedback[currentStep.id].approved ? "Great work!" : "Keep going!"}
                                   </p>
-                                  <p className="text-sm text-muted-foreground">{feedback.text}</p>
+                                  <p className="text-sm text-muted-foreground">{stepFeedback[currentStep.id].text}</p>
                                 </div>
                               </div>
                             </CardContent>
@@ -505,7 +545,7 @@ Approve if they show reasonable understanding and correct approach. If not appro
                         )}
 
                         {/* Submit Button */}
-                        {!feedback?.approved && (
+                        {!stepFeedback[currentStep.id]?.approved && (
                           <Button 
                             className="w-full"
                             onClick={handleSubmit}

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +38,9 @@ interface MultipleChoiceWidgetProps {
   onExplanationChange?: (value: string) => void;
   explanationLabel?: string;
   explanationPlaceholder?: string;
+  correctIds?: string[];
+  incorrectIds?: string[];
+  disabled?: boolean;
 }
 
 export function MultipleChoiceWidget({
@@ -51,9 +54,14 @@ export function MultipleChoiceWidget({
   explanation = "",
   onExplanationChange,
   explanationLabel = "Explain your choice",
-  explanationPlaceholder = "Explain why you made this selection..."
+  explanationPlaceholder = "Explain why you made this selection...",
+  correctIds = [],
+  incorrectIds = [],
+  disabled = false
 }: MultipleChoiceWidgetProps) {
   const handleChoiceClick = (choiceId: string) => {
+    if (disabled) return;
+    
     if (multiSelect) {
       if (selectedIds.includes(choiceId)) {
         onSelectionChange(selectedIds.filter(id => id !== choiceId));
@@ -79,16 +87,21 @@ export function MultipleChoiceWidget({
       <div className="space-y-2">
         {choices.map((choice) => {
           const isSelected = selectedIds.includes(choice.id);
+          const isCorrect = correctIds.includes(choice.id);
+          const isIncorrect = incorrectIds.includes(choice.id);
           
           return (
             <button
               key={choice.id}
               onClick={() => handleChoiceClick(choice.id)}
+              disabled={disabled}
               className={cn(
                 "w-full text-left p-4 rounded-xl border transition-all duration-200",
-                isSelected
-                  ? "bg-primary/10 border-primary/40 shadow-sm"
-                  : "bg-background hover:bg-muted/50"
+                isSelected && !isCorrect && !isIncorrect && "bg-primary/10 border-primary/40 shadow-sm",
+                isCorrect && "bg-green-500/10 border-green-500/50 shadow-sm",
+                isIncorrect && "bg-red-500/10 border-red-500/50 shadow-sm",
+                !isSelected && !isCorrect && !isIncorrect && "bg-background hover:bg-muted/50",
+                disabled && "cursor-default"
               )}
             >
               <div className="flex items-start justify-between">
@@ -101,9 +114,13 @@ export function MultipleChoiceWidget({
                     <Markdown className="text-xs text-muted-foreground">{choice.formula}</Markdown>
                   )}
                 </div>
-                {isSelected && (
-                  <Check className="w-5 h-5 text-primary" />
-                )}
+                <div className="flex items-center gap-2">
+                  {isCorrect && <Check className="w-5 h-5 text-green-500" />}
+                  {isIncorrect && <X className="w-5 h-5 text-red-500" />}
+                  {isSelected && !isCorrect && !isIncorrect && (
+                    <Check className="w-5 h-5 text-primary" />
+                  )}
+                </div>
               </div>
             </button>
           );
@@ -120,6 +137,7 @@ export function MultipleChoiceWidget({
             className="min-h-[120px] text-sm"
             value={explanation}
             onChange={(e) => onExplanationChange(e.target.value)}
+            disabled={disabled}
           />
         </div>
       )}

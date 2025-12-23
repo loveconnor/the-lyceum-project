@@ -5,6 +5,7 @@ import { ResizablePanel } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
+import { Check } from "lucide-react";
 
 export interface LabStep {
   id: string;
@@ -62,8 +63,15 @@ export function LabStepPanel({
                       : "text-muted-foreground/60 cursor-not-allowed"
                   )}
                 >
-                  <div className="text-sm">
-                    <Markdown>{step.title}</Markdown>
+                  <div className="flex items-center justify-between gap-2 min-h-[24px]">
+                    <div className="text-sm font-medium leading-none">
+                      <Markdown components={{ p: ({children}) => <span className="leading-none">{children}</span> }}>
+                        {step.title}
+                      </Markdown>
+                    </div>
+                    {step.status === "completed" && (
+                      <Check className="w-4 h-4 text-green-500 shrink-0" />
+                    )}
                   </div>
                 </button>
               );
