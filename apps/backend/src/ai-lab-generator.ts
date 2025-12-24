@@ -427,41 +427,50 @@ Include a realistic draft with issues, 4-5 rubric criteria, and 3-4 revision ste
 };
 
 export const generateLab = async (request: GenerateLabRequest): Promise<GeneratedLabResponse> => {
-  const client = ensureClient();
-  const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+  const maxRetries = 2;
+  let lastError: any;
 
-  // Step 1: Select the best template
-  const selectionPrompt = `${TEMPLATE_SELECTION_PROMPT}
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        console.log(`Retrying lab generation (attempt ${attempt}/${maxRetries})...`);
+      }
+
+      const client = ensureClient();
+      const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+
+      // Step 1: Select the best template
+      const selectionPrompt = `${TEMPLATE_SELECTION_PROMPT}
 
 Learning goal: ${request.learningGoal}
 ${request.context ? `Context: ${request.context}` : ''}
 ${request.userProfile?.level ? `User level: ${request.userProfile.level}` : ''}`;
 
-  const selectionCompletion = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: 'system', content: 'You are a lab template selector. Respond with JSON only.' },
-      { role: 'user', content: selectionPrompt },
-    ],
-    temperature: 0.3,
-  });
+      const selectionCompletion = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: 'You are a lab template selector. Respond with JSON only.' },
+          { role: 'user', content: selectionPrompt },
+        ],
+        temperature: 0.3,
+      });
 
-  const selectionText = selectionCompletion.choices[0]?.message?.content?.trim() || '';
-  const selection = tryParseJson<{ template_type: string; reasoning: string }>(selectionText);
+      const selectionText = selectionCompletion.choices[0]?.message?.content?.trim() || '';
+      const selection = tryParseJson<{ template_type: string; reasoning: string }>(selectionText);
 
-  if (!selection || !selection.template_type) {
-    throw new Error('Failed to select template type');
-  }
+      if (!selection || !selection.template_type) {
+        throw new Error('Failed to select template type');
+      }
 
-  const templateType = selection.template_type;
-  const generatorPrompt = TEMPLATE_GENERATORS[templateType];
+      const templateType = selection.template_type;
+      const generatorPrompt = TEMPLATE_GENERATORS[templateType];
 
-  if (!generatorPrompt) {
-    throw new Error(`Unknown template type: ${templateType}`);
-  }
+      if (!generatorPrompt) {
+        throw new Error(`Unknown template type: ${templateType}`);
+      }
 
-  // Step 2: Generate the lab content
-  const contentPrompt = `${generatorPrompt}
+      // Step 2: Generate the lab content
+      const contentPrompt = `${generatorPrompt}
 
 Learning goal: ${request.learningGoal}
 ${request.context ? `Additional context: ${request.context}` : ''}
@@ -474,54 +483,67 @@ IMPORTANT: The "topics" field must contain 2-5 specific, relevant topic tags (e.
 Generate a complete, engaging lab. Make it practical and pedagogically sound.
 Respond with valid JSON only - no markdown, no explanations.`;
 
-  const contentCompletion = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: 'system', content: 'You are a lab content generator for Lyceum. Create educational labs that promote deep learning. Respond with JSON only.' },
-      { role: 'user', content: contentPrompt },
-    ],
-    temperature: 0.7,
-  });
+      const contentCompletion = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: 'You are a lab content generator for Lyceum. Create educational labs that promote deep learning. Respond with JSON only.' },
+          { role: 'user', content: contentPrompt },
+        ],
+        temperature: 0.7,
+      });
 
-  const contentText = contentCompletion.choices[0]?.message?.content?.trim() || '';
-  const parsed = tryParseJson<any>(contentText);
+      const contentText = contentCompletion.choices[0]?.message?.content?.trim() || '';
+      const parsed = tryParseJson<any>(contentText);
 
-  if (!parsed || !parsed.labTitle || !parsed.data) {
-    throw new Error('Failed to generate valid lab content');
-  }
+      if (!parsed || !parsed.labTitle || !parsed.data) {
+        throw new Error('Failed to generate valid lab content');
+      }
 
-  // Ensure topics are present and meaningful
-  let topics = parsed.topics || [];
-  if (!topics.length) {
-    // Fallback: extract topics from the learning goal
-    const goalWords = request.learningGoal.toLowerCase().split(/\s+/);
-    const commonTopics = [
-      'JavaScript', 'Python', 'TypeScript', 'React', 'Node.js',
-      'Algorithms', 'Data Structures', 'Machine Learning', 'AI',
-      'Statistics', 'Data Analysis', 'Calculus', 'Linear Algebra',
-      'Web Development', 'API', 'Database', 'SQL',
-      'CSS', 'HTML', 'Git', 'Testing'
-    ];
-    topics = commonTopics.filter(topic => 
-      goalWords.some(word => topic.toLowerCase().includes(word) || word.includes(topic.toLowerCase()))
-    ).slice(0, 3);
-    
-    // If still empty, use template type as topic
-    if (!topics.length) {
-      topics = [templateType.charAt(0).toUpperCase() + templateType.slice(1)];
+      // Ensure topics are present and meaningful
+      let topics = parsed.topics || [];
+      if (!topics.length) {
+        // Fallback: extract topics from the learning goal
+        const goalWords = request.learningGoal.toLowerCase().split(/\s+/);
+        const commonTopics = [
+          'JavaScript', 'Python', 'TypeScript', 'React', 'Node.js',
+          'Algorithms', 'Data Structures', 'Machine Learning', 'AI',
+          'Statistics', 'Data Analysis', 'Calculus', 'Linear Algebra',
+          'Web Development', 'API', 'Database', 'SQL',
+          'CSS', 'HTML', 'Git', 'Testing'
+        ];
+        topics = commonTopics.filter(topic => 
+          goalWords.some(word => topic.toLowerCase().includes(word) || word.includes(topic.toLowerCase()))
+        ).slice(0, 3);
+        
+        // If still empty, use template type as topic
+        if (!topics.length) {
+          topics = [templateType.charAt(0).toUpperCase() + templateType.slice(1)];
+        }
+      }
+
+      return {
+        title: parsed.labTitle,
+        description: parsed.description || '',
+        template_type: templateType as any,
+        template_data: parsed.data,
+        difficulty: parsed.difficulty || 'intermediate',
+        estimated_duration: parsed.estimated_duration || 45,
+        topics,
+        raw: contentText,
+      };
+    } catch (error: any) {
+      lastError = error;
+      console.error(`Attempt ${attempt + 1} failed for lab generation:`, error.message);
+      
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
     }
   }
-
-  return {
-    title: parsed.labTitle,
-    description: parsed.description || '',
-    template_type: templateType as any,
-    template_data: parsed.data,
-    difficulty: parsed.difficulty || 'intermediate',
-    estimated_duration: parsed.estimated_duration || 45,
-    topics,
-    raw: contentText,
-  };
+  
+  throw lastError;
 };
 
 // Helper function for AI assistance within templates

@@ -366,6 +366,8 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
     if (derivationSteps.length > 0 && derivationSteps.some(s => s.expression)) {
       studentWork += `Derivation steps:\n${derivationSteps.map(s => `- ${s.expression} (${s.rule || 'no rule'}: ${s.justification || 'no justification'})`).join('\n')}`;
     }
+
+    const hasTextInput = currentStep.widgets?.some(w => w.type === 'text-input' || (w.type === 'multiple-choice' && w.config.showExplanation));
     
     const prompt = `You are a mathematics instructor reviewing a student's work on: ${problemStatement}
 
@@ -376,6 +378,7 @@ ${studentWork}
 
 Evaluate if their response demonstrates understanding and mathematical correctness.
 IMPORTANT: If the student provided a multiple-choice answer, evaluate if it is correct. Do NOT ask for a written explanation if they have already answered the question correctly via multiple choice.
+${!hasTextInput ? "IMPORTANT: There is NO text box for the student to provide a written explanation. Do NOT ask them to explain their answer or provide more details. Only evaluate the multiple-choice selection or derivation provided." : ""}
 
 Respond ONLY in this JSON format:
 {

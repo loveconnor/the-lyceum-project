@@ -630,9 +630,10 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
 
     const userResponse = stepResponses[currentStep.id];
     const choiceResponse = stepResponses[`${currentStep.id}-choice`];
+    const explainResponse = stepResponses[`${currentStep.id}-explain`];
     const stepName = currentStep.title;
 
-    const hasResponse = userResponse?.trim() || choiceResponse?.trim();
+    const hasResponse = userResponse?.trim() || choiceResponse?.trim() || explainResponse?.trim();
 
     if (!hasResponse && currentStep.requiresInput) {
       toast.error("Please provide an answer before submitting");
@@ -664,6 +665,12 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
         studentWork += `Selected options: ${choiceResponse}\n`;
       }
     }
+
+    if (explainResponse) studentWork += `Explanation: ${explainResponse}\n`;
+
+    const hasTextInput = currentStep.widgets 
+      ? currentStep.widgets.some(w => w.type === 'text-input' || (w.type === 'multiple-choice' && w.config.showExplanation))
+      : !!currentStep.requiresInput;
     
     const prompt = `You are a coding instructor reviewing a student's ${stepName.toLowerCase()} for learning to code.
 
@@ -680,6 +687,7 @@ ${code}
 
 Evaluate if their response demonstrates understanding. 
 IMPORTANT: If the student provided a multiple-choice answer, evaluate if it is correct. Do NOT ask for a written explanation if they have already answered the question correctly via multiple choice.
+${!hasTextInput ? "IMPORTANT: There is NO text box for the student to provide a written explanation. Do NOT ask them to explain their answer or provide more details. Only evaluate the multiple-choice selection or code provided." : ""}
 
 Respond ONLY in this JSON format:
 {
@@ -840,6 +848,11 @@ Approve if they show reasonable understanding or selected the correct option. If
                                     selectedIds={(stepResponses[`${currentStep.id}-choice`] || '').split(',').filter(Boolean)}
                                     onSelectionChange={(ids) => setStepResponses({...stepResponses, [`${currentStep.id}-choice`]: ids.join(',')})}
                                     multiSelect={widget.config.multiSelect !== false}
+                                    showExplanation={widget.config.showExplanation === true}
+                                    explanation={stepResponses[`${currentStep.id}-explain`] || ''}
+                                    onExplanationChange={(value) => setStepResponses({...stepResponses, [`${currentStep.id}-explain`]: value})}
+                                    explanationLabel={widget.config.explanationLabel}
+                                    explanationPlaceholder={widget.config.explanationPlaceholder}
                                     correctIds={currentFeedback?.correctIds}
                                     incorrectIds={currentFeedback?.incorrectIds}
                                     disabled={isSubmitting || aiLoading || currentFeedback?.approved}
@@ -1093,6 +1106,11 @@ Approve if they show reasonable understanding or selected the correct option. If
                                 selectedIds={(stepResponses[`${currentStep.id}-choice`] || '').split(',').filter(Boolean)}
                                 onSelectionChange={(ids) => setStepResponses({...stepResponses, [`${currentStep.id}-choice`]: ids.join(',')})}
                                 multiSelect={widget.config.multiSelect !== false}
+                                showExplanation={widget.config.showExplanation === true}
+                                explanation={stepResponses[`${currentStep.id}-explain`] || ''}
+                                onExplanationChange={(value) => setStepResponses({...stepResponses, [`${currentStep.id}-explain`]: value})}
+                                explanationLabel={widget.config.explanationLabel}
+                                explanationPlaceholder={widget.config.explanationPlaceholder}
                                 correctIds={currentFeedback?.correctIds}
                                 incorrectIds={currentFeedback?.incorrectIds}
                                 disabled={isSubmitting || aiLoading || currentFeedback?.approved}

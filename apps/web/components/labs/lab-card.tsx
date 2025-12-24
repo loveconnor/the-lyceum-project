@@ -255,9 +255,17 @@ const LabCard: React.FC<LabCardProps> = ({
                 </DropdownMenu>
               </div>
 
-              <Badge className={statusClasses[actualStatus]}>
-                {statusLabel}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge className={statusClasses[actualStatus]}>
+                  {statusLabel}
+                </Badge>
+                <Link href={`/labs/${lab.id}`}>
+                  <Button size="sm" variant="outline" className="h-7 text-xs">
+                    <PlayCircle className="h-3 w-3" />
+                    {hasStarted ? "Resume Lab" : "Start Lab"}
+                  </Button>
+                </Link>
+              </div>
             </div>
 
             <div className="text-muted-foreground text-sm leading-relaxed">

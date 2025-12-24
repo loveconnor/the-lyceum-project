@@ -399,14 +399,23 @@ Guidelines:
 export async function generatePathOutline(
   request: GeneratePathRequest
 ): Promise<PathOutline> {
-  const client = ensureClient();
-  const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+  const maxRetries = 2;
+  let lastError: any;
 
-  const titleInstruction = request.title 
-    ? `Title: ${request.title}`
-    : `Generate an appropriate title based on the learning goals described below.`;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        console.log(`Retrying path outline generation (attempt ${attempt}/${maxRetries})...`);
+      }
 
-  const userPrompt = `Generate a comprehensive learning path outline for:
+      const client = ensureClient();
+      const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+
+      const titleInstruction = request.title 
+        ? `Title: ${request.title}`
+        : `Generate an appropriate title based on the learning goals described below.`;
+
+      const userPrompt = `Generate a comprehensive learning path outline for:
 
 ${titleInstruction}
 Description: ${request.description || 'Create a structured learning path'}
@@ -416,32 +425,45 @@ ${request.topics && request.topics.length > 0 ? `Focus Topics: ${request.topics.
 Note: Determine an appropriate total duration (in hours) based on the content scope and difficulty level.
 Create module titles and descriptions that build on each other progressively.`;
 
-  const completion = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: 'system', content: PATH_OUTLINE_PROMPT },
-      { role: 'user', content: userPrompt }
-    ],
-    temperature: 0.7,
-    max_tokens: 2000,
-    response_format: { type: 'json_object' },
-  });
+      const completion = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: PATH_OUTLINE_PROMPT },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+        response_format: { type: 'json_object' },
+      });
 
-  const rawResponse = completion.choices[0]?.message?.content || '{}';
-  
-  console.log('Path outline response:', rawResponse.substring(0, 500));
-  
-  const parsed = tryParseJson<{ path: any; modules: any[] }>(rawResponse);
+      const rawResponse = completion.choices[0]?.message?.content || '{}';
+      
+      console.log('Path outline response:', rawResponse.substring(0, 500));
+      
+      const parsed = tryParseJson<{ path: any; modules: any[] }>(rawResponse);
 
-  if (!parsed || !parsed.path || !parsed.modules) {
-    console.error('Failed to parse path outline. Raw response:', rawResponse);
-    throw new Error('Failed to parse AI response for path outline');
+      if (!parsed || !parsed.path || !parsed.modules) {
+        console.error('Failed to parse path outline. Raw response:', rawResponse);
+        throw new Error('Failed to parse AI response for path outline');
+      }
+
+      return {
+        ...parsed.path,
+        modules: parsed.modules
+      };
+    } catch (error: any) {
+      lastError = error;
+      console.error(`Attempt ${attempt + 1} failed for path outline:`, error.message);
+      
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+    }
   }
-
-  return {
-    ...parsed.path,
-    modules: parsed.modules
-  };
+  
+  throw lastError;
 }
 
 export async function generateModuleContent(
@@ -451,10 +473,19 @@ export async function generateModuleContent(
   difficulty: string,
   orderIndex: number
 ): Promise<GeneratedModule['content']> {
-  const client = ensureClient();
-  const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+  const maxRetries = 2;
+  let lastError: any;
 
-  const userPrompt = `Generate detailed content for this learning module:
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt > 0) {
+        console.log(`Retrying module generation for "${moduleTitle}" (attempt ${attempt}/${maxRetries})...`);
+      }
+
+      const client = ensureClient();
+      const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+
+      const userPrompt = `Generate detailed content for this learning module:
 
 Module Title: ${moduleTitle}
 Module Description: ${moduleDescription}
@@ -464,34 +495,48 @@ Module Position: ${orderIndex + 1}
 
 Create comprehensive learning content with chapters, quizzes, concepts, exercises, and assessments.`;
 
-  const completion = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: 'system', content: MODULE_CONTENT_PROMPT },
-      { role: 'user', content: userPrompt }
-    ],
-    temperature: 0.7,
-    max_tokens: 12000,
-    response_format: { type: 'json_object' },
-  });
+      const completion = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: MODULE_CONTENT_PROMPT },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 12000,
+        response_format: { type: 'json_object' },
+      });
 
-  const rawResponse = completion.choices[0]?.message?.content || '{}';
-  const finishReason = completion.choices[0]?.finish_reason;
-  
-  console.log(`Module "${moduleTitle}" content generated (${rawResponse.length} chars, finish_reason: ${finishReason})`);
-  
-  // Check if response was truncated
-  if (finishReason === 'length') {
-    console.error('WARNING: Response was truncated due to max_tokens limit!');
+      const rawResponse = completion.choices[0]?.message?.content || '{}';
+      const finishReason = completion.choices[0]?.finish_reason;
+      
+      console.log(`Module "${moduleTitle}" content generated (${rawResponse.length} chars, finish_reason: ${finishReason})`);
+      
+      // Check if response was truncated
+      if (finishReason === 'length') {
+        console.error('WARNING: Response was truncated due to max_tokens limit!');
+      }
+      
+      const parsed = tryParseJson<{ content: GeneratedModule['content'] }>(rawResponse);
+
+      if (!parsed || !parsed.content) {
+        console.error('Failed to parse module content. Raw response:', rawResponse.substring(0, 500));
+        throw new Error('Failed to parse AI response for module content');
+      }
+
+      // Fix any literal \n strings in the content
+      return fixLiteralNewlines(parsed.content) as GeneratedModule['content'];
+    } catch (error: any) {
+      lastError = error;
+      console.error(`Attempt ${attempt + 1} failed for module "${moduleTitle}":`, error.message);
+      
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      
+      // Wait a bit before retrying
+      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+    }
   }
   
-  const parsed = tryParseJson<{ content: GeneratedModule['content'] }>(rawResponse);
-
-  if (!parsed || !parsed.content) {
-    console.error('Failed to parse module content. Raw response:', rawResponse.substring(0, 500));
-    throw new Error('Failed to parse AI response for module content');
-  }
-
-  // Fix any literal \n strings in the content
-  return fixLiteralNewlines(parsed.content) as GeneratedModule['content'];
+  throw lastError;
 }

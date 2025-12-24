@@ -6,6 +6,7 @@ import {
   MessageSquareText, 
   ChevronLeft, 
   ChevronRight, 
+  ArrowRight,
   HelpCircle, 
   CheckCircle2, 
   BookOpen,
@@ -2448,39 +2449,47 @@ export default function ModulePage() {
     <div className="space-y-8">
       {/* Module Completion Banner */}
       {isModuleComplete && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-lg border border-green-500/20 bg-green-500/5 p-4"
-        >
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
-            <div className="flex-1">
-              <h3 className="font-semibold text-green-700 dark:text-green-300">
-                Module Complete!
-              </h3>
-              <p className="text-sm text-green-600 dark:text-green-400">
-                You've completed the reading and explored {isExamplesComplete && isVisualsComplete ? 'both examples and visuals' : isExamplesComplete ? 'the examples' : 'the visuals'}. Ready to move forward?
-              </p>
+        <div className="fixed bottom-8 left-0 right-0 z-50 px-4 flex justify-center pointer-events-none">
+          <motion.div
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-xl border border-green-500/20 bg-background/95 backdrop-blur-lg shadow-2xl p-4 max-w-2xl w-full pointer-events-auto"
+          >
+            <div className="flex items-center gap-4">
+              <div className="hidden sm:flex p-2 rounded-full bg-green-500/10">
+                <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-green-700 dark:text-green-300">
+                  Module Complete!
+                </h3>
+                <p className="text-xs text-muted-foreground line-clamp-1">
+                  You've completed the reading and explored {isExamplesComplete && isVisualsComplete ? 'both examples and visuals' : isExamplesComplete ? 'the examples' : 'the visuals'}.
+                </p>
+              </div>
+              <Button className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap" onClick={handleContinueToNext}>
+                Continue <ArrowRight className="ml-2 w-4 h-4" />
+              </Button>
             </div>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={handleContinueToNext}>
-              Continue to Next Module
-            </Button>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
       )}
       
       {/* Header Section */}
-      <div className="relative flex items-center justify-center min-h-[80px]">
-        <div className="absolute left-0">
+      <div className="relative py-6">
+        <div className="absolute left-0 top-7 z-10">
           <Link href={`/paths/${pathId}`}>
-            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground -ml-2">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Path
             </Button>
           </Link>
         </div>
-        <h1 className="text-3xl font-display">{module.title}</h1>
+        <div className="flex justify-center">
+          <h1 className="text-3xl md:text-4xl font-display text-center leading-tight max-w-4xl px-32">
+            {module.title}
+          </h1>
+        </div>
       </div>
 
       {/* View Mode Tabs */}

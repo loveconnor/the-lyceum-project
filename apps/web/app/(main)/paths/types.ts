@@ -53,6 +53,7 @@ export interface LearningPath {
   reminderDate?: Date | null;
   files?: PathFile[];
   modules?: Module[];
+  learning_path_items?: any[];
   starred: boolean;
   difficulty?: Difficulty;
   estimatedDuration?: string; // Total path duration (e.g., "8-12 weeks", "40 hours")
