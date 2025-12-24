@@ -214,4 +214,17 @@
   .katex {
     font-size: 1.05em;
   }
+
+  /* Font preference data attributes */
+  body[data-font="inter"] {
+    --text-family: var(--font-inter), sans-serif;
+  }
+
+  body[data-font="geist"] {
+    --text-family: var(--font-geist), sans-serif;
+  }
+
+  body[data-font="system"] {
+    --text-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
 }

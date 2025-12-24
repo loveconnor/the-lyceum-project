@@ -33,7 +33,7 @@ const appearanceFormSchema = z.object({
   theme: z.enum(["light", "dark"], {
     required_error: "Please select a theme."
   }),
-  font: z.enum(["inter", "manrope", "system"], {
+  font: z.enum(["inter", "geist", "system"], {
     invalid_type_error: "Select a font",
     required_error: "Please select a font."
   })
@@ -58,12 +58,14 @@ export default function Page() {
       theme: settings.appearance.theme,
       font: settings.appearance.font
     });
-    setTheme(settings.appearance.theme);
-  }, [form, settings, setTheme]);
+  }, [form, settings.appearance.theme, settings.appearance.font]);
 
   const handleThemeChange = (value: string) => {
     setTheme(value);
-    form.setValue("theme", value as AppearanceFormValues["theme"]);
+  };
+
+  const handleFontChange = (value: string) => {
+    document.body.setAttribute("data-font", value);
   };
 
   async function onSubmit(data: AppearanceFormValues) {
@@ -71,6 +73,7 @@ export default function Page() {
       await saveSettings({
         appearance: data
       });
+      
       toast.success("Appearance updated");
     } catch (error: any) {
       toast.error(error.message || "Unable to update appearance");
@@ -88,7 +91,12 @@ export default function Page() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Font</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select
+                    onValueChange={(value) => {
+                      handleFontChange(value);
+                      field.onChange(value);
+                    }}
+                    value={field.value}>
                     <FormControl>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select font" />
@@ -96,7 +104,7 @@ export default function Page() {
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="inter">Inter</SelectItem>
-                      <SelectItem value="manrope">Manrope</SelectItem>
+                      <SelectItem value="geist">Geist</SelectItem>
                       <SelectItem value="system">System</SelectItem>
                     </SelectContent>
                   </Select>
@@ -119,7 +127,7 @@ export default function Page() {
                       handleThemeChange(value);
                       field.onChange(value);
                     }}
-                    defaultValue={field.value}
+                    value={field.value}
                     className="flex max-w-md gap-6 pt-2">
                     <FormItem>
                       <FormLabel className="[&:has([data-state=checked])>div]:border-primary flex-col">

@@ -8,6 +8,7 @@ import { DEFAULT_USER_PROFILE, mapUserToProfile } from "@/lib/user-profile";
 import { UserProvider } from "@/components/providers/user-provider";
 import { coerceSettings } from "@/lib/settings";
 import { SettingsProvider } from "@/components/providers/settings-provider";
+import { FontApplier } from "@/components/font-applier";
 
 export default async function MainLayout({
   children
@@ -62,6 +63,7 @@ export default async function MainLayout({
   return (
     <UserProvider user={userProfile}>
       <SettingsProvider initialSettings={userSettings}>
+        <FontApplier />
         <SidebarProvider
           defaultOpen={defaultOpen}
           style={

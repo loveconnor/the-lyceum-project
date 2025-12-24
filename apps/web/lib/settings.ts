@@ -40,7 +40,7 @@ export type UserSettings = {
   };
   appearance: {
     theme: "light" | "dark";
-    font: "inter" | "manrope" | "system";
+    font: "inter" | "geist" | "system";
   };
   notifications: {
     learning_reminders: boolean;

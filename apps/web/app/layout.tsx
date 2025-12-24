@@ -37,6 +37,9 @@ export default async function RootLayout({
     contentLayout: (cookieStore.get("theme_content_layout")?.value ??
       DEFAULT_THEME.contentLayout) as any
   };
+  
+  // Get font preference from cookies
+  const fontPreference = cookieStore.get("font_preference")?.value ?? "inter";
 
   const bodyAttributes = Object.fromEntries(
     Object.entries(themeSettings)
@@ -49,6 +52,7 @@ export default async function RootLayout({
       <body
         suppressHydrationWarning
         className={cn("bg-background group/layout font-sans", fontVariables)}
+        data-font={fontPreference}
         {...bodyAttributes}>
         <ThemeProvider
           attribute="class"
