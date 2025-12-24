@@ -473,13 +473,15 @@ export async function generateModuleContent(
   difficulty: string,
   orderIndex: number
 ): Promise<GeneratedModule['content']> {
-  const maxRetries = 2;
+  const maxRetries = 1;
   let lastError: any;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       if (attempt > 0) {
         console.log(`Retrying module generation for "${moduleTitle}" (attempt ${attempt}/${maxRetries})...`);
+        // Short delay before retry when generating in parallel
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       const client = ensureClient();
@@ -532,9 +534,6 @@ Create comprehensive learning content with chapters, quizzes, concepts, exercise
       if (attempt === maxRetries) {
         throw error;
       }
-      
-      // Wait a bit before retrying
-      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
     }
   }
   

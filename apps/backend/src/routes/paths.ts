@@ -251,49 +251,70 @@ router.post("/generate", async (req: Request, res: Response) => {
 
     console.log(`Path created: ${newPath.id}`);
 
-    // Generate content for each module one at a time
-    const pathItems = [];
-    
-    for (let i = 0; i < outline.modules.length; i++) {
-      const moduleOutline = outline.modules[i];
-      console.log(`Step ${i + 2}: Generating content for module "${moduleOutline.title}"...`);
+    // Helper function to limit concurrency
+    const generateModulesWithConcurrencyLimit = async (
+      modules: typeof outline.modules,
+      limit: number = 3
+    ) => {
+      const results: any[] = [];
       
-      try {
-        const content = await generateModuleContent(
-          moduleOutline.title,
-          moduleOutline.description,
-          `${outline.title}: ${outline.description}`,
-          outline.difficulty,
-          i
-        );
+      for (let i = 0; i < modules.length; i += limit) {
+        const batch = modules.slice(i, i + limit);
+        console.log(`Generating batch ${Math.floor(i / limit) + 1}: ${batch.map(m => m.title).join(', ')}`);
+        
+        const batchPromises = batch.map(async (moduleOutline, batchIndex) => {
+          const moduleIndex = i + batchIndex;
+          console.log(`Starting module generation: "${moduleOutline.title}"...`);
+          
+          try {
+            const content = await generateModuleContent(
+              moduleOutline.title,
+              moduleOutline.description,
+              `${outline.title}: ${outline.description}`,
+              outline.difficulty,
+              moduleIndex
+            );
 
-        pathItems.push({
-          path_id: newPath.id,
-          lab_id: null,
-          order_index: i,
-          title: moduleOutline.title,
-          description: moduleOutline.description,
-          item_type: 'reading' as const,
-          status: 'not-started',
-          content_data: content
+            console.log(`Module "${moduleOutline.title}" content generated successfully`);
+
+            return {
+              path_id: newPath.id,
+              lab_id: null,
+              order_index: moduleIndex,
+              title: moduleOutline.title,
+              description: moduleOutline.description,
+              item_type: 'reading' as const,
+              status: 'not-started',
+              content_data: content
+            };
+          } catch (error) {
+            console.error(`Error generating content for module "${moduleOutline.title}":`, error);
+            // Return item with null content if generation fails
+            return {
+              path_id: newPath.id,
+              lab_id: null,
+              order_index: moduleIndex,
+              title: moduleOutline.title,
+              description: moduleOutline.description,
+              item_type: 'reading' as const,
+              status: 'not-started',
+              content_data: null
+            };
+          }
         });
 
-        console.log(`Module ${i + 1}/${outline.modules.length} content generated`);
-      } catch (error) {
-        console.error(`Error generating content for module "${moduleOutline.title}":`, error);
-        // Continue with remaining modules even if one fails
-        pathItems.push({
-          path_id: newPath.id,
-          lab_id: null,
-          order_index: i,
-          title: moduleOutline.title,
-          description: moduleOutline.description,
-          item_type: 'reading' as const,
-          status: 'not-started',
-          content_data: null
-        });
+        const batchResults = await Promise.all(batchPromises);
+        results.push(...batchResults);
+        console.log(`Batch ${Math.floor(i / limit) + 1} completed`);
       }
-    }
+      
+      return results;
+    };
+
+    // Generate content for modules in batches of 3 to avoid overwhelming the API
+    console.log(`Generating content for ${outline.modules.length} modules (3 at a time)...`);
+    const pathItems = await generateModulesWithConcurrencyLimit(outline.modules, 3);
+    console.log(`All ${pathItems.length} modules generated`);
 
     // Create path items from generated modules
     if (pathItems.length > 0) {
