@@ -301,7 +301,7 @@ const ImmersiveTextView = ({
                             <span>{i + 1}</span>
                           )}
                         </div>
-                        <span className="text-sm font-semibold text-left flex-1">
+                        <span className="text-sm font-semibold text-left flex-1 line-clamp-2 break-words">
                           {chapter.title}
                         </span>
                       </div>
@@ -333,6 +333,16 @@ const ImmersiveTextView = ({
           transition={{ duration: 0.5 }}
           className="pb-32"
         >
+          {/* Chapter Title */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-2">
+              <Badge variant="outline" className="text-xs">
+                Chapter {currentChapter + 1}
+              </Badge>
+              <span className="text-xs text-muted-foreground">{chapters[currentChapter].duration}</span>
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">{chapters[currentChapter].title}</h1>
+          </div>
 
           <div className="prose prose-stone dark:prose-invert max-w-none mb-16">
             <Markdown>{chapters[currentChapter].content}</Markdown>

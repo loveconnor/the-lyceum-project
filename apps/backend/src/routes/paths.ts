@@ -205,7 +205,6 @@ router.post("/generate", async (req: Request, res: Response) => {
     const {
       title,
       description,
-      difficulty,
       estimatedDuration,
       topics
     } = req.body;
@@ -214,12 +213,35 @@ router.post("/generate", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Description is required" });
     }
 
+    // Get user's difficulty/experience level from onboarding data
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("onboarding_data")
+      .eq("id", userId)
+      .single();
+
+    if (profileError) {
+      console.error("Error fetching user profile:", profileError);
+    }
+
+    // Map experience level from onboarding to difficulty
+    const experienceMap: Record<string, 'intro' | 'intermediate' | 'advanced'> = {
+      'new': 'intro',
+      'familiar': 'intermediate',
+      'comfortable': 'advanced'
+    };
+
+    const experience = profile?.onboarding_data?.workPreferences?.experience;
+    const difficulty = experience ? (experienceMap[experience] || 'intermediate') : 'intermediate';
+
+    console.log(`Using difficulty level: ${difficulty} (from user experience: ${experience || 'not set'})`);
+
     // Generate path and modules using AI
     console.log('Step 1: Generating learning path outline from description:', description);
     const outline = await generatePathOutline({
       title: title || "", // Allow empty title - AI will generate it
       description,
-      difficulty: difficulty || 'intermediate',
+      difficulty,
       estimatedDuration,
       topics
     });

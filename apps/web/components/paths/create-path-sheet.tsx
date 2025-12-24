@@ -10,13 +10,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select";
 
 interface CreatePathSheetProps {
   isOpen: boolean;
@@ -30,7 +23,6 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
   const [contextFiles, setContextFiles] = React.useState<File[]>([]);
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [difficulty, setDifficulty] = React.useState<"intro" | "intermediate" | "advanced">("intermediate");
   const [isGenerating, setIsGenerating] = React.useState(false);
 
   // Placeholder for AI-generated recommendations based on user's learning context
@@ -71,12 +63,10 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
       if (pathToEdit) {
         setTitle(pathToEdit.title);
         setDescription(pathToEdit.description || "");
-        setDifficulty(pathToEdit.difficulty || "intermediate");
       }
     } else {
       setTitle("");
       setDescription("");
-      setDifficulty("intermediate");
     }
   }, [editPathId, paths, isOpen]);
 
@@ -95,7 +85,6 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
           const pathData = {
             title: rec.title,
             description: rec.description,
-            difficulty: rec.difficulty as "intro" | "intermediate" | "advanced",
             status: EnumPathStatus.NotStarted,
           };
           
@@ -120,7 +109,6 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
         const pathData = {
           title: "", // AI will generate the title
           description,
-          difficulty,
           status: EnumPathStatus.NotStarted,
         };
         
@@ -137,7 +125,6 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
 
       setTitle("");
       setDescription("");
-      setDifficulty("intermediate");
       setSelectedRecommendation(null);
       setContextFiles([]);
       onClose();
@@ -271,27 +258,6 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                 />
                 <p className="text-xs text-muted-foreground mt-1.5">
                   Be specific about topics, skills, and your learning goals. The AI will generate a title, modules, and complete content.
-                </p>
-              </div>
-
-              <div>
-                <label htmlFor="difficulty" className="text-sm font-medium">Difficulty Level</label>
-                <Select
-                  value={difficulty}
-                  onValueChange={(value: any) => setDifficulty(value)}
-                  disabled={!!selectedRecommendation}
-                >
-                  <SelectTrigger className="mt-1.5 w-full">
-                    <SelectValue placeholder="Select difficulty" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="intro">Introductory</SelectItem>
-                    <SelectItem value="intermediate">Intermediate</SelectItem>
-                    <SelectItem value="advanced">Advanced</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1.5">
-                  The AI will determine the optimal duration based on your goals and chosen difficulty.
                 </p>
               </div>
             </div>
