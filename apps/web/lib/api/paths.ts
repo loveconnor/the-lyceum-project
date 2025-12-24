@@ -38,9 +38,23 @@ interface UpdatePathItemPayload {
     reading_completed?: boolean;
     examples_completed?: boolean;
     visuals_completed?: boolean;
-    completed_chapters?: number[];
-    viewed_concepts?: number[];
-    viewed_visuals?: number[];
+    reading?: {
+      current_chapter?: number;
+      current_question_index?: number;
+      selected_option?: string | null;
+      is_correct?: boolean | null;
+      completed_chapters?: number[];
+      completed_questions?: number[];
+    };
+    examples?: {
+      current_example?: number;
+      expanded_steps?: number[];
+      viewed_examples?: number[];
+    };
+    visuals?: {
+      active_visual?: string;
+      viewed_visuals?: string[];
+    };
   };
 }
 

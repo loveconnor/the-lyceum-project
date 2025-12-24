@@ -1,0 +1,33 @@
+-- Expand progress_data to include detailed reading, examples, and visuals state
+-- This allows preserving progress across tab switches
+
+-- Update comment to reflect expanded structure
+COMMENT ON COLUMN public.learning_path_items.progress_data IS 'Stores detailed user progress within the module:
+- Reading: current chapter, question index, completed chapters/questions, selected option, correctness
+- Examples: current example, expanded steps, viewed examples
+- Visuals: active visual, viewed visuals
+- Completion flags for each section';
+
+-- Example of expanded progress_data structure:
+-- {
+--   "reading_completed": false,
+--   "examples_completed": false,
+--   "visuals_completed": false,
+--   "reading": {
+--     "current_chapter": 0,
+--     "current_question_index": 0,
+--     "selected_option": null,
+--     "is_correct": null,
+--     "completed_chapters": [],
+--     "completed_questions": []
+--   },
+--   "examples": {
+--     "current_example": 0,
+--     "expanded_steps": [0],
+--     "viewed_examples": []
+--   },
+--   "visuals": {
+--     "active_visual": "flow",
+--     "viewed_visuals": []
+--   }
+-- }

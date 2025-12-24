@@ -150,19 +150,36 @@ const TABS: { key: ViewMode; label: string; icon: React.ElementType }[] = [
 const ImmersiveTextView = ({ 
   chapters,
   isQuizPassed, 
-  setIsQuizPassed 
+  setIsQuizPassed,
+  currentChapter,
+  setCurrentChapter,
+  currentQuestionIndex,
+  setCurrentQuestionIndex,
+  selectedOption,
+  setSelectedOption,
+  isCorrect,
+  setIsCorrect,
+  completedChapters,
+  setCompletedChapters,
+  completedQuestions,
+  setCompletedQuestions
 }: { 
   chapters: Chapter[];
   isQuizPassed: boolean; 
-  setIsQuizPassed: (v: boolean) => void 
+  setIsQuizPassed: (v: boolean) => void;
+  currentChapter: number;
+  setCurrentChapter: (v: number) => void;
+  currentQuestionIndex: number;
+  setCurrentQuestionIndex: (v: number) => void;
+  selectedOption: string | null;
+  setSelectedOption: (v: string | null) => void;
+  isCorrect: boolean | null;
+  setIsCorrect: (v: boolean | null) => void;
+  completedChapters: Set<number>;
+  setCompletedChapters: React.Dispatch<React.SetStateAction<Set<number>>>;
+  completedQuestions: Set<number>;
+  setCompletedQuestions: React.Dispatch<React.SetStateAction<Set<number>>>;
 }) => {
-  const [currentChapter, setCurrentChapter] = useState(0);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const [completedChapters, setCompletedChapters] = useState<Set<number>>(new Set());
-  const [completedQuestions, setCompletedQuestions] = useState<Set<number>>(new Set());
-  const [showQuiz, setShowQuiz] = useState(false);
 
   if (!chapters || chapters.length === 0) {
     return (
@@ -2344,12 +2361,29 @@ export default function ModulePage() {
   const moduleId = params.moduleId as string;
 
   const [activeMode, setActiveMode] = useState<ViewMode>("immersive_text");
-  const [isQuizPassed, setIsQuizPassed] = useState(false);
-  const [isExamplesComplete, setIsExamplesComplete] = useState(false);
-  const [isVisualsComplete, setIsVisualsComplete] = useState(false);
   const [module, setModule] = useState<ModuleData | null>(null);
   const [allModules, setAllModules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Reading tab state
+  const [isQuizPassed, setIsQuizPassed] = useState(false);
+  const [currentChapter, setCurrentChapter] = useState(0);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [completedChapters, setCompletedChapters] = useState<Set<number>>(new Set());
+  const [completedQuestions, setCompletedQuestions] = useState<Set<number>>(new Set());
+  
+  // Examples tab state
+  const [isExamplesComplete, setIsExamplesComplete] = useState(false);
+  const [currentExample, setCurrentExample] = useState(0);
+  const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set([0]));
+  const [viewedExamples, setViewedExamples] = useState<Set<number>>(new Set());
+  
+  // Visuals tab state
+  const [isVisualsComplete, setIsVisualsComplete] = useState(false);
+  const [activeVisual, setActiveVisual] = useState<"flow" | "relationship" | "states" | "structure">("flow");
+  const [viewedVisuals, setViewedVisuals] = useState<Set<string>>(new Set());
   
   // Load module data and progress
   useEffect(() => {
@@ -2360,10 +2394,35 @@ export default function ModulePage() {
         setModule(data);
         
         // Load progress from database
-        const progressData = data.progress_data || {};
-        setIsQuizPassed(progressData.reading_completed || false);
-        setIsExamplesComplete(progressData.examples_completed || false);
-        setIsVisualsComplete(progressData.visuals_completed || false);
+        const progress = data.progress_data || {};
+        
+        // Load completion flags
+        setIsQuizPassed(progress.reading_completed || false);
+        setIsExamplesComplete(progress.examples_completed || false);
+        setIsVisualsComplete(progress.visuals_completed || false);
+        
+        // Load reading progress
+        if (progress.reading) {
+          setCurrentChapter(progress.reading.current_chapter || 0);
+          setCurrentQuestionIndex(progress.reading.current_question_index || 0);
+          setSelectedOption(progress.reading.selected_option || null);
+          setIsCorrect(progress.reading.is_correct || null);
+          setCompletedChapters(new Set(progress.reading.completed_chapters || []));
+          setCompletedQuestions(new Set(progress.reading.completed_questions || []));
+        }
+        
+        // Load examples progress
+        if (progress.examples) {
+          setCurrentExample(progress.examples.current_example || 0);
+          setExpandedSteps(new Set(progress.examples.expanded_steps || [0]));
+          setViewedExamples(new Set(progress.examples.viewed_examples || []));
+        }
+        
+        // Load visuals progress
+        if (progress.visuals) {
+          setActiveVisual(progress.visuals.active_visual || "flow");
+          setViewedVisuals(new Set(progress.visuals.viewed_visuals || []));
+        }
 
         // Load all modules from the path to enable navigation
         const pathData = await fetchPathById(pathId);
@@ -2391,6 +2450,23 @@ export default function ModulePage() {
           reading_completed: isQuizPassed,
           examples_completed: isExamplesComplete,
           visuals_completed: isVisualsComplete,
+          reading: {
+            current_chapter: currentChapter,
+            current_question_index: currentQuestionIndex,
+            selected_option: selectedOption,
+            is_correct: isCorrect,
+            completed_chapters: Array.from(completedChapters),
+            completed_questions: Array.from(completedQuestions),
+          },
+          examples: {
+            current_example: currentExample,
+            expanded_steps: Array.from(expandedSteps),
+            viewed_examples: Array.from(viewedExamples),
+          },
+          visuals: {
+            active_visual: activeVisual,
+            viewed_visuals: Array.from(viewedVisuals),
+          },
         });
       } catch (error) {
         console.error("Error saving progress:", error);
@@ -2399,9 +2475,16 @@ export default function ModulePage() {
     };
 
     // Debounce the save to avoid too many requests
-    const timeoutId = setTimeout(saveProgress, 500);
+    const timeoutId = setTimeout(saveProgress, 1000);
     return () => clearTimeout(timeoutId);
-  }, [isQuizPassed, isExamplesComplete, isVisualsComplete, pathId, moduleId, module, loading]);
+  }, [
+    loading, module, pathId, moduleId,
+    isQuizPassed, isExamplesComplete, isVisualsComplete,
+    currentChapter, currentQuestionIndex, selectedOption, isCorrect,
+    completedChapters, completedQuestions,
+    currentExample, expandedSteps, viewedExamples,
+    activeVisual, viewedVisuals
+  ]);
 
   // Handle navigation to next module
   const handleContinueToNext = () => {
@@ -2539,7 +2622,23 @@ export default function ModulePage() {
 
         <div className="min-h-[600px]">
           <TabsContent value="immersive_text" className="mt-0 focus-visible:outline-none">
-            <ImmersiveTextView chapters={chapters} isQuizPassed={isQuizPassed} setIsQuizPassed={setIsQuizPassed} />
+            <ImmersiveTextView 
+              chapters={chapters} 
+              isQuizPassed={isQuizPassed} 
+              setIsQuizPassed={setIsQuizPassed}
+              currentChapter={currentChapter}
+              setCurrentChapter={setCurrentChapter}
+              currentQuestionIndex={currentQuestionIndex}
+              setCurrentQuestionIndex={setCurrentQuestionIndex}
+              selectedOption={selectedOption}
+              setSelectedOption={setSelectedOption}
+              isCorrect={isCorrect}
+              setIsCorrect={setIsCorrect}
+              completedChapters={completedChapters}
+              setCompletedChapters={setCompletedChapters}
+              completedQuestions={completedQuestions}
+              setCompletedQuestions={setCompletedQuestions}
+            />
           </TabsContent>
           
           <TabsContent value="examples" className="mt-0 focus-visible:outline-none">
