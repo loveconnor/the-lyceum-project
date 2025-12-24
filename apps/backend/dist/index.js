@@ -11,6 +11,7 @@ const ai_1 = __importDefault(require("./routes/ai"));
 const dashboard_1 = __importDefault(require("./routes/dashboard"));
 const labs_1 = __importDefault(require("./routes/labs"));
 const paths_1 = __importDefault(require("./routes/paths"));
+const notifications_1 = __importDefault(require("./routes/notifications"));
 const app = (0, express_1.default)();
 const port = process.env.PORT || 3001;
 app.use((0, cors_1.default)());
@@ -26,6 +27,7 @@ app.use('/ai', auth_1.requireAuth, ai_1.default);
 app.use('/dashboard', auth_1.requireAuth, dashboard_1.default);
 app.use('/labs', auth_1.requireAuth, labs_1.default);
 app.use('/paths', auth_1.requireAuth, paths_1.default);
+app.use('/notifications', auth_1.requireAuth, notifications_1.default);
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });

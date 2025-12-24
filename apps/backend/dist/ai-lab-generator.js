@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getLabAIAssistance = exports.generateLab = void 0;
 const openai_1 = __importDefault(require("openai"));
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 const USE_OLLAMA = process.env.USE_OLLAMA === 'true';
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
@@ -49,7 +49,7 @@ const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, a
 Available templates:
 1. **analyze** - For data analysis, visualization, statistics, pattern recognition
 2. **build** - For hands-on coding practice, learning syntax, writing functions, implementing algorithms, practicing programming concepts. Use when someone wants to "learn how to code/write/implement" something.
-3. **derive** - For mathematical proofs, derivations, theoretical reasoning
+3. **derive** - For mathematical derivations, proofs, symbolic manipulation, step-by-step problem solving, and theoretical reasoning
 4. **explain** - For understanding and analyzing EXISTING code that's already written, code review, explaining how specific code works
 5. **explore** - For simulations, experiments, parameter exploration, interactive learning
 6. **revise** - For writing improvement, documentation, essays, technical writing
@@ -100,6 +100,7 @@ Include 5-10 realistic data rows and 4-5 analysis steps.`,
   "estimated_duration": number (in minutes),
   "topics": string[],
   "data": {
+    "problemStatement": "Detailed description of the coding challenge (use LaTeX for math: $x^2$)",
     "initialCode": "// Starting code template with function signature and comments",
     "language": "javascript" | "typescript" | "python" | "java" | "cpp",
     "testCases": [
@@ -115,35 +116,64 @@ Include 5-10 realistic data rows and 4-5 analysis steps.`,
       {
         "id": "unique-id",
         "title": "Step title",
-        "instruction": "What the learner should do in this step",
-        "keyQuestions": ["Question 1?", "Question 2?", ...],
-        "prompt": "Specific guidance and hints for this step"
+        "widgets": [
+          {
+            "type": "text-input",
+            "config": {
+              "label": "Label for the input",
+              "placeholder": "Placeholder text",
+              "description": "Optional guidance",
+              "showPreview": false
+            }
+          },
+          {
+            "type": "multiple-choice",
+            "config": {
+              "label": "Question text",
+              "choices": [
+                {"id": "c1", "name": "Option 1"},
+                {"id": "c2", "name": "Option 2"}
+              ]
+            }
+          },
+          {
+            "type": "code-editor",
+            "config": {
+              "label": "Implementation",
+              "description": "Write your code here"
+            }
+          }
+        ]
       }
     ]
   }
 }
-Create 4-6 structured steps for the coding process. Each step should have:
-- Unique id (e.g., "understand-problem", "plan-approach", "implement-solution", "test-debug", "analyze-complexity")
-- Clear title and detailed instructions
-- 2-4 key questions to guide thinking
-- Helpful prompts with specific hints
+Create 4-6 structured steps for the coding process. Each step should use appropriate widgets to guide the learner.
 
 Example step sequence:
-1. Understand the problem (identify inputs, outputs, constraints)
-2. Plan your approach (algorithm design, data structures)
-3. Implement solution (write the code)
-4. Test and debug (run tests, fix issues - MUST include detailed instruction about using print statements, checking edge cases, and debugging strategies)
-5. Analyze complexity (time/space complexity analysis)
+1. Understand the problem: Use text-input or multiple-choice to check understanding of requirements.
+2. Plan your approach: Use text-input for pseudocode or algorithm design.
+3. Implement solution: Use code-editor widget.
+4. Test and debug: Use code-editor widget and provide guidance on debugging.
+5. Analyze complexity: Use multiple-choice or text-input to discuss time/space complexity.
 
-IMPORTANT: The test-debug step MUST have detailed instruction, keyQuestions, and prompt fields with specific guidance on:
-- How to add print/debug statements
-- What edge cases to test
-- Common mistakes to check for
-- How to interpret test failures
+WIDGET CONFIGURATION DETAILS:
+**text-input**: 
+  - label: Question or instruction (can use LaTeX)
+  - description: Helper text (can use LaTeX, optional)
+  - placeholder: Example text in PLAIN ENGLISH ONLY (no LaTeX)
+  - showPreview: true (for math) or false (for normal text/pseudocode)
+  - mathMode: true (for multi-line math equations) or false (default)
+
+**multiple-choice**:
+  - label: Question text (can use LaTeX)
+  - choices: Array of {id, name, formula (optional)}
+  - multiSelect: true/false
+  - showExplanation: true/false
 
 Include 3-5 test cases with clear descriptions.
 Provide realistic starter code (5-15 lines) with function signature and helpful comments.`,
-    derive: `Generate a mathematical derivation lab with this JSON structure:
+    derive: `Generate a step-by-step problem-solving lab (for math derivations, proofs, symbolic manipulation, or step-by-step reasoning) with this JSON structure:
 {
   "labTitle": string,
   "description": string,
@@ -159,14 +189,104 @@ Provide realistic starter code (5-15 lines) with function signature and helpful 
     ],
     "steps": [
       {
-        "id": "step1",
-        "instruction": "What to derive",
-        "hints": ["hint1", "hint2"]
+        "id": "identify-parts",
+        "title": "Identify $u$ and $dv$",
+        "widgets": [
+          {
+            "type": "multiple-choice",
+            "config": {
+              "label": "Select which expression should be $u$ (the part to differentiate)",
+              "description": "Choose the expression that becomes simpler when differentiated",
+              "choices": [
+                {"id": "choice1", "name": "Option 1", "formula": "$x$"},
+                {"id": "choice2", "name": "Option 2", "formula": "$e^x$"}
+              ],
+              "multiSelect": false,
+              "showExplanation": true,
+              "explanationLabel": "Explain your choice",
+              "explanationPlaceholder": "Why did you choose this as u?"
+            }
+          }
+        ]
+      },
+      {
+        "id": "compute",
+        "title": "Compute $du$ and $v$",
+        "widgets": [
+          {
+            "type": "derivation-steps",
+            "config": {
+              "showInstructions": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "apply-formula",
+        "title": "Apply Integration by Parts",
+        "widgets": [
+          {
+            "type": "text-input",
+            "config": {
+              "label": "Write the integration by parts formula with your values",
+              "description": "Substitute your u, du, v, and dv into the formula",
+              "placeholder": "Type your answer with LaTeX...",
+              "showPreview": true
+            }
+          }
+        ]
       }
     ]
   }
 }
-Use proper LaTeX notation. Include 5-8 calculus/algebra rules and 3-5 derivation steps.`,
+
+CRITICAL - WIDGET REQUIREMENTS:
+1. EVERY step MUST have a "widgets" array with at least one widget
+2. Use "text-input" for: explaining concepts, restating problems, verification, conclusions
+3. Use "multiple-choice" for: selecting rules/methods/approaches (set multiSelect and showExplanation appropriately)
+4. Use "derivation-steps" for: step-by-step mathematical work, showing calculations
+
+WIDGET CONFIGURATION DETAILS:
+**text-input**: 
+  - label: Question or instruction (can use LaTeX)
+  - description: Helper text (can use LaTeX, optional)
+  - placeholder: Example text in PLAIN ENGLISH ONLY (no LaTeX - placeholders can't render math)
+  - showPreview: true (for math) or false
+  - mathMode: true (for multi-line math equations where each line is a separate expression) or false (default - for prose/explanations)
+
+**multiple-choice**:
+  - label: Question text (can use LaTeX)
+  - description: Instructions (can use LaTeX)
+  - choices: Array of {id, name, formula (optional - can use LaTeX)}
+  - multiSelect: true for multiple selections, false for single
+  - showExplanation: true to require explanation text
+  - explanationLabel: Label for explanation field (can use LaTeX)
+  - explanationPlaceholder: Placeholder for explanation in PLAIN ENGLISH ONLY (no LaTeX)
+
+**derivation-steps**:
+  - showInstructions: true
+
+RESPONSE FORMAT:
+{
+  "labTitle": string,
+  "description": string,
+  "difficulty": "beginner" | "intermediate" | "advanced",
+  "estimated_duration": number (in minutes),
+  "topics": string[],
+  "data": {
+    "problemStatement": "The integral or derivation problem",
+    "availableRules": [
+      {"id": "rule-1", "name": "Rule Name", "formula": "$LaTeX formula$"}
+    ],
+    "conceptCheck": {
+      "question": "A thought-provoking question related to the problem",
+      "explanation": "Optional explanation/hint"
+    },
+    "steps": [...] // As shown in example above
+  }
+}
+
+Use proper LaTeX notation ($...$). Include 5-8 calculus/algebra rules relevant to THIS specific problem. Include a conceptCheck with a question that helps students understand WHY they're using certain approaches. Create 3-5 steps where EACH step has widgets appropriate for its learning activity.`,
     explain: `Generate a code explanation lab with this JSON structure:
 {
   "labTitle": string,
@@ -367,7 +487,7 @@ const getLabAIAssistance = async (templateType, userPrompt, context) => {
     const systemPrompts = {
         analyze: 'You are a data analysis tutor. Help learners understand data patterns, statistical concepts, and visualization. Be clear and concise.',
         build: 'You are a coding mentor. Help learners write code, debug issues, and understand algorithms. Provide hints, not full solutions unless asked.',
-        derive: 'You are a mathematics tutor. Help with derivations, proofs, and mathematical reasoning. Use LaTeX notation ($x^2$, $$\\frac{d}{dx}$$).',
+        derive: 'You are a mathematics and logic tutor. Help with derivations, proofs, symbolic manipulation, and step-by-step problem solving. Use LaTeX notation ($x^2$, $$\\frac{d}{dx}$$) for mathematical expressions.',
         explain: 'You are a code explanation assistant. Help learners understand how code works, line by line. Explain concepts clearly.',
         explore: 'You are a science experiment guide. Help learners form hypotheses, understand parameters, and interpret results.',
         revise: 'You are a writing coach. Help improve clarity, structure, and argument. Provide specific, actionable feedback.',

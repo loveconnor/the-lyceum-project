@@ -15,6 +15,66 @@ const computeMostActiveMonth = (monthlyActivity) => {
  */
 async function updateDashboardActivity(userId, activityData) {
     const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
+    // For lab deletion, recalculate everything from scratch
+    if (activityData.activityType === 'lab_deleted') {
+        // Get all remaining labs
+        const { data: labs, error: labsError } = await supabase
+            .from('labs')
+            .select('id, status, topics, estimated_duration, completed_at, created_at')
+            .eq('user_id', userId);
+        if (labsError) {
+            console.error('Error fetching labs after deletion:', labsError);
+            throw labsError;
+        }
+        // Calculate fresh statistics
+        const completedLabs = labs?.filter(l => l.status === 'completed') || [];
+        const inProgressLabs = labs?.filter(l => l.status === 'in-progress') || [];
+        const engagedLabs = completedLabs.length + inProgressLabs.length;
+        const successRate = engagedLabs > 0 ? (completedLabs.length / engagedLabs) * 100 : 0;
+        let totalMinutes = 0;
+        const topicCounts = {};
+        completedLabs.forEach(lab => {
+            if (lab.estimated_duration) {
+                totalMinutes += lab.estimated_duration;
+            }
+            if (lab.topics && Array.isArray(lab.topics)) {
+                lab.topics.forEach(topic => {
+                    topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+                });
+            }
+        });
+        // Build top topics
+        const top_topics = Object.entries(topicCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6)
+            .map(([name, count]) => ({
+            name,
+            category: 'Topic',
+            confidence: 'From completed labs',
+            progress: Math.min(100, count * 10),
+            count,
+        }));
+        // Update dashboard state with recalculated values
+        const { error: updateError } = await supabase
+            .from('dashboard_state')
+            .update({
+            total_courses: completedLabs.length,
+            total_minutes: totalMinutes,
+            overall_success_rate: successRate,
+            top_topics,
+            stats: {
+                in_progress: inProgressLabs.length,
+                completed: completedLabs.length,
+            },
+        })
+            .eq('user_id', userId);
+        if (updateError) {
+            console.error('Error updating dashboard after lab deletion:', updateError);
+            throw updateError;
+        }
+        console.log(`Dashboard recalculated after lab deletion for user ${userId}`);
+        return;
+    }
     // Get or create dashboard state
     let { data: state, error: fetchError } = await supabase
         .from('dashboard_state')
@@ -62,9 +122,18 @@ async function updateDashboardActivity(userId, activityData) {
     const now = new Date();
     const monthKey = now.toISOString().slice(0, 7); // YYYY-MM
     monthlyActivity[monthKey] = (monthlyActivity[monthKey] || 0) + 1;
-    // Update success rate if provided
+    // Update success rate based on completion
+    // For labs/paths: track as samples for weighted average
     let overall_success_rate = dashboardState.overall_success_rate;
-    if (typeof activityData.successRate === 'number') {
+    if (activityData.activityType === 'lab_completed' || activityData.activityType === 'path_completed') {
+        // Add a successful completion (100%) to the average
+        const newSuccessRate = typeof activityData.successRate === 'number' ? activityData.successRate : 100;
+        overall_success_rate =
+            (overall_success_rate * successSamples + newSuccessRate) / (successSamples + 1);
+        stats.success_samples = successSamples + 1;
+    }
+    else if (typeof activityData.successRate === 'number') {
+        // Custom success rate provided
         overall_success_rate =
             (overall_success_rate * successSamples + activityData.successRate) / (successSamples + 1);
         stats.success_samples = successSamples + 1;
@@ -72,6 +141,19 @@ async function updateDashboardActivity(userId, activityData) {
     // Update stats
     stats.activity_counts = activityCounts;
     stats.monthly_activity = monthlyActivity;
+    // Update counts that frontend uses
+    stats.in_progress = stats.in_progress || 0;
+    stats.completed = stats.completed || 0;
+    if (activityData.activityType === 'lab_started' || activityData.activityType === 'path_started') {
+        stats.in_progress = (stats.in_progress || 0) + 1;
+    }
+    else if (activityData.activityType === 'lab_completed' || activityData.activityType === 'path_completed') {
+        stats.completed = (stats.completed || 0) + 1;
+        // When completing, decrement in_progress if it was started before
+        if (stats.in_progress > 0) {
+            stats.in_progress--;
+        }
+    }
     // Update top topics
     const top_topics = Array.isArray(dashboardState.top_topics)
         ? [...dashboardState.top_topics]

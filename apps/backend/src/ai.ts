@@ -65,7 +65,7 @@ export interface TopicRecommendation {
 }
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
 // Ollama configuration (only available in development)
 const USE_OLLAMA = process.env.USE_OLLAMA === 'true';
@@ -227,8 +227,9 @@ export const generateOnboardingRecommendations = async (
   ].join('\n');
 
   const client = ensureClient();
+  const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
   const completion = await client.chat.completions.create({
-    model: OPENAI_MODEL,
+    model,
     messages: [
       { role: 'system', content: baseSystemInstruction },
       { role: 'user', content: prompt },

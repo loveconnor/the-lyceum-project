@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const supabaseAdmin_1 = require("../supabaseAdmin");
 const dashboardService_1 = require("../dashboardService");
+const ai_path_generator_1 = require("../ai-path-generator");
+const notificationService_1 = require("../notificationService");
 const router = (0, express_1.Router)();
 // Get all learning paths for current user
 router.get("/", async (req, res) => {
@@ -162,6 +164,144 @@ router.post("/", async (req, res) => {
         return res.status(500).json({ error: "Internal server error" });
     }
 });
+// AI-generate learning path with modules and content
+router.post("/generate", async (req, res) => {
+    try {
+        const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ error: "Unauthorized" });
+        }
+        const { title, description, difficulty, estimatedDuration, topics } = req.body;
+        if (!description || !description.trim()) {
+            return res.status(400).json({ error: "Description is required" });
+        }
+        // Generate path and modules using AI
+        console.log('Step 1: Generating learning path outline from description:', description);
+        const outline = await (0, ai_path_generator_1.generatePathOutline)({
+            title: title || "", // Allow empty title - AI will generate it
+            description,
+            difficulty: difficulty || 'intermediate',
+            estimatedDuration,
+            topics
+        });
+        console.log(`Outline generated: ${outline.modules.length} modules planned`);
+        // Create the learning path
+        const { data: newPath, error: pathError } = await supabase
+            .from("learning_paths")
+            .insert([
+            {
+                user_id: userId,
+                title: outline.title,
+                description: outline.description,
+                topics: outline.topics,
+                difficulty: outline.difficulty,
+                estimated_duration: outline.estimated_duration * 60, // Convert hours to minutes
+                status: "not-started",
+                progress: 0
+            }
+        ])
+            .select()
+            .single();
+        if (pathError) {
+            console.error("Error creating learning path:", pathError);
+            return res.status(500).json({ error: "Failed to create learning path" });
+        }
+        console.log(`Path created: ${newPath.id}`);
+        // Generate content for each module one at a time
+        const pathItems = [];
+        for (let i = 0; i < outline.modules.length; i++) {
+            const moduleOutline = outline.modules[i];
+            console.log(`Step ${i + 2}: Generating content for module "${moduleOutline.title}"...`);
+            try {
+                const content = await (0, ai_path_generator_1.generateModuleContent)(moduleOutline.title, moduleOutline.description, `${outline.title}: ${outline.description}`, outline.difficulty, i);
+                pathItems.push({
+                    path_id: newPath.id,
+                    lab_id: null,
+                    order_index: i,
+                    title: moduleOutline.title,
+                    description: moduleOutline.description,
+                    item_type: 'reading',
+                    status: 'not-started',
+                    content_data: content
+                });
+                console.log(`Module ${i + 1}/${outline.modules.length} content generated`);
+            }
+            catch (error) {
+                console.error(`Error generating content for module "${moduleOutline.title}":`, error);
+                // Continue with remaining modules even if one fails
+                pathItems.push({
+                    path_id: newPath.id,
+                    lab_id: null,
+                    order_index: i,
+                    title: moduleOutline.title,
+                    description: moduleOutline.description,
+                    item_type: 'reading',
+                    status: 'not-started',
+                    content_data: null
+                });
+            }
+        }
+        // Create path items from generated modules
+        if (pathItems.length > 0) {
+            console.log(`Inserting ${pathItems.length} modules into database`);
+            const { data: insertedItems, error: itemsError } = await supabase
+                .from("learning_path_items")
+                .insert(pathItems)
+                .select();
+            if (itemsError) {
+                console.error("Error creating path items:", itemsError);
+                return res.status(500).json({ error: "Failed to create modules" });
+            }
+            console.log(`Successfully created ${insertedItems?.length || 0} modules`);
+        }
+        else {
+            console.log('No modules generated by AI');
+        }
+        // Update dashboard
+        try {
+            await (0, dashboardService_1.updateDashboardActivity)(userId, {
+                activityType: 'path_started',
+                topics: outline.topics || [],
+                minutes: 0,
+            });
+        }
+        catch (dashError) {
+            console.error('Error updating dashboard:', dashError);
+        }
+        // Fetch the complete path with items
+        const { data: completePath, error: fetchError } = await supabase
+            .from("learning_paths")
+            .select(`
+        *,
+        learning_path_items (
+          id,
+          lab_id,
+          order_index,
+          title,
+          description,
+          item_type,
+          status,
+          completed_at,
+          content_data
+        )
+      `)
+            .eq("id", newPath.id)
+            .single();
+        if (fetchError) {
+            console.error("Error fetching complete path:", fetchError);
+            return res.status(500).json({ error: "Failed to fetch complete path" });
+        }
+        return res.status(201).json(completePath);
+    }
+    catch (error) {
+        console.error("Error in POST /paths/generate:", error);
+        return res.status(500).json({
+            error: "Internal server error",
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
 // Update learning path
 router.patch("/:id", async (req, res) => {
     try {
@@ -216,6 +356,53 @@ router.delete("/:id", async (req, res) => {
     }
 });
 // Update path item status
+// Get single path item
+router.get("/:pathId/items/:itemId", async (req, res) => {
+    try {
+        const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ error: "Unauthorized" });
+        }
+        const { pathId, itemId } = req.params;
+        // Verify the path belongs to the user
+        const { data: path } = await supabase
+            .from("learning_paths")
+            .select("id")
+            .eq("id", pathId)
+            .eq("user_id", userId)
+            .single();
+        if (!path) {
+            return res.status(404).json({ error: "Learning path not found" });
+        }
+        // Fetch the item with its content_data
+        const { data: item, error } = await supabase
+            .from("learning_path_items")
+            .select(`
+        *,
+        labs (
+          id,
+          title,
+          description,
+          status,
+          difficulty,
+          estimated_duration
+        )
+      `)
+            .eq("id", itemId)
+            .eq("path_id", pathId)
+            .single();
+        if (error || !item) {
+            console.error("Error fetching path item:", error);
+            return res.status(404).json({ error: "Path item not found" });
+        }
+        return res.json(item);
+    }
+    catch (error) {
+        console.error("Error in GET /paths/:pathId/items/:itemId:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
 router.patch("/:pathId/items/:itemId", async (req, res) => {
     try {
         const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
@@ -224,9 +411,9 @@ router.patch("/:pathId/items/:itemId", async (req, res) => {
             return res.status(401).json({ error: "Unauthorized" });
         }
         const { pathId, itemId } = req.params;
-        const { status } = req.body;
-        if (!status) {
-            return res.status(400).json({ error: "Status is required" });
+        const { status, progress_data } = req.body;
+        if (!status && !progress_data) {
+            return res.status(400).json({ error: "Status or progress_data is required" });
         }
         // Verify the path belongs to the user
         const { data: path } = await supabase
@@ -238,10 +425,16 @@ router.patch("/:pathId/items/:itemId", async (req, res) => {
         if (!path) {
             return res.status(404).json({ error: "Learning path not found" });
         }
-        // Update the item
-        const updateData = { status };
-        if (status === 'completed') {
-            updateData.completed_at = new Date().toISOString();
+        // Build update data
+        const updateData = {};
+        if (status) {
+            updateData.status = status;
+            if (status === 'completed') {
+                updateData.completed_at = new Date().toISOString();
+            }
+        }
+        if (progress_data) {
+            updateData.progress_data = progress_data;
         }
         const { data: updatedItem, error } = await supabase
             .from("learning_path_items")
@@ -254,6 +447,21 @@ router.patch("/:pathId/items/:itemId", async (req, res) => {
             console.error("Error updating path item:", error);
             return res.status(500).json({ error: "Failed to update path item" });
         }
+        // Check if module just completed and send notification
+        const wasJustCompleted = updatedItem.status === 'completed' &&
+            (status === 'completed' ||
+                (progress_data &&
+                    progress_data.reading_completed &&
+                    (progress_data.examples_completed || progress_data.visuals_completed)));
+        if (wasJustCompleted) {
+            try {
+                await (0, notificationService_1.createModuleCompletionNotification)(userId, itemId, updatedItem.title, pathId);
+            }
+            catch (notifError) {
+                console.error('Error creating module completion notification:', notifError);
+                // Don't fail the request if notification fails
+            }
+        }
         // Check if the entire path is completed
         const { data: allItems } = await supabase
             .from("learning_path_items")
@@ -261,6 +469,11 @@ router.patch("/:pathId/items/:itemId", async (req, res) => {
             .eq("path_id", pathId);
         const allCompleted = allItems?.every(item => item.status === 'completed');
         if (allCompleted) {
+            const { data: pathData } = await supabase
+                .from("learning_paths")
+                .select("title")
+                .eq("id", pathId)
+                .single();
             await supabase
                 .from("learning_paths")
                 .update({
@@ -269,6 +482,13 @@ router.patch("/:pathId/items/:itemId", async (req, res) => {
                 progress: 100
             })
                 .eq("id", pathId);
+            // Send path completion notification
+            try {
+                await (0, notificationService_1.createPathCompletionNotification)(userId, pathId, pathData?.title || 'Learning Path');
+            }
+            catch (notifError) {
+                console.error('Error creating path completion notification:', notifError);
+            }
             // Update dashboard with path completion
             try {
                 await (0, dashboardService_1.updateDashboardActivity)(userId, {

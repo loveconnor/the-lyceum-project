@@ -221,6 +221,18 @@ router.delete("/:id", async (req, res) => {
             console.error("Error deleting lab:", error);
             return res.status(500).json({ error: "Failed to delete lab" });
         }
+        // Update dashboard statistics after deletion
+        try {
+            await (0, dashboardService_1.updateDashboardActivity)(userId, {
+                activityType: 'lab_deleted',
+                topics: [],
+                minutes: 0,
+            });
+        }
+        catch (dashError) {
+            console.error('Error updating dashboard after lab deletion:', dashError);
+            // Don't fail the request if dashboard update fails
+        }
         return res.status(204).send();
     }
     catch (error) {

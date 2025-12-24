@@ -2,7 +2,7 @@
 
 import { InterestsStep } from "./interests-step";
 import { WorkPreferencesStep } from "./starting-point-step";
-import { AccountTypeStep } from "./account-type-step";
+import { AccountTypeStep } from "./ready-step";
 
 import { useOnboardingStore } from "@/app/onboarding/store";
 
