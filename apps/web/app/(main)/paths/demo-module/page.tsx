@@ -51,6 +51,29 @@ const TABS: { key: ViewMode; label: string; icon: React.ElementType }[] = [
   { key: "visuals", label: "Visuals", icon: Eye },
 ];
 
+// --- Utility Functions ---
+
+/**
+ * Auto-wraps LaTeX expressions in dollar signs if they're not already wrapped.
+ * Detects common LaTeX commands like \mathbf, \frac, \int, \sum, etc.
+ */
+const ensureMathDelimiters = (text: string): string => {
+  // If already has $ delimiters, return as-is
+  if (text.includes('$')) {
+    return text;
+  }
+  
+  // Check if text contains LaTeX commands
+  const latexPattern = /\\(?:mathbf|mathit|mathrm|frac|int|sum|prod|sqrt|vec|hat|bar|tilde|alpha|beta|gamma|delta|theta|lambda|mu|sigma|pi|infty|partial|nabla|cdot|times|div|pm|leq|geq|neq|approx|equiv|rightarrow|leftarrow|Rightarrow|Leftarrow)/;
+  
+  if (latexPattern.test(text)) {
+    // Wrap entire text in inline math delimiters
+    return `$${text}$`;
+  }
+  
+  return text;
+};
+
 // --- Components ---
 
 const ImmersiveTextView = ({ 
@@ -370,7 +393,7 @@ This level of abstraction allows developers to swap out implementations for bett
                   </div>
                   <div className="text-base font-medium leading-relaxed">
                     <Markdown components={{ p: ({ children }) => <>{children}</> }}>
-                      {currentQuiz.question}
+                      {ensureMathDelimiters(currentQuiz.question)}
                     </Markdown>
                   </div>
                 </div>
@@ -398,8 +421,8 @@ This level of abstraction allows developers to swap out implementations for bett
                         {option.id}
                       </div>
                       <div className="text-sm font-medium flex-1">
-                        <Markdown components={{ p: ({ children }) => <>{children}</> }}>
-                          {option.text}
+                        <Markdown components={{ p: ({ children }) => <span className="inline">{children}</span> }}>
+                          {ensureMathDelimiters(option.text)}
                         </Markdown>
                       </div>
                       

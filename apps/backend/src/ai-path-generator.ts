@@ -279,15 +279,15 @@ Respond with JSON only in this structure:
         "content": "Rich markdown content with headings (##, ###), bullet points, code examples if relevant, and clear explanations. Make this substantive and educational - 3-5 paragraphs.",
         "quizzes": [
           {
-            "question": "Clear, specific question testing understanding",
+            "question": "Clear, specific question testing understanding (wrap any math in $ like: What is $x^2 + y^2$?)",
             "options": [
-              { "id": "A", "text": "Option A text" },
-              { "id": "B", "text": "Option B text" },
+              { "id": "A", "text": "Option A text (if math: $\\\\mathbf{v} = (3, 4)$)" },
+              { "id": "B", "text": "Option B text (if math: $x = 3 + 4i$)" },
               { "id": "C", "text": "Option C text" },
               { "id": "D", "text": "Option D text" }
             ],
             "correct": "B",
-            "explanation": "Brief explanation of why this is correct"
+            "explanation": "Brief explanation of why this is correct (wrap math in $ as well)"
           }
         ]
       }
@@ -377,11 +377,22 @@ Guidelines:
 - Make content specific, actionable, and pedagogically sound
 - Write in an engaging, conversational but professional tone
 - Include real-world examples and applications
-- IMPORTANT: For mathematical content, use LaTeX syntax with dollar sign delimiters:
-  - Inline math: wrap in single dollar signs like $x^2 + y^2 = z^2$
-  - Block math: wrap in double dollar signs on own line like $$\\int_0^1 f(x) dx$$
-  - NEVER use triple backtick code blocks for math - only use $ delimiters
-  - Remember to escape backslashes in JSON strings (use \\\\ for a single backslash)
+
+CRITICAL MATH FORMATTING RULES (MUST FOLLOW):
+- ALL mathematical expressions, formulas, equations, variables, and symbols MUST be wrapped in dollar signs
+- Inline math: wrap in single $ like $x^2 + y^2 = z^2$ or $\\mathbf{v}$ or $\\alpha$
+- Block math: wrap in double $$ on own line like $$\\int_0^1 f(x) dx$$
+- This applies to ALL content: chapter content, quiz questions, quiz options, explanations, examples, everywhere
+- Examples of what MUST be wrapped:
+  * Variables: $x$, $y$, $v$, $\\alpha$, $\\beta$
+  * Expressions: $x + y$, $2x - 3$, $\\frac{a}{b}$
+  * Vectors: $\\mathbf{v}$, $\\vec{u}$
+  * Functions: $f(x)$, $\\sin(x)$, $\\log(n)$
+  * Equations: $E = mc^2$, $a^2 + b^2 = c^2$
+  * Sets: $\\{1, 2, 3\\}$
+- NEVER write raw LaTeX without $ delimiters (e.g., "\\mathbf{v}" is WRONG, "$\\mathbf{v}$" is CORRECT)
+- NEVER use triple backtick code blocks for math - only use $ delimiters
+- Remember to escape backslashes in JSON strings (use \\\\ for a single backslash in LaTeX commands)
 - Generate 2-4 visual diagrams using ReactFlow format:
   - Position nodes using x,y coordinates (canvas is roughly 800x600)
   - For vertical flows: increment y by 100-120 for each row
