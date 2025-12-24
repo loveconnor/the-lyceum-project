@@ -271,7 +271,7 @@ export function InterestsStep() {
                   `}
                 >
                   <span>{interest.name}</span>
-                  <Plus className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-45" : ""}`} />
+                  <Plus className={`h-4 w-4 transition-transform duration-300 ease-in-out ${isExpanded ? "rotate-45" : ""}`} />
                 </button>
                 
                 {isExpanded && hasSubtopics && interest.subtopics!.map((subtopic) => {
@@ -289,7 +289,7 @@ export function InterestsStep() {
                       `}
                     >
                       <span>{subtopic}</span>
-                      <Plus className={`h-3 w-3 transition-transform ${isSubtopicSelected ? "rotate-45" : ""}`} />
+                      <Plus className={`h-3 w-3 transition-transform duration-300 ease-in-out ${isSubtopicSelected ? "rotate-45" : ""}`} />
                     </button>
                   );
                 })}

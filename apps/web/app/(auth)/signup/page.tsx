@@ -1,23 +1,18 @@
+'use client';
+
 import Link from "next/link";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { generateMeta } from "@/lib/utils";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
 import { signup } from "@/app/auth/actions";
 
-export async function generateMetadata() {
-  return generateMeta({
-    title: "The Lyceum Project - Signup",
-    description:
-      "Create a new account to continue",
-    canonical: "/signup"
-  });
-}
-
 export default function Page() {
+  const [showPassword, setShowPassword] = useState(false);
   const isGoogleEnabled = process.env.NEXT_PUBLIC_ENABLE_GOOGLE_AUTH === 'true';
   const isGitHubEnabled = process.env.NEXT_PUBLIC_ENABLE_GITHUB_AUTH === 'true';
   const hasOAuthProviders = isGoogleEnabled || isGitHubEnabled;
@@ -54,12 +49,34 @@ export default function Page() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" placeholder="contact@example.com" required />
+                <Input id="email" name="email" type="email" placeholder="johndoe@example.com" required />
               </div>
-              <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
+              <div className="grid gap-2">
+                <div className="flex items-center">
+                  <Label htmlFor="password">Password</Label>
+                </div>
+                <div className="relative">
+                  <Input 
+                    id="password" 
+                    name="password" 
+                    type={showPassword ? "text" : "password"} 
+                    required 
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? (
+                      <EyeOffIcon className="h-4 w-4" />
+                    ) : (
+                      <EyeIcon className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               </div>
-              <Input id="password" name="password" type="password" required />
               <Button type="submit" className="w-full">
                 Register
               </Button>

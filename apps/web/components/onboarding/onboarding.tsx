@@ -1,7 +1,7 @@
 "use client";
 
 import { InterestsStep } from "./interests-step";
-import { WorkPreferencesStep } from "./work-preferences-step";
+import { WorkPreferencesStep } from "./starting-point-step";
 import { AccountTypeStep } from "./account-type-step";
 
 import { useOnboardingStore } from "@/app/onboarding/store";
