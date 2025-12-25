@@ -92,6 +92,21 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
     const isInline = !match && !String(children).includes('\n');
 
     if (isInline) {
+      const content = String(children);
+      // Check if this is actually a math expression (wrapped in $ signs)
+      // These should be rendered as code but without the $ delimiters
+      const isMath = content.startsWith('$') && content.endsWith('$') && content.length > 2;
+      
+      if (isMath) {
+        // Strip the $ signs and render as code
+        const mathContent = content.slice(1, -1);
+        return (
+          <code className={cn("bg-muted/60 text-foreground rounded px-1.5 py-0.5 font-mono border border-border/50", className)}>
+            {mathContent}
+          </code>
+        );
+      }
+      
       return (
         <code className={cn("bg-muted/60 text-foreground rounded px-1.5 py-0.5 font-mono border border-border/50", className)}>
           {children}
@@ -121,13 +136,27 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
     [components]
   );
 
+  // Pre-process content to convert code-like math expressions to code blocks
+  // This prevents KaTeX from trying to parse programming operators like &&, ||, !=, etc.
+  const processedChildren = useMemo(() => {
+    // Match inline math expressions that look like code
+    // These contain operators like &&, ||, !=, ==, >=, <=, !, =, <, >, etc.
+    // Also match simple single operators like $&&$, $||$, $!$
+    const codeOperatorsPattern = /\$([^$\n]*?(?:&&|\|\||!=|==|>=|<=|<|>|!|=)[^$\n]*?)\$/g;
+    
+    return children.replace(codeOperatorsPattern, (match, content) => {
+      // Convert $code$ to `code` (backtick code block instead of math)
+      return `\`$${content}$\``;
+    });
+  }, [children]);
+
   return (
     <div className={cn("prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:overflow-x-auto break-words prose-code:before:content-none prose-code:after:content-none", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={mergedComponents}>
-        {children}
+        {processedChildren}
       </ReactMarkdown>
     </div>
   );

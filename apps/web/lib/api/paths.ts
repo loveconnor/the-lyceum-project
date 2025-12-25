@@ -50,10 +50,12 @@ interface UpdatePathItemPayload {
       current_example?: number;
       expanded_steps?: number[];
       viewed_examples?: number[];
+      viewed_concepts?: number[];
+      viewed_exercises?: number[];
     };
     visuals?: {
       active_visual?: string;
-      viewed_visuals?: string[];
+      viewed_visuals?: number[];
     };
   };
 }

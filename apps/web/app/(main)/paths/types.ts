@@ -41,6 +41,27 @@ export interface Module {
   mindmapCount?: number;
 }
 
+export interface PathItem {
+  id: string;
+  path_id: string;
+  lab_id?: string | null;
+  order_index: number;
+  title: string;
+  description?: string;
+  item_type: 'lab' | 'module' | 'reading' | 'video' | 'quiz' | 'project';
+  status: 'not-started' | 'in-progress' | 'completed';
+  completed_at?: string | null;
+  content_data?: any;
+  labs?: {
+    id: string;
+    title: string;
+    description?: string;
+    status: string;
+    difficulty?: string;
+    estimated_duration?: number;
+  };
+}
+
 export interface LearningPath {
   id: string;
   title: string;
@@ -53,7 +74,7 @@ export interface LearningPath {
   reminderDate?: Date | null;
   files?: PathFile[];
   modules?: Module[];
-  learning_path_items?: any[];
+  learning_path_items?: PathItem[];
   starred: boolean;
   difficulty?: Difficulty;
   estimatedDuration?: string; // Total path duration (e.g., "8-12 weeks", "40 hours")

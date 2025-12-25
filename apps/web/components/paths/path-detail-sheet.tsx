@@ -153,14 +153,65 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
 
         <div className="space-y-4 p-4">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium">Learning Modules</h4>
-            {path.modules && path.modules.length > 0 && (
+            <h4 className="text-sm font-medium">Learning Journey</h4>
+            {path.learning_path_items && path.learning_path_items.length > 0 && (
               <span className="text-xs text-muted-foreground">
-                {path.modules.filter(m => m.completed).length} / {path.modules.length} completed
+                {path.learning_path_items.filter(i => i.status === 'completed').length} / {path.learning_path_items.length} completed
               </span>
             )}
           </div>
-          {path.modules && path.modules.length > 0 ? (
+          {path.learning_path_items && path.learning_path_items.length > 0 ? (
+            <div className="space-y-3">
+              {path.learning_path_items
+                .sort((a, b) => a.order_index - b.order_index)
+                .map((item, index) => (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      "flex flex-col gap-2 rounded-md p-3 transition-colors",
+                      item.item_type === 'lab' 
+                        ? "bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800" 
+                        : "bg-muted"
+                    )}>
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium",
+                        item.item_type === 'lab'
+                          ? "bg-amber-500/20 text-amber-700 dark:text-amber-400"
+                          : "bg-primary/10 text-primary"
+                      )}>
+                        {item.item_type === 'lab' ? '🧪' : index + 1}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "text-sm font-medium",
+                              item.status === 'completed' && "text-muted-foreground line-through"
+                            )}>
+                            {item.title}
+                          </span>
+                          {item.item_type === 'lab' && (
+                            <Badge variant="secondary" className="text-xs">Lab</Badge>
+                          )}
+                          {item.item_type === 'module' && (
+                            <Badge variant="outline" className="text-xs">Module</Badge>
+                          )}
+                        </div>
+                        {item.description && (
+                          <p className="text-xs text-muted-foreground mt-1">{item.description}</p>
+                        )}
+                        {item.item_type === 'lab' && item.content_data?.suggested && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 italic">
+                            💡 Practice what you learned - create this lab to reinforce your knowledge
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          ) : path.modules && path.modules.length > 0 ? (
             <div className="space-y-3">
               {path.modules.map((module, index) => (
                 <div
@@ -195,7 +246,7 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
             </div>
           ) : (
             <div className="bg-muted text-muted-foreground rounded-md p-4 text-center text-sm">
-              No modules defined for this path yet.
+              No learning items defined for this path yet.
             </div>
           )}
         </div>

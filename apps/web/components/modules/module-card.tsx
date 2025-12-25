@@ -13,8 +13,6 @@ import {
   Presentation,
   Headphones,
   Network,
-  CheckCircle2,
-  Circle,
   PlayCircle
 } from "lucide-react";
 
@@ -105,9 +103,6 @@ export default function ModuleCard({ module, moduleNumber, pathId }: ModuleCardP
     { icon: Network, count: module.mindmapCount, label: "mindmap" }
   ].filter((item) => item.count && item.count > 0);
 
-  // Status icon
-  const StatusIcon = status === "completed" ? CheckCircle2 : status === "in-progress" ? PlayCircle : Circle;
-
   // Handle navigation to module view
   const handleClick = () => {
     router.push(`/paths/${pathId}/modules/${module.id}`);
@@ -135,14 +130,6 @@ export default function ModuleCard({ module, moduleNumber, pathId }: ModuleCardP
             >
               {moduleNumber}
             </div>
-            <StatusIcon
-              className={cn(
-                "h-4 w-4",
-                status === "completed" && "text-green-600 dark:text-green-500",
-                status === "in-progress" && "text-orange-600 dark:text-orange-500",
-                status === "not-started" && "text-muted-foreground"
-              )}
-            />
           </div>
           <Badge variant={config.variant} className={cn("text-xs", config.className)}>
             {config.label}

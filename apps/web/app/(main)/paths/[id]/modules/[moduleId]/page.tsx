@@ -42,6 +42,9 @@ import '@xyflow/react/dist/style.css';
 import './reactflow.css';
 import Link from "next/link";
 import { fetchPathItem, updatePathItemProgress, fetchPathById } from "@/lib/api/paths";
+import { fetchLabById, generateLab } from "@/lib/api/labs";
+import { Lab } from "@/app/(main)/labs/types";
+import LabViewer from "@/components/labs/lab-viewer";
 import { toast } from "sonner";
 
 // --- Types & Constants ---
@@ -247,23 +250,25 @@ const ImmersiveTextView = ({
       setCompletedQuestions(new Set());
       setSelectedOption(null);
       setIsCorrect(null);
+      // Scroll to top when moving to next chapter
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   return (
-    <div className="flex h-full gap-12">
+    <div className="flex h-full gap-8">
       {/* Left Chapter Outline Sidebar */}
-      <div className="w-80 flex-shrink-0 hidden xl:block">
+      <div className="w-64 flex-shrink-0 hidden xl:block">
         <div className="sticky top-[calc(var(--header-height)+6rem)]">
           <Card className="py-0 overflow-hidden">
             <CardContent className="p-2">
-              <div className="flex items-center justify-between px-2 py-2 mb-1">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Chapter Outline</h3>
-                <Badge variant="outline" className="text-xs h-5">
+              <div className="flex items-center justify-between px-2 py-1.5 mb-0.5">
+                <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Chapter Outline</h3>
+                <Badge variant="outline" className="text-[10px] h-4 px-1.5">
                   {chapters.length}
                 </Badge>
               </div>
-              <nav className="flex flex-col space-y-0.5">
+              <nav className="flex flex-col space-y-0">
                 {chapters.map((chapter, i) => {
                   const isLocked = i > 0 && !completedChapters.has(i - 1);
                   const isActive = currentChapter === i;
@@ -280,29 +285,26 @@ const ImmersiveTextView = ({
                           setCompletedQuestions(new Set());
                           setSelectedOption(null);
                           setIsCorrect(null);
+                          // Scroll to top when changing chapters
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
                         }
                       }}
                       disabled={isLocked}
                       className={cn(
-                        "w-full justify-start h-auto py-3 px-3 flex-col items-start gap-1.5",
+                        "w-full justify-start h-auto py-1.5 px-2 flex-col items-start gap-0.5",
                         isActive && "bg-muted hover:bg-muted"
                       )}
                     >
                       <div className="flex items-center gap-2.5 w-full">
-                        <div className={cn(
-                          "w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-semibold transition-colors",
-                          isDone 
-                            ? "bg-primary text-primary-foreground" 
-                            : "bg-muted text-muted-foreground"
-                        )}>
-                          {isDone ? (
-                            <CheckCircle2 className="w-3 h-3" />
-                          ) : (
+                        {isDone ? (
+                          <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-green-600 dark:text-green-400" />
+                        ) : (
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-semibold transition-colors bg-muted text-muted-foreground">
                             <span>{i + 1}</span>
-                          )}
-                        </div>
-                        <span className="text-sm font-semibold text-left flex-1 line-clamp-2 break-words">
-                          {chapter.title}
+                          </div>
+                        )}
+                        <span className="text-sm font-semibold text-left flex-1 line-clamp-2 break-words prose prose-sm prose-stone dark:prose-invert max-w-none [&>p]:m-0 [&>p]:inline [&_code]:text-[1em] [&_code]:font-semibold [&_code]:before:content-none [&_code]:after:content-none [&_code]:px-0 [&_code]:py-0 [&_code]:bg-transparent">
+                          <Markdown>{chapter.title}</Markdown>
                         </span>
                       </div>
                       <div className="flex items-center gap-3 ml-7 text-xs text-muted-foreground">
@@ -341,7 +343,9 @@ const ImmersiveTextView = ({
               </Badge>
               <span className="text-xs text-muted-foreground">{chapters[currentChapter].duration}</span>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight">{chapters[currentChapter].title}</h1>
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tight prose prose-stone dark:prose-invert max-w-none [&>p]:m-0 [&>p]:inline [&_code]:text-[1em] [&_code]:font-bold [&_code]:before:content-none [&_code]:after:content-none [&_.katex]:text-[1em]">
+              <Markdown>{chapters[currentChapter].title}</Markdown>
+            </h1>
           </div>
 
           <div className="prose prose-stone dark:prose-invert max-w-none mb-16">
@@ -498,7 +502,11 @@ const ExamplesView = ({
   keyConcepts, 
   practicalExercises,
   isExamplesComplete, 
-  setIsExamplesComplete 
+  setIsExamplesComplete,
+  viewedConcepts,
+  setViewedConcepts,
+  viewedExercises,
+  setViewedExercises
 }: { 
   keyConcepts: Array<{
     concept: string;
@@ -512,11 +520,13 @@ const ExamplesView = ({
     estimated_time?: string;
   }>;
   isExamplesComplete: boolean; 
-  setIsExamplesComplete: (v: boolean) => void 
+  setIsExamplesComplete: (v: boolean) => void;
+  viewedConcepts: Set<number>;
+  setViewedConcepts: React.Dispatch<React.SetStateAction<Set<number>>>;
+  viewedExercises: Set<number>;
+  setViewedExercises: React.Dispatch<React.SetStateAction<Set<number>>>;
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [viewedConcepts, setViewedConcepts] = useState<Set<number>>(new Set());
-  const [viewedExercises, setViewedExercises] = useState<Set<number>>(new Set());
   const [activeTab, setActiveTab] = useState<'concepts' | 'exercises'>('concepts');
 
   // Helper to strip markdown syntax for preview text
@@ -556,10 +566,10 @@ const ExamplesView = ({
 
   // Separate effect to mark examples complete when all concepts are viewed
   useEffect(() => {
-    if (viewedConcepts.size >= keyConcepts.length && !isExamplesComplete) {
+    if (viewedConcepts.size >= keyConcepts.length && viewedExercises.size >= practicalExercises.length && !isExamplesComplete) {
       setIsExamplesComplete(true);
     }
-  }, [viewedConcepts.size, keyConcepts.length, isExamplesComplete, setIsExamplesComplete]);
+  }, [viewedConcepts.size, keyConcepts.length, viewedExercises.size, practicalExercises.length, isExamplesComplete, setIsExamplesComplete]);
 
   if (!keyConcepts || keyConcepts.length === 0) {
     return (
@@ -1246,7 +1256,9 @@ function greet(name: string, age: number): string {
 const VisualsView = ({ 
   visuals,
   isVisualsComplete, 
-  setIsVisualsComplete 
+  setIsVisualsComplete,
+  viewedVisuals,
+  setViewedVisuals
 }: { 
   visuals: Array<{
     title: string;
@@ -1274,11 +1286,12 @@ const VisualsView = ({
     }>;
   }>;
   isVisualsComplete: boolean; 
-  setIsVisualsComplete: (v: boolean) => void 
+  setIsVisualsComplete: (v: boolean) => void;
+  viewedVisuals: Set<number>;
+  setViewedVisuals: React.Dispatch<React.SetStateAction<Set<number>>>;
 }) => {
   const { theme } = useTheme();
   const [currentVisualIndex, setCurrentVisualIndex] = useState(0);
-  const [viewedVisuals, setViewedVisuals] = useState<Set<number>>(new Set());
 
   // Mark visual as viewed after a delay
   useEffect(() => {
@@ -2395,6 +2408,8 @@ export default function ModulePage() {
 
   const [activeMode, setActiveMode] = useState<ViewMode>("immersive_text");
   const [module, setModule] = useState<ModuleData | null>(null);
+  const [lab, setLab] = useState<Lab | null>(null);
+  const [regeneratingLab, setRegeneratingLab] = useState(false);
   const [allModules, setAllModules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -2412,11 +2427,13 @@ export default function ModulePage() {
   const [currentExample, setCurrentExample] = useState(0);
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set([0]));
   const [viewedExamples, setViewedExamples] = useState<Set<number>>(new Set());
+  const [viewedConcepts, setViewedConcepts] = useState<Set<number>>(new Set());
+  const [viewedExercises, setViewedExercises] = useState<Set<number>>(new Set());
   
   // Visuals tab state
   const [isVisualsComplete, setIsVisualsComplete] = useState(false);
   const [activeVisual, setActiveVisual] = useState<"flow" | "relationship" | "states" | "structure">("flow");
-  const [viewedVisuals, setViewedVisuals] = useState<Set<string>>(new Set());
+  const [viewedVisuals, setViewedVisuals] = useState<Set<number>>(new Set());
   
   // Load module data and progress
   useEffect(() => {
@@ -2425,6 +2442,60 @@ export default function ModulePage() {
         setLoading(true);
         const data = await fetchPathItem(pathId, moduleId);
         setModule(data);
+        
+        // If this is a lab item, fetch or generate the lab data
+        if (data.item_type === 'lab') {
+          console.log("Lab item detected. lab_id:", data.lab_id);
+          
+          let needsRegeneration = false;
+          let labData = null;
+          
+          // Try to fetch existing lab if lab_id exists
+          if (data.lab_id) {
+            try {
+              labData = await fetchLabById(data.lab_id);
+              console.log("Lab fetched:", labData);
+              
+              // Check if lab has content
+              if (!labData || !labData.template_data || !labData.template_type) {
+                console.log("Lab has no content");
+                needsRegeneration = true;
+              }
+            } catch (labError: any) {
+              console.error("Error loading lab:", labError);
+              needsRegeneration = true;
+            }
+          } else {
+            console.log("No lab_id, needs generation");
+            needsRegeneration = true;
+          }
+          
+          // Regenerate if needed
+          if (needsRegeneration) {
+            console.log("Starting lab regeneration...");
+            setRegeneratingLab(true);
+            toast.info("Generating lab content...");
+            
+            try {
+              const regeneratedLab = await generateLab({
+                learningGoal: data.title || "Learn the concepts",
+                context: data.description || ""
+              });
+              
+              console.log("Lab regenerated successfully:", regeneratedLab);
+              setLab(regeneratedLab);
+              setRegeneratingLab(false);
+              toast.success("Lab generated successfully!");
+            } catch (genError) {
+              console.error("Error regenerating lab:", genError);
+              setRegeneratingLab(false);
+              toast.error("Failed to generate lab content");
+            }
+          } else if (labData) {
+            console.log("Using existing lab data");
+            setLab(labData);
+          }
+        }
         
         // Load progress from database
         const progress = data.progress_data || {};
@@ -2449,6 +2520,8 @@ export default function ModulePage() {
           setCurrentExample(progress.examples.current_example || 0);
           setExpandedSteps(new Set(progress.examples.expanded_steps || [0]));
           setViewedExamples(new Set(progress.examples.viewed_examples || []));
+          setViewedConcepts(new Set(progress.examples.viewed_concepts || []));
+          setViewedExercises(new Set(progress.examples.viewed_exercises || []));
         }
         
         // Load visuals progress
@@ -2495,6 +2568,8 @@ export default function ModulePage() {
             current_example: currentExample,
             expanded_steps: Array.from(expandedSteps),
             viewed_examples: Array.from(viewedExamples),
+            viewed_concepts: Array.from(viewedConcepts),
+            viewed_exercises: Array.from(viewedExercises),
           },
           visuals: {
             active_visual: activeVisual,
@@ -2515,7 +2590,7 @@ export default function ModulePage() {
     isQuizPassed, isExamplesComplete, isVisualsComplete,
     currentChapter, currentQuestionIndex, selectedOption, isCorrect,
     completedChapters, completedQuestions,
-    currentExample, expandedSteps, viewedExamples,
+    currentExample, expandedSteps, viewedExamples, viewedConcepts, viewedExercises,
     activeVisual, viewedVisuals
   ]);
 
@@ -2534,7 +2609,7 @@ export default function ModulePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
           <p className="text-muted-foreground">Loading module...</p>
@@ -2543,11 +2618,64 @@ export default function ModulePage() {
     );
   }
 
+  // If this is a lab item, render the lab viewer
+  if (module?.item_type === 'lab') {
+    if (regeneratingLab) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
+            <p className="text-muted-foreground">Generating lab content...</p>
+            <p className="text-sm text-muted-foreground">This may take a moment</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!lab) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <p className="text-muted-foreground">Lab content not available</p>
+            <Link href={`/paths/${pathId}`}>
+              <Button variant="outline">Back to Path</Button>
+            </Link>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="h-[calc(100vh-var(--header-height))] flex flex-col">
+        <div className="p-4 border-b flex items-center gap-4">
+          <Link href={`/paths/${pathId}`}>
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Path
+            </Button>
+          </Link>
+          <div className="flex-1">
+            <h1 className="text-xl font-semibold">{lab.title}</h1>
+            {lab.description && (
+              <p className="text-sm text-muted-foreground">{lab.description}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <LabViewer lab={lab} />
+        </div>
+      </div>
+    );
+  }
+
+  // For regular modules, check if content_data exists
   if (!module || !module.content_data || !module.content_data.chapters) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
-          <p className="text-muted-foreground">Module content not available</p>
+          <p className="text-muted-foreground">
+            Module content not available. The AI may still be generating the content.
+          </p>
           <Link href={`/paths/${pathId}`}>
             <Button variant="outline">Back to Path</Button>
           </Link>
@@ -2610,9 +2738,9 @@ export default function ModulePage() {
 
       {/* View Mode Tabs */}
       <Tabs value={activeMode} onValueChange={(v) => setActiveMode(v as ViewMode)} className="w-full">
-        <div className="sticky top-[var(--header-height)] z-40 backdrop-blur py-4 mb-8 border-b border-transparent transition-all">
+        <div className="sticky top-[var(--header-height)] z-40 backdrop-blur py-2 mb-6 border-b border-transparent transition-all">
           <div className="flex justify-center">
-            <TabsList className="h-12 p-1 bg-muted/50 border shadow-sm">
+            <TabsList className="h-9 p-0.5 bg-muted/50 border shadow-sm">
               {TABS.map((tab) => {
                 const isReadingCompleted = tab.key === "immersive_text" && isQuizPassed;
                 const isExamplesViewed = tab.key === "examples" && isExamplesComplete;
@@ -2629,19 +2757,19 @@ export default function ModulePage() {
                     key={tab.key} 
                     value={tab.key}
                     className={cn(
-                      "px-6 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm relative",
+                      "px-4 py-1.5 text-sm rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm relative",
                       isCompleted && "!text-green-600 dark:!text-green-400"
                     )}
                   >
                     {isCompleted ? (
-                      <CheckCircle2 className="w-4 h-4 mr-2 text-green-600 dark:text-green-400" />
+                      <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-green-600 dark:text-green-400" />
                     ) : (
-                      <tab.icon className="w-4 h-4 mr-2" />
+                      <tab.icon className="w-3.5 h-3.5 mr-1.5" />
                     )}
-                    <span className="flex items-center gap-2">
+                    <span className="flex items-center gap-1.5">
                       {tab.label}
                       {statusLabel && (
-                        <Badge variant="secondary" className="text-xs h-5 px-1.5">
+                        <Badge variant="secondary" className="text-[10px] h-4 px-1">
                           {statusLabel}
                         </Badge>
                       )}
@@ -2679,7 +2807,11 @@ export default function ModulePage() {
               keyConcepts={module.content_data.key_concepts || []}
               practicalExercises={module.content_data.practical_exercises || []}
               isExamplesComplete={isExamplesComplete} 
-              setIsExamplesComplete={setIsExamplesComplete} 
+              setIsExamplesComplete={setIsExamplesComplete}
+              viewedConcepts={viewedConcepts}
+              setViewedConcepts={setViewedConcepts}
+              viewedExercises={viewedExercises}
+              setViewedExercises={setViewedExercises}
             />
           </TabsContent>
           
@@ -2687,7 +2819,9 @@ export default function ModulePage() {
             <VisualsView 
               visuals={module.content_data.visuals || []} 
               isVisualsComplete={isVisualsComplete} 
-              setIsVisualsComplete={setIsVisualsComplete} 
+              setIsVisualsComplete={setIsVisualsComplete}
+              viewedVisuals={viewedVisuals}
+              setViewedVisuals={setViewedVisuals} 
             />
           </TabsContent>
 

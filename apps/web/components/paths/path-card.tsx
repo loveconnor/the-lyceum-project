@@ -3,7 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Clock, Eye, MoreVertical, RotateCcw, Star, Trash2, BookOpen } from "lucide-react";
+import { Clock, Eye, MoreVertical, RotateCcw, Star, Trash2, BookOpen, FlaskConical } from "lucide-react";
 import { statusClasses, pathStatusNamed } from "@/app/(main)/paths/enum";
 import { LearningPath, PathStatus } from "@/app/(main)/paths/types";
 
@@ -39,9 +39,17 @@ const PathCard: React.FC<PathCardProps> = ({
 }) => {
   const router = useRouter();
 
-  // Calculate modules completed
-  const completedModules = path.modules?.filter((m) => m.completed).length || 0;
-  const totalModules = path.modules?.length || 0;
+  // Calculate items completed (modules + labs)
+  const completedItems = path.learning_path_items?.filter((i) => i.status === 'completed').length || 0;
+  const totalItems = path.learning_path_items?.length || 0;
+  
+  // Count labs and modules separately
+  const totalLabs = path.learning_path_items?.filter(i => i.item_type === 'lab').length || 0;
+  const totalModules = path.learning_path_items?.filter(i => i.item_type === 'module').length || 0;
+
+  // Fallback to old modules field if learning_path_items not available
+  const legacyCompletedModules = path.modules?.filter((m) => m.completed).length || 0;
+  const legacyTotalModules = path.modules?.length || 0;
 
   // Get status label from enum
   const statusLabel = pathStatusNamed[path.status as keyof typeof pathStatusNamed] || path.status;
@@ -142,17 +150,39 @@ const PathCard: React.FC<PathCardProps> = ({
                   <span>{pathDuration}</span>
                 </div>
 
-                {totalModules > 0 && (
+                {totalItems > 0 ? (
                   <div className="flex items-center gap-1.5">
                     <BookOpen className="h-3.5 w-3.5" />
-                    <span>{completedModules} / {totalModules} modules</span>
+                    <span>{completedItems} / {totalItems} items</span>
                   </div>
-                )}
+                ) : legacyTotalModules > 0 ? (
+                  <div className="flex items-center gap-1.5">
+                    <BookOpen className="h-3.5 w-3.5" />
+                    <span>{legacyCompletedModules} / {legacyTotalModules} modules</span>
+                  </div>
+                ) : null}
               </div>
               
-              <div>
-                <Badge className={statusClasses[path.status as keyof typeof statusClasses]}>{statusLabel}</Badge>
-              </div>
+              {(totalModules > 0 || totalLabs > 0) && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {totalModules > 0 && (
+                    <span className="flex items-center gap-1">
+                      <BookOpen className="h-3 w-3" />
+                      {totalModules} modules
+                    </span>
+                  )}
+                  {totalLabs > 0 && (
+                    <span className="flex items-center gap-1">
+                      <FlaskConical className="h-3 w-3" />
+                      {totalLabs} labs
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+              
+            <div>
+              <Badge className={statusClasses[path.status as keyof typeof statusClasses]}>{statusLabel}</Badge>
             </div>
           </CardContent>
         </Card>
@@ -247,12 +277,35 @@ const PathCard: React.FC<PathCardProps> = ({
                 <span>{pathDuration}</span>
               </div>
 
-              {totalModules > 0 && (
+              {totalItems > 0 ? (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <BookOpen className="h-3.5 w-3.5" />
+                    <span>{completedItems} / {totalItems} items</span>
+                  </div>
+                  {(totalModules > 0 || totalLabs > 0) && (
+                    <div className="flex items-center gap-2 text-xs">
+                      {totalModules > 0 && (
+                        <span className="flex items-center gap-1">
+                          <BookOpen className="h-3 w-3" />
+                          {totalModules} modules
+                        </span>
+                      )}
+                      {totalLabs > 0 && (
+                        <span className="flex items-center gap-1">
+                          <FlaskConical className="h-3 w-3" />
+                          {totalLabs} labs
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : legacyTotalModules > 0 ? (
                 <div className="flex items-center gap-1.5">
                   <BookOpen className="h-3.5 w-3.5" />
-                  <span>{completedModules} / {totalModules} modules</span>
+                  <span>{legacyCompletedModules} / {legacyTotalModules} modules</span>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
         </CardContent>
