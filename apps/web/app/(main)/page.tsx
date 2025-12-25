@@ -228,28 +228,37 @@ async function DashboardContent({
       </div>
       
       {/* Analytics sections - only show if there's data */}
-      {(hasSuccessData || hasProgressData || hasActivityData) && (
-        <div className="grid gap-4 xl:grid-cols-3">
-          {hasSuccessData && (
-            <StudentSuccessCard
-              currentSuccessRate={dashboard.overall_success_rate ?? 0}
-              previousSuccessRate={dashboard.stats?.previous_success_rate ?? 0}
-              totalStudents={dashboard.total_courses || 0}
-              passingStudents={Math.round((dashboard.total_courses || 0) * (dashboard.overall_success_rate / 100 || 0))}
-            />
-          )}
-          {hasProgressData && (
-            <ProgressStatisticsCard
-              totalActivity={dashboard.progress || 0}
-              inProgress={dashboard.stats?.in_progress ?? 0}
-              completed={dashboard.stats?.completed ?? 0}
-            />
-          )}
-          {hasActivityData && (
-            <ChartMostActivity activityCounts={dashboard.stats?.activity_counts || {}} />
-          )}
-        </div>
-      )}
+      {(hasSuccessData || hasProgressData || hasActivityData) && (() => {
+        const visibleCardsCount = [hasSuccessData, hasProgressData, hasActivityData].filter(Boolean).length;
+        const gridClass = visibleCardsCount === 1 
+          ? "grid gap-4" 
+          : visibleCardsCount === 2 
+            ? "grid gap-4 lg:grid-cols-2" 
+            : "grid gap-4 lg:grid-cols-2 xl:grid-cols-3";
+        
+        return (
+          <div className={gridClass}>
+            {hasSuccessData && (
+              <StudentSuccessCard
+                currentSuccessRate={dashboard.overall_success_rate ?? 0}
+                previousSuccessRate={dashboard.stats?.previous_success_rate ?? 0}
+                totalStudents={dashboard.total_courses || 0}
+                passingStudents={Math.round((dashboard.total_courses || 0) * (dashboard.overall_success_rate / 100 || 0))}
+              />
+            )}
+            {hasProgressData && (
+              <ProgressStatisticsCard
+                totalActivity={dashboard.progress || 0}
+                inProgress={dashboard.stats?.in_progress ?? 0}
+                completed={dashboard.stats?.completed ?? 0}
+              />
+            )}
+            {hasActivityData && (
+              <ChartMostActivity activityCounts={dashboard.stats?.activity_counts || {}} />
+            )}
+          </div>
+        );
+      })()}
       
       {/* Time series and recommendations - dynamic layout */}
       <div className={`mt-4 gap-4 space-y-4 ${hasTimeSeriesData ? 'xl:grid xl:grid-cols-2' : ''} xl:space-y-0`}>
