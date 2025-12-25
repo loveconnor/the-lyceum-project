@@ -2,14 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
-import { AgCharts } from "ag-charts-react";
-import { AgChartOptions, ModuleRegistry, AllCommunityModule } from "ag-charts-community";
+import { D3Chart } from "./d3-chart";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
-// Register AG Charts modules
-ModuleRegistry.registerModules(AllCommunityModule);
-
 import { Badge } from "@/components/ui/badge";
 import { 
   ChevronLeft, 
@@ -20,14 +15,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface AgChartsWidgetData {
+interface ChartWidgetData {
   title: string;
   description?: string;
-  chartOptions: AgChartOptions;
+  chartOptions: any; // Keep compatible with existing AI output for now
 }
 
-interface AgChartsWidgetProps {
-  charts: AgChartsWidgetData[];
+interface ChartWidgetProps {
+  charts: ChartWidgetData[];
   height?: string;
   showNavigation?: boolean;
   showSidebar?: boolean;
@@ -35,14 +30,14 @@ interface AgChartsWidgetProps {
   variant?: "card" | "full";
 }
 
-export function AgChartsWidget({
+export function ChartWidget({
   charts,
   height = "350px",
   showNavigation = true,
   showSidebar = true,
   onViewComplete,
   variant = "card"
-}: AgChartsWidgetProps) {
+}: ChartWidgetProps) {
   const { theme } = useTheme();
   const [currentChartIndex, setCurrentChartIndex] = useState(0);
   const [viewedCharts, setViewedCharts] = useState<Set<number>>(new Set());
@@ -101,33 +96,21 @@ export function AgChartsWidget({
   }
 
   const currentChart = charts[currentChartIndex];
-  const isDark = theme === 'dark';
-
-  // Apply theme to chart options - keep it simple to avoid errors
-  const themedChartOptions: AgChartOptions = {
-    ...currentChart.chartOptions,
-    autoSize: true,
-  };
-
-  const isFull = variant === "full";
 
   const chartContent = (
     <div className="space-y-3">
       {/* Header */}
       <div>
-        <Badge variant="outline" className="mb-2">
-          Chart
-        </Badge>
         <h3 className="text-lg font-semibold mb-1">{currentChart.title}</h3>
         {currentChart.description && (
           <p className="text-sm text-muted-foreground">{currentChart.description}</p>
         )}
       </div>
 
-      {/* AG Charts Visualization */}
-      <div className="overflow-hidden rounded-xl border bg-card">
+      {/* D3 Visualization */}
+      <div className="overflow-hidden rounded-xl border bg-card p-4">
         <div style={{ height, width: '100%' }}>
-          <AgCharts options={themedChartOptions} />
+          <D3Chart options={currentChart.chartOptions} height={height} />
         </div>
       </div>
 
@@ -234,5 +217,5 @@ export function AgChartsWidget({
   );
 }
 
-// Export the data type for use in lab templates
-export type { AgChartsWidgetData };
+export type { ChartWidgetData };
+

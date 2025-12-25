@@ -72,7 +72,9 @@ const assistantSystemPrompt =
   '• Edge types: "smoothstep" (recommended), "straight", "step"\n' +
   '• Set animated: true for primary flow paths\n' +
   '• Use arrays for multiple related diagrams: [diagram1, diagram2]\n' +
-  '• Always validate JSON syntax (no trailing commas!)\n' +
+  '• CRITICAL: NO TRAILING COMMAS in JSON. The parser will fail.\n' +
+  '• CRITICAL: DO NOT wrap JSON in markdown code blocks (```) inside the <Visual> tag.\n' +
+  '• Always validate JSON syntax.\n' +
   '\n' +
   'WHEN TO USE:\n' +
   '✓ Explaining processes, workflows, algorithms\n' +
@@ -83,7 +85,7 @@ const assistantSystemPrompt =
   '✗ Single relationships (describe in text)\n' +
   '\n\n' +
   '=== DATA CHARTS ===\n' +
-  'You can create interactive data visualizations using the <Chart> tag with AG Charts JSON data.\n' +
+  'You can create interactive data visualizations using the <Chart> tag with D3-based JSON data.\n' +
   'Use this for: statistical data, comparisons, trends, distributions, relationships in data.\n' +
   '\n' +
   'SYNTAX:\n' +
@@ -104,24 +106,30 @@ const assistantSystemPrompt =
   '</Chart>\n' +
   '\n' +
   'AVAILABLE CHART TYPES:\n' +
-  '• BASIC: "bar", "line", "area", "scatter", "bubble", "pie", "donut", "histogram"\n' +
+  '• BASIC: "bar", "line", "area", "pie", "donut", "scatter", "bubble", "heatmap", "histogram"\n' +
   '\n' +
   'KEY GUIDELINES:\n' +
   '• Choose the right chart type for your data story\n' +
   '• Bar/Column: comparisons across categories\n' +
-  '• Line/Area: trends over time\n' +
+  '• Line/Area: trends over time (use "curve": "smooth"|"step"|"linear")\n' +
   '• Pie/Donut: parts of a whole (max 6-8 slices)\n' +
-  '• Scatter/Bubble: correlations and distributions\n' +
-  '• Histogram: frequency distributions\n' +
+  '• Scatter: correlations and distributions (use numeric xKey for best results)\n' +
+  '• Bubble: scatter with a third dimension (use "sizeKey" for bubble radius)\n' +
+  '• Heatmap: 2D data grids (use "xKey" for columns, "yKey" for rows, "colorKey" for values)\n' +
+  '• Histogram: frequency distributions (provide binned data as "bar" or use "histogram" type)\n' +
   '• Multiple series: use arrays of series objects\n' +
   '• Use arrays for multiple related charts: [chart1, chart2]\n' +
-  '• Always validate JSON syntax (no trailing commas!)\n' +
+  '• CRITICAL: NO TRAILING COMMAS in JSON. The parser will fail.\n' +
+  '• CRITICAL: DO NOT wrap JSON in markdown code blocks (```) inside the <Chart> tag.\n' +
+  '• Always validate JSON syntax.\n' +
   '\n' +
   'WHEN TO USE:\n' +
   '✓ Presenting numerical data, statistics, metrics\n' +
   '✓ Showing trends, patterns, distributions\n' +
   '✓ Comparing values across categories or time\n' +
   '✓ Illustrating correlations and relationships in data\n' +
+  '✓ Explaining complex data structures like heatmaps or histograms\n' +
+  '✓ ALWAYS use <Chart> when the user asks "how to read [chart type]" to provide a concrete example\n' +
   '✗ Conceptual flows (use <Visual> instead)\n' +
   '✗ Non-numeric information\n' +
   '\n' +
@@ -223,7 +231,7 @@ aiRouter.post('/assistant/chat', async (req, res) => {
 
   try {
     const contextString = await buildAssistantContext(userId);
-    const conversation = await ensureConversation(userId, conversationId, userMessage);
+    const conversation = await ensureConversation(userId, conversationId);
     const history = await getAssistantMessages(conversation.id, userId);
     
     // Check if this is the first message (no history, or only the current message)
@@ -267,9 +275,11 @@ aiRouter.post('/assistant/chat', async (req, res) => {
         );
 
         // Generate title for new conversations after first exchange
-        if (isFirstMessage) {
+        if (isFirstMessage || !conversation.title || conversation.title === 'New chat' || conversation.title === 'Untitled chat') {
           const title = await generateChatTitle(userMessage, full);
-          await updateConversationTitle(conversation.id, userId, title);
+          if (title && title !== 'New chat' && title !== 'Untitled chat') {
+            await updateConversationTitle(conversation.id, userId, title);
+          }
         }
 
         res.write(`event: end\ndata: done\n\n`);
@@ -296,9 +306,11 @@ aiRouter.post('/assistant/chat', async (req, res) => {
       );
 
       // Generate title for new conversations after first exchange
-      if (isFirstMessage) {
+      if (isFirstMessage || !conversation.title || conversation.title === 'New chat' || conversation.title === 'Untitled chat') {
         const title = await generateChatTitle(userMessage, result.reply);
-        await updateConversationTitle(conversation.id, userId, title);
+        if (title && title !== 'New chat' && title !== 'Untitled chat') {
+          await updateConversationTitle(conversation.id, userId, title);
+        }
       }
 
       const updatedMessages = await getAssistantMessages(conversation.id, userId);

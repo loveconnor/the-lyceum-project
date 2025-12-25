@@ -183,7 +183,7 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
 
         let conversationId = selectedConversationId;
         if (!conversationId) {
-          conversationId = await startNewConversation(content.slice(0, 60));
+          conversationId = await startNewConversation();
         }
         if (!conversationId) return;
 

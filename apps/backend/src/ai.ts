@@ -415,12 +415,12 @@ export const generateChatTitle = async (userMessage: string, assistantReply: str
   
   const systemPrompt = 
     'You are a concise title generator. Generate a brief, descriptive title (3-5 words max) for a conversation based on the user\'s first question and the assistant\'s response. ' +
-    'The title should capture the main topic or concept being discussed. ' +
+    'The title should be a conceptual summary, not just a repetition of the user\'s question. ' +
     'Return ONLY the title text, nothing else. No quotes, no punctuation at the end, no extra formatting.';
 
   const userPrompt = 
     `User's question: ${userMessage}\n\n` +
-    `Assistant's response: ${assistantReply.slice(0, 500)}\n\n` +
+    `Assistant's response: ${assistantReply.slice(0, 1000)}\n\n` +
     `Generate a short, descriptive title for this conversation:`;
 
   try {
@@ -436,7 +436,16 @@ export const generateChatTitle = async (userMessage: string, assistantReply: str
     });
 
     const title = completion.choices[0]?.message?.content?.trim();
-    return title && title.length > 0 ? title.slice(0, 60) : 'New chat';
+    if (!title || title.length === 0) return 'New chat';
+    
+    // Clean up the title: remove quotes, trailing punctuation, and "Title: " prefix
+    const cleanedTitle = title
+      .replace(/^(Title|Topic|Conversation):\s*/i, '')
+      .replace(/^["']|["']$/g, '')
+      .replace(/[.!?]$/, '')
+      .trim();
+
+    return cleanedTitle.length > 0 ? cleanedTitle.slice(0, 60) : 'New chat';
   } catch (error) {
     console.error('Error generating chat title:', error);
     return 'New chat';

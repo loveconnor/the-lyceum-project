@@ -13,6 +13,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 
 import { useAssistantChat } from "./assistant-chat-provider";
 
@@ -28,6 +46,12 @@ export const SidebarContent = () => {
     useAssistantChat();
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredConversations, setFilteredConversations] = useState(conversations);
+
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [conversationToRename, setConversationToRename] = useState<{ id: string; title: string } | null>(null);
+  const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState("");
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -84,20 +108,20 @@ export const SidebarContent = () => {
                 <DropdownMenuContent>
                   <DropdownMenuItem
                     onClick={() => {
-                      const nextTitle = prompt("Rename chat", conversation.title || "Untitled chat");
-                      if (nextTitle !== null) {
-                        renameConversation(conversation.id, nextTitle);
-                      }
+                      setConversationToRename({
+                        id: conversation.id,
+                        title: conversation.title || "Untitled chat"
+                      });
+                      setNewTitle(conversation.title || "Untitled chat");
+                      setIsRenameOpen(true);
                     }}>
                     Rename
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="text-red-500!"
                     onClick={() => {
-                      const confirmed = confirm("Delete this chat?");
-                      if (confirmed) {
-                        deleteConversation(conversation.id);
-                      }
+                      setConversationToDelete(conversation.id);
+                      setIsDeleteOpen(true);
                     }}>
                     Delete
                   </DropdownMenuItem>
@@ -119,6 +143,67 @@ export const SidebarContent = () => {
           New Chat
         </Button>
       </div>
+
+      {/* Rename Dialog */}
+      <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Chat</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              placeholder="Enter new chat title..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && conversationToRename) {
+                  renameConversation(conversationToRename.id, newTitle);
+                  setIsRenameOpen(false);
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="ghost">Cancel</Button>
+            </DialogClose>
+            <Button
+              onClick={() => {
+                if (conversationToRename) {
+                  renameConversation(conversationToRename.id, newTitle);
+                  setIsRenameOpen(false);
+                }
+              }}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Alert Dialog */}
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Chat</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this chat? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500 hover:bg-red-600"
+              onClick={() => {
+                if (conversationToDelete) {
+                  deleteConversation(conversationToDelete);
+                  setIsDeleteOpen(false);
+                }
+              }}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

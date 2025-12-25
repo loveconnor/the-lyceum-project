@@ -6,7 +6,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { CodeBlock, CodeBlockCode } from "./code-block";
 import { ReactFlowWidget, ReactFlowWidgetData } from "@/components/labs/widgets/react-flow-widget";
-import { AgChartsWidget, AgChartsWidgetData } from "@/components/labs/widgets/ag-charts-widget";
+import { ChartWidget, ChartWidgetData } from "@/components/labs/widgets/chart-widget";
 
 export type MarkdownProps = {
   children: string;
@@ -129,6 +129,28 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
   pre: ({ children }) => <>{children}</>
 };
 
+function robustParseJSON(jsonString: string) {
+  try {
+    // 0. Remove markdown code blocks if present
+    let cleaned = jsonString.trim();
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    }
+
+    // 1. Remove trailing commas in arrays and objects
+    // 2. Remove comments
+    cleaned = cleaned
+      .replace(/,\s*([\]}])/g, '$1')
+      .replace(/\/\/.*/g, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+    
+    return JSON.parse(cleaned);
+  } catch (e) {
+    // If cleaning fails or still invalid, try original as fallback
+    return JSON.parse(jsonString);
+  }
+}
+
 function MarkdownComponent({ children, className, components = DEFAULT_COMPONENTS }: MarkdownProps) {
   const mergedComponents = useMemo(
     () => ({
@@ -143,7 +165,7 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
     const visualTagPattern = /<Visual>([\s\S]*?)<\/Visual>/gi;
     const chartTagPattern = /<Chart>([\s\S]*?)<\/Chart>/gi;
     const visuals: ReactFlowWidgetData[][] = [];
-    const charts: AgChartsWidgetData[][] = [];
+    const charts: ChartWidgetData[][] = [];
     let processedText = children;
 
     // Process Visual tags
@@ -160,9 +182,9 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
 
         // Handle both array and single object formats
         if (trimmedContent.startsWith('[')) {
-          visualData = JSON.parse(trimmedContent);
+          visualData = robustParseJSON(trimmedContent);
         } else {
-          visualData = [JSON.parse(trimmedContent)];
+          visualData = [robustParseJSON(trimmedContent)];
         }
 
         visuals.push(visualData);
@@ -188,19 +210,19 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
     while ((match = chartTagPattern.exec(tempText)) !== null) {
       try {
         const trimmedContent = match[1].trim();
-        let chartData: AgChartsWidgetData[];
+        let chartData: ChartWidgetData[];
 
         // Handle both array and single object formats
         if (trimmedContent.startsWith('[')) {
-          chartData = JSON.parse(trimmedContent);
+          chartData = robustParseJSON(trimmedContent);
         } else {
-          chartData = [JSON.parse(trimmedContent)];
+          chartData = [robustParseJSON(trimmedContent)];
         }
 
         charts.push(chartData);
         
         // Replace the entire <Chart>...</Chart> with a unique marker
-        const marker = `\n\n[AGCHARTS_CHART_${charts.length - 1}]\n\n`;
+        const marker = `\n\n[D3_CHART_${charts.length - 1}]\n\n`;
         const startIdx = match.index - offset;
         const endIdx = startIdx + match[0].length;
         
@@ -286,8 +308,8 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
           }
         }
         
-        // Check for AG Charts marker
-        const chartMatch = text.match(/^\[AGCHARTS_CHART_(\d+)\]$/);
+        // Check for D3 Charts marker
+        const chartMatch = text.match(/^\[D3_CHART_(\d+)\]$/);
         if (chartMatch) {
           const chartIndex = parseInt(chartMatch[1], 10);
           const chartData = chartComponents[chartIndex];
@@ -295,7 +317,7 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
           if (chartData) {
             return (
               <div className="my-6 not-prose w-full">
-                <AgChartsWidget
+                <ChartWidget
                   charts={chartData}
                   height="350px"
                   showNavigation={true}
