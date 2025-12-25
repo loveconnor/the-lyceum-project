@@ -14,6 +14,8 @@ import {
   useReactTable
 } from "@tanstack/react-table";
 import { ChevronLeft, ChevronRight, GraduationCap, Loader2, MoreHorizontalIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +37,9 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { Progress } from "@/components/ui/progress";
 import { createClient } from "@/utils/supabase/client";
 import { EmptyState } from "./empty-state";
+import PathDetailSheet from "@/components/paths/path-detail-sheet";
+import { generatePath, fetchPaths } from "@/lib/api/paths";
+import { usePathStore } from "@/app/(main)/paths/store";
 
 export type Course = {
   id: number;
@@ -46,7 +51,48 @@ export type Course = {
   levelFit: string;
 };
 
-export const columns: ColumnDef<Course>[] = [
+type Topic = { name: string; category: string; confidence: string; progress?: number };
+
+type CourseActionsProps = {
+  course: Course;
+  onViewDetails: (course: Course) => void;
+  onStartCourse: (course: Course) => void;
+  disabled?: boolean;
+};
+
+function CourseActions({ course, onViewDetails, onStartCourse, disabled }: CourseActionsProps) {
+  return (
+    <div className="text-end">
+      {course.started ? (
+        <Button size="sm" disabled={disabled}>
+          Continue <ChevronRight />
+        </Button>
+      ) : (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" disabled={disabled}>
+              <MoreHorizontalIcon />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onStartCourse(course)}>
+              Start Path
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onViewDetails(course)}>
+              View Details
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  );
+}
+
+export const createColumns = (
+  onViewDetails: (course: Course) => void,
+  onStartCourse: (course: Course) => void,
+  isDisabled: boolean = false
+): ColumnDef<Course>[] => [
   {
     accessorKey: "name",
     header: "Course name",
@@ -70,33 +116,16 @@ export const columns: ColumnDef<Course>[] = [
   {
     id: "actions",
     enableHiding: false,
-    cell: ({ row }) => {
-      return (
-        <div className="text-end">
-          {row.original.started ? (
-            <Button size="sm">
-              Continue <ChevronRight />
-            </Button>
-          ) : (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost">
-                  <MoreHorizontalIcon />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>Start Course</DropdownMenuItem>
-                <DropdownMenuItem>View Details</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      );
-    }
+    cell: ({ row }) => (
+      <CourseActions
+        course={row.original}
+        onViewDetails={onViewDetails}
+        onStartCourse={onStartCourse}
+        disabled={isDisabled}
+      />
+    )
   }
 ];
-
-type Topic = { name: string; category: string; confidence: string; progress?: number };
 
 export function RecommendedCoursesTable({
   topics = [],
@@ -105,6 +134,8 @@ export function RecommendedCoursesTable({
   topics?: Topic[];
   userId?: string;
 }) {
+  const router = useRouter();
+  const { setPaths, paths: storePaths } = usePathStore();
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
@@ -112,6 +143,9 @@ export function RecommendedCoursesTable({
   const [isRegenerating, setIsRegenerating] = React.useState(false);
   const [recommended, setRecommended] = React.useState<Topic[]>(topics);
   const [status, setStatus] = React.useState<string | null>(null);
+  const [isPathSheetOpen, setIsPathSheetOpen] = React.useState(false);
+  const [selectedPathId, setSelectedPathId] = React.useState<string | null>(null);
+  const [isGeneratingPath, setIsGeneratingPath] = React.useState(false);
 
   React.useEffect(() => {
     setRecommended(topics);
@@ -128,6 +162,85 @@ export function RecommendedCoursesTable({
     started: false,
     levelFit: "Fit"
   }));
+
+  const handleViewDetails = React.useCallback(async (course: Course) => {
+    if (isGeneratingPath) return;
+    setIsGeneratingPath(true);
+    try {
+      // First, check if a path with this title already exists in store
+      let currentPaths = storePaths;
+      
+      // If store is empty, try to fetch
+      if (currentPaths.length === 0) {
+        try {
+          currentPaths = await fetchPaths();
+          setPaths(currentPaths);
+        } catch (e) {
+          console.error("Failed to fetch paths", e);
+        }
+      }
+
+      let pathToShow = currentPaths.find(p => 
+        p.title.toLowerCase() === course.name.toLowerCase()
+      );
+      
+      // If no existing path, generate a new one
+      if (!pathToShow) {
+        pathToShow = await generatePath({
+          title: course.name,
+          description: `Learn ${course.name}`,
+          topics: [course.name, course.category].filter(Boolean),
+          difficulty: "intermediate"
+        });
+        
+        toast.success("Learning path generated!");
+        
+        // Update the store with the new path
+        setPaths([...currentPaths, pathToShow]);
+      }
+      
+      // Open the path detail sheet with the path
+      setSelectedPathId(pathToShow.id);
+      setIsPathSheetOpen(true);
+    } catch (error) {
+      console.error("Error loading path:", error);
+      toast.error("Failed to load learning path details");
+    } finally {
+      setIsGeneratingPath(false);
+    }
+  }, [storePaths, setPaths, isGeneratingPath]);
+
+  const handleStartCourse = React.useCallback(async (course: Course) => {
+    if (isGeneratingPath) return;
+    setIsGeneratingPath(true);
+    try {
+      // Generate a new path and navigate to it
+      const newPath = await generatePath({
+        title: course.name,
+        description: `Learn ${course.name}`,
+        topics: [course.name, course.category].filter(Boolean),
+        difficulty: "intermediate"
+      });
+      
+      toast.success("Learning path generated!");
+      router.push(`/paths/${newPath.id}`);
+    } catch (error) {
+      console.error("Error generating path:", error);
+      toast.error("Failed to start course");
+    } finally {
+      setIsGeneratingPath(false);
+    }
+  }, [router, isGeneratingPath]);
+
+  const handleClosePathSheet = () => {
+    setIsPathSheetOpen(false);
+    setSelectedPathId(null);
+  };
+
+  const columns = React.useMemo(
+    () => createColumns(handleViewDetails, handleStartCourse, isGeneratingPath),
+    [handleViewDetails, handleStartCourse, isGeneratingPath]
+  );
 
   const handleRegenerate = async () => {
     if (isRegenerating) return;
@@ -237,13 +350,13 @@ export function RecommendedCoursesTable({
         </CardAction>
       </CardHeader>
       <CardContent>
-        {isRegenerating && (
+        {(isRegenerating || isGeneratingPath) && (
           <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
             <Loader2 className="size-4 animate-spin" />
-            Refreshing recommendations...
+            {isGeneratingPath ? "Loading learning path..." : "Refreshing recommendations..."}
           </div>
         )}
-        {status && !isRegenerating && (
+        {status && !isRegenerating && !isGeneratingPath && (
           <div className="mb-3 text-sm text-muted-foreground" aria-live="polite">
             {status}
           </div>
@@ -293,12 +406,8 @@ export function RecommendedCoursesTable({
             </TableBody>
           </Table>
         </div>
-        <div className="flex items-center justify-end space-x-2 pt-4">
-          <div className="text-muted-foreground flex-1 text-sm">
-            {table.getFilteredSelectedRowModel().rows.length} of{" "}
-            {table.getFilteredRowModel().rows.length} row(s) selected.
-          </div>
-          <div className="space-x-2">
+        {table.getPageCount() > 1 && (
+          <div className="flex items-center justify-between pt-4">
             <Button
               variant="outline"
               onClick={() => table.previousPage()}
@@ -312,8 +421,15 @@ export function RecommendedCoursesTable({
               <ChevronRight />
             </Button>
           </div>
-        </div>
+        )}
       </CardContent>
+      
+      {/* Path Detail Sheet */}
+      <PathDetailSheet
+        isOpen={isPathSheetOpen}
+        onClose={handleClosePathSheet}
+        pathId={selectedPathId}
+      />
     </Card>
   );
 }

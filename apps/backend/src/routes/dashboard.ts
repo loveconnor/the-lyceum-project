@@ -166,34 +166,49 @@ const ensureRecommendations = async (
   state: DashboardState,
   { forceRefresh = false }: { forceRefresh?: boolean } = {},
 ): Promise<DashboardState> => {
+  console.log('[ENSURE_RECS] Starting ensureRecommendations, forceRefresh:', forceRefresh);
+  console.log('[ENSURE_RECS] Current recommended_topics count:', state.recommended_topics?.length || 0);
+  
   if (state.recommended_topics && state.recommended_topics.length && !forceRefresh) {
     if (!isFallbackRecommendations(state.recommended_topics)) {
+      console.log('[ENSURE_RECS] Existing recommendations found and not forcing refresh, returning state');
       return state;
     }
   }
 
+  console.log('[ENSURE_RECS] Getting onboarding data for user:', state.user_id);
   const onboarding = await getOnboardingData(state.user_id);
+  console.log('[ENSURE_RECS] Got onboarding data:', onboarding ? 'exists' : 'null');
+  
   const forceConfidence = state.total_courses === 0 ? 'Complete an activity' : undefined;
+  console.log('[ENSURE_RECS] Force confidence:', forceConfidence);
 
   // Primary: AI course recommendations
   let recommendedTopics: DashboardTopic[] = [];
   try {
+    console.log('[ENSURE_RECS] Calling generateOnboardingRecommendations...');
     const recs = await generateOnboardingRecommendations(onboarding || {});
+    console.log('[ENSURE_RECS] Got onboarding recommendations:', recs?.recommendations?.length || 0);
+    
     if (recs?.recommendations?.length) {
       recommendedTopics = normalizeTopics(recs.recommendations, {
         forceConfidence,
         progress: 0,
         padToSix: false,
       });
+      console.log('[ENSURE_RECS] Normalized to:', recommendedTopics.length, 'topics');
     }
   } catch (err) {
-    console.error('Onboarding recommendations failed, falling back to topics', err);
+    console.error('[ENSURE_RECS] Onboarding recommendations failed, falling back to topics', err);
   }
 
   // Secondary: Topic recommendations
   if (recommendedTopics.length < 6) {
+    console.log('[ENSURE_RECS] Need more topics, calling generateTopicRecommendations...');
     try {
       const topics = await generateTopicRecommendations(onboarding || {});
+      console.log('[ENSURE_RECS] Got topic recommendations:', topics?.length || 0);
+      
       if (topics?.length) {
         const more = normalizeTopics(topics, { forceConfidence, progress: 0, padToSix: false });
         const existingNames = new Set(recommendedTopics.map((t) => (t.name || '').toLowerCase()));
@@ -201,14 +216,16 @@ const ensureRecommendations = async (
           ...recommendedTopics,
           ...more.filter((t) => !existingNames.has((t.name || '').toLowerCase())),
         ].slice(0, 6);
+        console.log('[ENSURE_RECS] After merging topic recommendations, total:', recommendedTopics.length);
       }
     } catch (err) {
-      console.error('Topic recommendations failed, falling back to interests', err);
+      console.error('[ENSURE_RECS] Topic recommendations failed, falling back to interests', err);
     }
   }
 
   // Tertiary: Interest-based fallback
   if (recommendedTopics.length < 6) {
+    console.log('[ENSURE_RECS] Still need more, using interest-based fallback');
     const interestTopics = normalizeTopics(
       fallbackTopicsFromInterests(onboarding, forceConfidence),
       {
@@ -217,15 +234,18 @@ const ensureRecommendations = async (
         padToSix: false,
       },
     );
+    console.log('[ENSURE_RECS] Got interest topics:', interestTopics.length);
     const existingNames = new Set(recommendedTopics.map((t) => (t.name || '').toLowerCase()));
     recommendedTopics = [
       ...recommendedTopics,
       ...interestTopics.filter((t) => !existingNames.has((t.name || '').toLowerCase())),
     ].slice(0, 6);
+    console.log('[ENSURE_RECS] After interest fallback, total:', recommendedTopics.length);
   }
 
   // Final safety net
   if (recommendedTopics.length < 6) {
+    console.log('[ENSURE_RECS] Using final safety net');
     recommendedTopics = normalizeTopics(
       [
         { name: 'Learning Skills', category: 'General', confidence: forceConfidence || 'Suggested' },
@@ -237,13 +257,18 @@ const ensureRecommendations = async (
       ],
       { forceConfidence, progress: 0, padToSix: false },
     );
+    console.log('[ENSURE_RECS] Safety net applied, total:', recommendedTopics.length);
   }
 
   // If still short, pad to 6 with placeholders
   if (recommendedTopics.length < 6) {
+    console.log('[ENSURE_RECS] Padding to 6 with placeholders');
     recommendedTopics = normalizeTopics(recommendedTopics, { forceConfidence, progress: 0 });
   }
 
+  console.log('[ENSURE_RECS] Final recommended topics count:', recommendedTopics.length);
+  console.log('[ENSURE_RECS] Updating database...');
+  
   const supabase = getSupabaseAdmin();
   const { data: updated, error } = await supabase
     .from('dashboard_state')
@@ -257,9 +282,11 @@ const ensureRecommendations = async (
     .single();
 
   if (error) {
+    console.error('[ENSURE_RECS] Database update error:', error);
     throw error;
   }
 
+  console.log('[ENSURE_RECS] Returning updated state');
   return updated as DashboardState;
 };
 
@@ -425,6 +452,7 @@ router.get('/', async (req, res) => {
     // Sort by timestamp
     activities.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     
+    console.log('[DASHBOARD_GET] Calling ensureRecommendations with forceRefresh=false');
     const withRecs = await ensureRecommendations(state);
     res.json({ ...withRecs, activities });
   } catch (error: any) {
@@ -516,22 +544,41 @@ router.post('/activity', async (req, res) => {
 
 router.post('/recommendations/regenerate', async (req, res) => {
   const userId = (req as any).user?.id as string | undefined;
+  console.log('[REGENERATE] Starting recommendation regeneration for user:', userId);
+  
   if (!userId) {
+    console.log('[REGENERATE] No user ID found, returning 401');
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   try {
     const supabase = getSupabaseAdmin();
+    console.log('[REGENERATE] Got Supabase admin client');
 
     // clear current recommendations to force regeneration
-    await supabase.from('dashboard_state').update({ recommended_topics: [] }).eq('user_id', userId);
+    console.log('[REGENERATE] Clearing current recommendations...');
+    const { error: clearError } = await supabase
+      .from('dashboard_state')
+      .update({ recommended_topics: [] })
+      .eq('user_id', userId);
+    
+    if (clearError) {
+      console.error('[REGENERATE] Error clearing recommendations:', clearError);
+    } else {
+      console.log('[REGENERATE] Successfully cleared recommendations');
+    }
 
+    console.log('[REGENERATE] Getting or creating state...');
     const state = await getOrCreateState(userId);
+    console.log('[REGENERATE] Got state, now ensuring recommendations with forceRefresh=true');
+    
     const refreshed = await ensureRecommendations({ ...state, recommended_topics: [] }, { forceRefresh: true });
+    console.log('[REGENERATE] Recommendations refreshed, returning response');
 
     res.json(refreshed);
   } catch (error: any) {
-    console.error('Dashboard regenerate error', error);
+    console.error('[REGENERATE] Dashboard regenerate error:', error);
+    console.error('[REGENERATE] Error stack:', error?.stack);
     res.status(500).json({ error: 'Failed to regenerate recommendations', details: error?.message });
   }
 });

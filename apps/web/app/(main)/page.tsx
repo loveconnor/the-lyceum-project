@@ -186,40 +186,83 @@ async function DashboardContent({
 }) {
   const dashboard = await dashboardPromise;
 
+  // Determine which analytics sections should be shown
+  // Only show if there's meaningful data to display
+  const hasSuccessData = 
+    dashboard.overall_success_rate > 0 || 
+    dashboard.total_courses > 0 || 
+    (dashboard.stats?.previous_success_rate ?? 0) > 0;
+  
+  const hasProgressData = 
+    (dashboard.stats?.in_progress ?? 0) > 0 || 
+    (dashboard.stats?.completed ?? 0) > 0;
+  
+  const hasTopTopicsData = 
+    dashboard.top_topics && 
+    dashboard.top_topics.length > 0 && 
+    dashboard.top_topics.some(topic => topic.progress > 0 || topic.count);
+  
+  const hasActivityData = 
+    dashboard.stats?.activity_counts && 
+    Object.values(dashboard.stats.activity_counts).some(count => count > 0);
+  
+  const hasTimeSeriesData = 
+    dashboard.activities && 
+    dashboard.activities.length > 0;
+
   return (
     <>
-      <div className="grid gap-4 lg:grid-cols-12">
-        <div className="lg:col-span-12 xl:col-span-6">
+      {/* Top section - dynamic layout based on what's visible */}
+      <div className={`grid gap-4 ${hasTopTopicsData ? 'lg:grid-cols-12' : 'lg:grid-cols-2'}`}>
+        <div className={hasTopTopicsData ? 'lg:col-span-12 xl:col-span-6' : 'lg:col-span-1'}>
           <WelcomeCard />
         </div>
-        <div className="lg:col-span-6 xl:col-span-3">
+        <div className={hasTopTopicsData ? 'lg:col-span-6 xl:col-span-3' : 'lg:col-span-1'}>
           <LearningPathCard learningPath={dashboard.learning_path} progress={dashboard.progress} />
         </div>
-        <div className="lg:col-span-6 xl:col-span-3">
-          <TopicsCard topics={dashboard.top_topics} />
+        {hasTopTopicsData && (
+          <div className="lg:col-span-6 xl:col-span-3">
+            <TopicsCard topics={dashboard.top_topics} />
+          </div>
+        )}
+      </div>
+      
+      {/* Analytics sections - only show if there's data */}
+      {(hasSuccessData || hasProgressData || hasActivityData) && (
+        <div className="grid gap-4 xl:grid-cols-3">
+          {hasSuccessData && (
+            <StudentSuccessCard
+              currentSuccessRate={dashboard.overall_success_rate ?? 0}
+              previousSuccessRate={dashboard.stats?.previous_success_rate ?? 0}
+              totalStudents={dashboard.total_courses || 0}
+              passingStudents={Math.round((dashboard.total_courses || 0) * (dashboard.overall_success_rate / 100 || 0))}
+            />
+          )}
+          {hasProgressData && (
+            <ProgressStatisticsCard
+              totalActivity={dashboard.progress || 0}
+              inProgress={dashboard.stats?.in_progress ?? 0}
+              completed={dashboard.stats?.completed ?? 0}
+            />
+          )}
+          {hasActivityData && (
+            <ChartMostActivity activityCounts={dashboard.stats?.activity_counts || {}} />
+          )}
         </div>
-      </div>
-      <div className="grid gap-4 xl:grid-cols-3">
-        <StudentSuccessCard
-          currentSuccessRate={dashboard.overall_success_rate ?? 0}
-          previousSuccessRate={dashboard.stats?.previous_success_rate ?? 0}
-          totalStudents={dashboard.total_courses || 0}
-          passingStudents={Math.round((dashboard.total_courses || 0) * (dashboard.overall_success_rate / 100 || 0))}
-        />
-        <ProgressStatisticsCard
-          totalActivity={dashboard.progress || 0}
-          inProgress={dashboard.stats?.in_progress ?? 0}
-          completed={dashboard.stats?.completed ?? 0}
-        />
-        <ChartMostActivity activityCounts={dashboard.stats?.activity_counts || {}} />
-      </div>
-      <div className="mt-4 gap-4 space-y-4 xl:grid xl:grid-cols-2 xl:space-y-0">
-        <CourseProgressByMonth activities={dashboard.activities || []} />
-        <RecommendedCoursesTable
-          key={dashboard.user_id || "anonymous"}
-          userId={dashboard.user_id}
-          topics={dashboard.recommended_topics}
-        />
+      )}
+      
+      {/* Time series and recommendations - dynamic layout */}
+      <div className={`mt-4 gap-4 space-y-4 ${hasTimeSeriesData ? 'xl:grid xl:grid-cols-2' : ''} xl:space-y-0`}>
+        {hasTimeSeriesData && (
+          <CourseProgressByMonth activities={dashboard.activities || []} />
+        )}
+        <div className={!hasTimeSeriesData ? 'w-full' : ''}>
+          <RecommendedCoursesTable
+            key={dashboard.user_id || "anonymous"}
+            userId={dashboard.user_id}
+            topics={dashboard.recommended_topics}
+          />
+        </div>
       </div>
     </>
   );
