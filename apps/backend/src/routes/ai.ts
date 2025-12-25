@@ -44,6 +44,43 @@ const assistantSystemPrompt =
   '✗ ```\\nfor\\n``` or ```java\\nfor\\n```\n' +
   '✗ ```\\ntrue\\n``` or ```\\ni++\\n```\n' +
   '✗ Any code block for single words/expressions\n' +
+  '\n\n' +
+  '=== VISUAL DIAGRAMS ===\n' +
+  'You can create interactive flow diagrams using the <Visual> tag with JSON data.\n' +
+  'Use this for: process flows, system architecture, state machines, relationships, algorithm steps.\n' +
+  '\n' +
+  'SYNTAX:\n' +
+  '<Visual>\n' +
+  '{\n' +
+  '  "title": "Diagram Title",\n' +
+  '  "description": "Optional description",\n' +
+  '  "nodes": [\n' +
+  '    {"id": "1", "position": {"x": 250, "y": 0}, "data": {"label": "Node Text"}, "type": "input"},\n' +
+  '    {"id": "2", "position": {"x": 250, "y": 100}, "data": {"label": "Second Node"}}\n' +
+  '  ],\n' +
+  '  "edges": [\n' +
+  '    {"id": "e1-2", "source": "1", "target": "2", "label": "Flow", "animated": true}\n' +
+  '  ]\n' +
+  '}\n' +
+  '</Visual>\n' +
+  '\n' +
+  'KEY GUIDELINES:\n' +
+  '• Use for concepts that benefit from visual representation\n' +
+  '• Keep diagrams simple (4-8 nodes ideal, max 15)\n' +
+  '• Space nodes 150-200px apart horizontally, 80-120px vertically\n' +
+  '• Node types: "input" (start), "output" (end), "default" (middle)\n' +
+  '• Edge types: "smoothstep" (recommended), "straight", "step"\n' +
+  '• Set animated: true for primary flow paths\n' +
+  '• Use arrays for multiple related diagrams: [diagram1, diagram2]\n' +
+  '• Always validate JSON syntax (no trailing commas!)\n' +
+  '\n' +
+  'WHEN TO USE:\n' +
+  '✓ Explaining processes, workflows, algorithms\n' +
+  '✓ System architectures and component relationships\n' +
+  '✓ State transitions and decision trees\n' +
+  '✓ Data flow and information hierarchies\n' +
+  '✗ Simple lists (use markdown)\n' +
+  '✗ Single relationships (describe in text)\n' +
   '\n' +
   'If unsure whether the user wants mathematical theory or code implementation, ask a brief clarifying question.';
 

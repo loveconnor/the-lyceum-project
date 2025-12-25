@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { CodeBlock, CodeBlockCode } from "./code-block";
+import { ReactFlowWidget, ReactFlowWidgetData } from "@/components/labs/widgets/react-flow-widget";
 
 export type MarkdownProps = {
   children: string;
@@ -136,27 +137,137 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
     [components]
   );
 
-  // Pre-process content to convert code-like math expressions to code blocks
-  // This prevents KaTeX from trying to parse programming operators like &&, ||, !=, etc.
-  const processedChildren = useMemo(() => {
-    // Match inline math expressions that look like code
-    // These contain operators like &&, ||, !=, ==, >=, <=, !, =, <, >, etc.
-    // Also match simple single operators like $&&$, $||$, $!$
-    const codeOperatorsPattern = /\$([^$\n]*?(?:&&|\|\||!=|==|>=|<=|<|>|!|=)[^$\n]*?)\$/g;
+  // Pre-process content to extract Visual tags and replace with custom markers
+  const { processedContent, visualComponents } = useMemo(() => {
+    const visualTagPattern = /<Visual>([\s\S]*?)<\/Visual>/gi;
+    const visuals: ReactFlowWidgetData[][] = [];
+    let processedText = children;
+    let match;
+    let offset = 0;
+
+    // Reset the regex
+    visualTagPattern.lastIndex = 0;
     
-    return children.replace(codeOperatorsPattern, (match, content) => {
+    while ((match = visualTagPattern.exec(children)) !== null) {
+      try {
+        const trimmedContent = match[1].trim();
+        let visualData: ReactFlowWidgetData[];
+
+        // Handle both array and single object formats
+        if (trimmedContent.startsWith('[')) {
+          visualData = JSON.parse(trimmedContent);
+        } else {
+          visualData = [JSON.parse(trimmedContent)];
+        }
+
+        visuals.push(visualData);
+        
+        // Replace the entire <Visual>...</Visual> with a unique marker
+        const marker = `\n\n[REACTFLOW_VISUAL_${visuals.length - 1}]\n\n`;
+        const startIdx = match.index - offset;
+        const endIdx = startIdx + match[0].length;
+        
+        processedText = processedText.substring(0, startIdx) + marker + processedText.substring(endIdx);
+        offset += match[0].length - marker.length;
+        
+      } catch (error) {
+        console.error('Failed to parse Visual tag content:', error);
+      }
+    }
+
+    return {
+      processedContent: processedText,
+      visualComponents: visuals,
+    };
+  }, [children]);
+
+  // Pre-process content to convert code-like math expressions to code blocks
+  // This prevents KaTeX from trying to parse programming operators like &&, ||
+  // Only match clearly programming-specific operators, not mathematical ones
+  const finalProcessedContent = useMemo(() => {
+    let processed = processedContent;
+    
+    // Convert [ math ] style display math to $$ math $$
+    // This handles cases where AI uses square brackets for display math
+    processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, content) => {
+      return `$$${content}$$`;
+    });
+    
+    // Also handle the case where square brackets are used without backslashes
+    // Match [ followed by math content and closing ]
+    // Only match if it contains math-like content (variables, operators, etc.)
+    processed = processed.replace(/\[\s*([a-zA-Z_][a-zA-Z0-9_]*(?:\s*[=+\-*/^_{}()\\]+\s*[a-zA-Z0-9_(){}\\]+)+[^[\]]*?)\s*\]/g, (match, content) => {
+      // Check if this looks like math (has variables and operators)
+      if (/[a-zA-Z_][a-zA-Z0-9_]*\s*[=+\-*/]/.test(content)) {
+        return `$$${content}$$`;
+      }
+      return match;
+    });
+    
+    // Match inline math expressions that contain programming-specific operators
+    // Only match &&, ||, and !== (not != which could be factorial followed by =)
+    // Avoid matching =, <, >, ! as these are common in math (equality, inequalities, factorial)
+    const codeOperatorsPattern = /\$([^$\n]*?(?:&&|\|\||!==)[^$\n]*?)\$/g;
+    
+    processed = processed.replace(codeOperatorsPattern, (match, content) => {
       // Convert $code$ to `code` (backtick code block instead of math)
       return `\`$${content}$\``;
     });
-  }, [children]);
+    
+    return processed;
+  }, [processedContent]);
+
+  // Custom component to replace visual markers
+  const customComponents = useMemo(() => ({
+    ...mergedComponents,
+    p: ({ children, node }: any) => {
+      // Check if this paragraph contains only a visual marker
+      const childrenArray = React.Children.toArray(children);
+      
+      if (childrenArray.length === 1 && typeof childrenArray[0] === 'string') {
+        const text = childrenArray[0].trim();
+        const match = text.match(/^\[REACTFLOW_VISUAL_(\d+)\]$/);
+        
+        if (match) {
+          const visualIndex = parseInt(match[1], 10);
+          const visualData = visualComponents[visualIndex];
+          
+          if (visualData) {
+            return (
+              <div className="my-6 not-prose w-full">
+                <ReactFlowWidget
+                  visuals={visualData}
+                  height="500px"
+                  showNavigation={true}
+                  showSidebar={false}
+                  variant="card"
+                />
+              </div>
+            );
+          }
+        }
+      }
+
+      // Default paragraph handling
+      const defaultP = DEFAULT_COMPONENTS.p as any;
+      if (defaultP) {
+        return defaultP({ children, node });
+      }
+      
+      return <p className="mb-2 leading-7">{children}</p>;
+    },
+  }), [mergedComponents, visualComponents]);
 
   return (
     <div className={cn("prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:overflow-x-auto break-words prose-code:before:content-none prose-code:after:content-none", className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={[
+          remarkGfm, 
+          [remarkMath, { singleDollarTextMath: true }]
+        ]}
         rehypePlugins={[rehypeKatex]}
-        components={mergedComponents}>
-        {processedChildren}
+        components={customComponents}>
+        {finalProcessedContent}
       </ReactMarkdown>
     </div>
   );

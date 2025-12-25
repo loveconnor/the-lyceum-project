@@ -3,6 +3,53 @@
  * These interfaces define the structure that AI should generate when creating labs
  */
 
+// ============= SHARED TYPES =============
+
+/**
+ * Visual diagram data structure for React Flow widgets
+ * Used across all lab templates to display interactive diagrams
+ */
+export interface VisualDiagramData {
+  title: string;
+  description?: string;
+  nodes: Array<{
+    id: string;
+    position: { x: number; y: number };
+    data: { label: string };
+    type?: 'default' | 'input' | 'output';
+    style?: {
+      background?: string;
+      border?: string;
+      borderRadius?: string;
+      padding?: string;
+      fontSize?: string;
+      fontWeight?: number;
+      width?: number;
+      color?: string;
+    };
+  }>;
+  edges: Array<{
+    id: string;
+    source: string;
+    target: string;
+    label?: string;
+    type?: 'default' | 'straight' | 'step' | 'smoothstep' | 'bezier';
+    animated?: boolean;
+    style?: {
+      stroke?: string;
+      strokeWidth?: number;
+    };
+    labelStyle?: {
+      fontSize?: number;
+      fontWeight?: number;
+    };
+    markerEnd?: {
+      type: 'arrow' | 'arrowclosed';
+      color?: string;
+    };
+  }>;
+}
+
 // ============= ANALYZE TEMPLATE =============
 export interface AnalyzeLabData {
   labTitle: string;
@@ -23,6 +70,7 @@ export interface AnalyzeLabData {
     conclusions: string;
     limitations: string;
   };
+  visuals?: VisualDiagramData[];
 }
 
 // ============= BUILD TEMPLATE =============
@@ -61,6 +109,7 @@ export interface BuildLabData {
       config: any;
     }>;
   }>;
+  visuals?: VisualDiagramData[];
 }
 
 // ============= DERIVE TEMPLATE =============
@@ -92,6 +141,7 @@ export interface DeriveLabData {
       config: any;
     }>;
   }>;
+  visuals?: VisualDiagramData[];
 }
 
 // ============= EXPLAIN TEMPLATE =============
@@ -126,6 +176,7 @@ export interface ExplainLabData {
     prompt?: string;
   }>;
   learningObjectives?: string[];
+  visuals?: VisualDiagramData[];
 }
 
 // ============= EXPLORE TEMPLATE =============
@@ -145,6 +196,7 @@ export interface ExploreLabData {
   simulationFormula?: string;
   expectedInsights: string[];
   guidingQuestions: string[];
+  visuals?: VisualDiagramData[];
 }
 
 // ============= REVISE TEMPLATE =============
@@ -162,6 +214,7 @@ export interface ReviseLabData {
     hint: string;
   }>;
   improvementAreas: string[];
+  visuals?: VisualDiagramData[];
 }
 
 // ============= UNIFIED LAB TYPE =============
