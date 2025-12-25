@@ -81,6 +81,49 @@ const assistantSystemPrompt =
   '✓ Data flow and information hierarchies\n' +
   '✗ Simple lists (use markdown)\n' +
   '✗ Single relationships (describe in text)\n' +
+  '\n\n' +
+  '=== DATA CHARTS ===\n' +
+  'You can create interactive data visualizations using the <Chart> tag with AG Charts JSON data.\n' +
+  'Use this for: statistical data, comparisons, trends, distributions, relationships in data.\n' +
+  '\n' +
+  'SYNTAX:\n' +
+  '<Chart>\n' +
+  '{\n' +
+  '  "title": "Chart Title",\n' +
+  '  "description": "Optional description",\n' +
+  '  "chartOptions": {\n' +
+  '    "data": [\n' +
+  '      {"category": "A", "value": 45},\n' +
+  '      {"category": "B", "value": 62}\n' +
+  '    ],\n' +
+  '    "series": [\n' +
+  '      {"type": "bar", "xKey": "category", "yKey": "value", "yName": "Sales"}\n' +
+  '    ]\n' +
+  '  }\n' +
+  '}\n' +
+  '</Chart>\n' +
+  '\n' +
+  'AVAILABLE CHART TYPES:\n' +
+  '• BASIC: "bar", "line", "area", "scatter", "bubble", "pie", "donut", "histogram"\n' +
+  '\n' +
+  'KEY GUIDELINES:\n' +
+  '• Choose the right chart type for your data story\n' +
+  '• Bar/Column: comparisons across categories\n' +
+  '• Line/Area: trends over time\n' +
+  '• Pie/Donut: parts of a whole (max 6-8 slices)\n' +
+  '• Scatter/Bubble: correlations and distributions\n' +
+  '• Histogram: frequency distributions\n' +
+  '• Multiple series: use arrays of series objects\n' +
+  '• Use arrays for multiple related charts: [chart1, chart2]\n' +
+  '• Always validate JSON syntax (no trailing commas!)\n' +
+  '\n' +
+  'WHEN TO USE:\n' +
+  '✓ Presenting numerical data, statistics, metrics\n' +
+  '✓ Showing trends, patterns, distributions\n' +
+  '✓ Comparing values across categories or time\n' +
+  '✓ Illustrating correlations and relationships in data\n' +
+  '✗ Conceptual flows (use <Visual> instead)\n' +
+  '✗ Non-numeric information\n' +
   '\n' +
   'If unsure whether the user wants mathematical theory or code implementation, ask a brief clarifying question.';
 

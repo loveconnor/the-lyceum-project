@@ -6,6 +6,7 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { CodeBlock, CodeBlockCode } from "./code-block";
 import { ReactFlowWidget, ReactFlowWidgetData } from "@/components/labs/widgets/react-flow-widget";
+import { AgChartsWidget, AgChartsWidgetData } from "@/components/labs/widgets/ag-charts-widget";
 
 export type MarkdownProps = {
   children: string;
@@ -138,10 +139,14 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
   );
 
   // Pre-process content to extract Visual tags and replace with custom markers
-  const { processedContent, visualComponents } = useMemo(() => {
+  const { processedContent, visualComponents, chartComponents } = useMemo(() => {
     const visualTagPattern = /<Visual>([\s\S]*?)<\/Visual>/gi;
+    const chartTagPattern = /<Chart>([\s\S]*?)<\/Chart>/gi;
     const visuals: ReactFlowWidgetData[][] = [];
+    const charts: AgChartsWidgetData[][] = [];
     let processedText = children;
+
+    // Process Visual tags
     let match;
     let offset = 0;
 
@@ -175,9 +180,42 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
       }
     }
 
+    // Process Chart tags
+    chartTagPattern.lastIndex = 0;
+    offset = 0;
+    const tempText = processedText;
+    
+    while ((match = chartTagPattern.exec(tempText)) !== null) {
+      try {
+        const trimmedContent = match[1].trim();
+        let chartData: AgChartsWidgetData[];
+
+        // Handle both array and single object formats
+        if (trimmedContent.startsWith('[')) {
+          chartData = JSON.parse(trimmedContent);
+        } else {
+          chartData = [JSON.parse(trimmedContent)];
+        }
+
+        charts.push(chartData);
+        
+        // Replace the entire <Chart>...</Chart> with a unique marker
+        const marker = `\n\n[AGCHARTS_CHART_${charts.length - 1}]\n\n`;
+        const startIdx = match.index - offset;
+        const endIdx = startIdx + match[0].length;
+        
+        processedText = processedText.substring(0, startIdx) + marker + processedText.substring(endIdx);
+        offset += match[0].length - marker.length;
+        
+      } catch (error) {
+        console.error('Failed to parse Chart tag content:', error);
+      }
+    }
+
     return {
       processedContent: processedText,
       visualComponents: visuals,
+      chartComponents: charts,
     };
   }, [children]);
 
@@ -226,10 +264,11 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
       
       if (childrenArray.length === 1 && typeof childrenArray[0] === 'string') {
         const text = childrenArray[0].trim();
-        const match = text.match(/^\[REACTFLOW_VISUAL_(\d+)\]$/);
         
-        if (match) {
-          const visualIndex = parseInt(match[1], 10);
+        // Check for ReactFlow visual marker
+        const visualMatch = text.match(/^\[REACTFLOW_VISUAL_(\d+)\]$/);
+        if (visualMatch) {
+          const visualIndex = parseInt(visualMatch[1], 10);
           const visualData = visualComponents[visualIndex];
           
           if (visualData) {
@@ -238,6 +277,27 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
                 <ReactFlowWidget
                   visuals={visualData}
                   height="500px"
+                  showNavigation={true}
+                  showSidebar={false}
+                  variant="card"
+                />
+              </div>
+            );
+          }
+        }
+        
+        // Check for AG Charts marker
+        const chartMatch = text.match(/^\[AGCHARTS_CHART_(\d+)\]$/);
+        if (chartMatch) {
+          const chartIndex = parseInt(chartMatch[1], 10);
+          const chartData = chartComponents[chartIndex];
+          
+          if (chartData) {
+            return (
+              <div className="my-6 not-prose w-full">
+                <AgChartsWidget
+                  charts={chartData}
+                  height="350px"
                   showNavigation={true}
                   showSidebar={false}
                   variant="card"
@@ -256,7 +316,7 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
       
       return <p className="mb-2 leading-7">{children}</p>;
     },
-  }), [mergedComponents, visualComponents]);
+  }), [mergedComponents, visualComponents, chartComponents]);
 
   return (
     <div className={cn("prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:overflow-x-auto break-words prose-code:before:content-none prose-code:after:content-none", className)}>

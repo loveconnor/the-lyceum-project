@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: [],
+  transpilePackages: ["ag-charts-community", "ag-charts-react"],
 };
 
 export default nextConfig;

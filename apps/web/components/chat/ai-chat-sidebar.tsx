@@ -124,6 +124,12 @@ export const SidebarContent = () => {
 };
 
 export default function AIChatSidebar() {
+  const [isMounted, setIsMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   return (
     <>
       {/* Desktop Sidebar */}
@@ -132,16 +138,18 @@ export default function AIChatSidebar() {
       </div>
 
       {/* Mobile Sidebar */}
-      <Sheet>
-        <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="absolute end-0 top-0 z-10 md:hidden">
-            <Menu />
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="left">
-          <SidebarContent />
-        </SheetContent>
-      </Sheet>
+      {isMounted && (
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="absolute end-0 top-0 z-10 md:hidden">
+              <Menu />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left">
+            <SidebarContent />
+          </SheetContent>
+        </Sheet>
+      )}
     </>
   );
 }
