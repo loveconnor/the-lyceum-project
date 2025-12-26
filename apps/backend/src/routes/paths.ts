@@ -208,9 +208,17 @@ router.post("/generate", async (req: Request, res: Response) => {
       estimatedDuration,
       topics
     } = req.body;
+    const stream = req.query.stream === 'true';
 
     if (!description || !description.trim()) {
       return res.status(400).json({ error: "Description is required" });
+    }
+
+    if (stream) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.flushHeaders?.();
     }
 
     // Get user's difficulty/experience level from onboarding data
@@ -238,6 +246,9 @@ router.post("/generate", async (req: Request, res: Response) => {
 
     // Generate path and modules using AI
     console.log('Step 1: Generating learning path outline from description:', description);
+    if (stream) {
+      res.write(`data: ${JSON.stringify({ type: 'status', message: 'Generating learning path outline...' })}\n\n`);
+    }
     const outline = await generatePathOutline({
       title: title || "", // Allow empty title - AI will generate it
       description,
@@ -247,6 +258,9 @@ router.post("/generate", async (req: Request, res: Response) => {
     });
 
     console.log(`Outline generated: ${outline.modules.length} modules planned`);
+    if (stream) {
+      res.write(`data: ${JSON.stringify({ type: 'outline', outline })}\n\n`);
+    }
 
     // Create the learning path
     const { data: newPath, error: pathError } = await supabase
@@ -287,6 +301,9 @@ router.post("/generate", async (req: Request, res: Response) => {
         const batchPromises = batch.map(async (moduleOutline, batchIndex) => {
           const moduleIndex = i + batchIndex;
           console.log(`Starting module generation: "${moduleOutline.title}"...`);
+          if (stream) {
+            res.write(`data: ${JSON.stringify({ type: 'module_start', title: moduleOutline.title, index: moduleIndex })}\n\n`);
+          }
           
           try {
             const content = await generateModuleContent(
@@ -298,6 +315,9 @@ router.post("/generate", async (req: Request, res: Response) => {
             );
 
             console.log(`Module "${moduleOutline.title}" content generated successfully`);
+            if (stream) {
+              res.write(`data: ${JSON.stringify({ type: 'module_complete', title: moduleOutline.title, index: moduleIndex })}\n\n`);
+            }
 
             return {
               path_id: newPath.id,
@@ -424,12 +444,28 @@ router.post("/generate", async (req: Request, res: Response) => {
 
     if (fetchError) {
       console.error("Error fetching complete path:", fetchError);
+      if (stream) {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: 'Failed to fetch complete path' })}\n\n`);
+        res.end();
+        return;
+      }
       return res.status(500).json({ error: "Failed to fetch complete path" });
+    }
+
+    if (stream) {
+      res.write(`data: ${JSON.stringify({ type: 'completed', path: completePath })}\n\n`);
+      res.end();
+      return;
     }
 
     return res.status(201).json(completePath);
   } catch (error) {
     console.error("Error in POST /paths/generate:", error);
+    if (stream) {
+      res.write(`data: ${JSON.stringify({ type: 'error', message: error instanceof Error ? error.message : 'Unknown error' })}\n\n`);
+      res.end();
+      return;
+    }
     return res.status(500).json({ 
       error: "Internal server error", 
       details: error instanceof Error ? error.message : 'Unknown error'

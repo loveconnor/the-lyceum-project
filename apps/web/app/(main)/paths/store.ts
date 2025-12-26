@@ -20,9 +20,11 @@ interface PathStore {
   filterEstimatedDuration: string | null;
   showCorePathsOnly: boolean;
   searchQuery: string;
+  generationStatus: string | null;
 
   // Actions
   setPaths: (paths: LearningPath[]) => void;
+  setGenerationStatus: (status: string | null) => void;
   addPath: (
     path: Omit<
       LearningPath,
@@ -68,11 +70,14 @@ export const usePathStore = create<PathStore>((set) => ({
   filterEstimatedDuration: null,
   showCorePathsOnly: false,
   searchQuery: "",
+  generationStatus: null,
 
   setPaths: (paths) =>
     set(() => ({
       paths: paths
     })),
+
+  setGenerationStatus: (status) => set({ generationStatus: status }),
     
   addPath: async (path) => {
     try {
@@ -94,17 +99,71 @@ export const usePathStore = create<PathStore>((set) => ({
 
   generatePathWithAI: async (path) => {
     try {
-      const newPath = await generatePath({
-        title: path.title,
-        description: path.description,
-        topics: [],
-        difficulty: path.difficulty,
-        estimated_duration: 0,
+      set({ generationStatus: "Initializing AI..." });
+      
+      const { createClient } = await import("@/utils/supabase/client");
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      
+      const response = await fetch(`${API_BASE_URL}/paths/generate?stream=true`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token && {
+            Authorization: `Bearer ${session.access_token}`,
+          }),
+        },
+        body: JSON.stringify({
+          title: path.title,
+          description: path.description,
+          topics: [],
+          difficulty: path.difficulty,
+        }),
       });
-      set((state) => ({
-        paths: [...state.paths, newPath]
-      }));
+
+      if (!response.ok || !response.body) {
+        throw new Error("Failed to generate path");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = JSON.parse(line.slice(6));
+            
+            if (data.type === "status") {
+              set({ generationStatus: data.message });
+            } else if (data.type === "outline") {
+              set({ generationStatus: `Planned ${data.outline.modules.length} modules...` });
+            } else if (data.type === "module_start") {
+              set({ generationStatus: `Creating module: ${data.title}...` });
+            } else if (data.type === "module_complete") {
+              set({ generationStatus: `Finished module: ${data.title}` });
+            } else if (data.type === "completed") {
+              set((state) => ({
+                paths: [...state.paths, data.path],
+                generationStatus: null
+              }));
+            } else if (data.type === "error") {
+              throw new Error(data.message);
+            }
+          }
+        }
+      }
     } catch (error) {
+      set({ generationStatus: null });
       console.error("Error generating path with AI:", error);
       throw error;
     }

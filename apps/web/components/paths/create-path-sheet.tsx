@@ -1,6 +1,7 @@
 import React from "react";
 import { Sparkles, TrendingUp, Target, ChevronRight, Paperclip, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion } from "motion/react";
 import { usePathStore } from "@/app/(main)/paths/store";
 import { LearningPath } from "@/app/(main)/paths/types";
 import { EnumPathStatus } from "@/app/(main)/paths/enum";
@@ -10,6 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Shimmer } from "@/components/ui/shimmer";
 
 interface CreatePathSheetProps {
   isOpen: boolean;
@@ -18,7 +20,7 @@ interface CreatePathSheetProps {
 }
 
 const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, editPathId }) => {
-  const { addPath, updatePath, generatePathWithAI, paths } = usePathStore();
+  const { addPath, updatePath, generatePathWithAI, paths, generationStatus } = usePathStore();
   const [selectedRecommendation, setSelectedRecommendation] = React.useState<string | null>(null);
   const [contextFiles, setContextFiles] = React.useState<File[]>([]);
   const [title, setTitle] = React.useState("");
@@ -93,9 +95,8 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
             toast.success("Your learning path has been updated successfully.");
           } else {
             // Use AI to generate the full path with modules and content
-            toast.loading("Generating learning path with AI...", { id: "generating-path" });
             await generatePathWithAI(pathData);
-            toast.success("Learning path created with modules and content!", { id: "generating-path" });
+            toast.success("Learning path created with modules and content!");
           }
         }
       } else {
@@ -117,9 +118,8 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
           toast.success("Your learning path has been updated successfully.");
         } else {
           // Use AI to generate the full path with modules and content
-          toast.loading("Generating learning path with AI...", { id: "generating-path" });
           await generatePathWithAI(pathData);
-          toast.success("Learning path created with modules and content!", { id: "generating-path" });
+          toast.success("Learning path created with modules and content!");
         }
       }
 
@@ -130,7 +130,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
       onClose();
     } catch (error) {
       console.error("Error saving path:", error);
-      toast.error("Failed to generate learning path. Please try again.", { id: "generating-path" });
+      toast.error("Failed to generate learning path. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -263,16 +263,48 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
             </div>
 
             <Button 
-              className="w-full" 
+              className={cn(
+                "w-full overflow-hidden transition-all duration-300 relative",
+                isGenerating && "!opacity-100 !bg-primary"
+              )}
               type="submit"
               disabled={(!selectedRecommendation && !description.trim()) || isGenerating}
             >
-              <Sparkles className="h-4 w-4" />
-              {isGenerating 
-                ? "Generating with AI..." 
-                : selectedRecommendation 
+              <motion.div
+                initial={false}
+                animate={{ 
+                  opacity: isGenerating ? 0 : 1,
+                  y: isGenerating ? -10 : 0
+                }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className={cn(
+                  "flex items-center gap-2",
+                  isGenerating && "absolute pointer-events-none"
+                )}
+              >
+                <Sparkles className="h-4 w-4" />
+                {selectedRecommendation 
                   ? "Generate This Path with AI" 
                   : "Generate Learning Path with AI"}
+              </motion.div>
+              
+              <motion.div
+                initial={false}
+                animate={{ 
+                  opacity: isGenerating ? 1 : 0,
+                  y: isGenerating ? 0 : 10
+                }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className={cn(
+                  "flex items-center justify-center gap-2.5 w-full min-w-0",
+                  !isGenerating && "absolute pointer-events-none"
+                )}
+              >
+                <Sparkles className="h-4 w-4 shrink-0" />
+                <Shimmer className="font-medium truncate max-w-[200px] sm:max-w-none" duration={3.5}>
+                  {generationStatus || "Generating with AI..."}
+                </Shimmer>
+              </motion.div>
             </Button>
           </form>
       </SheetContent>
