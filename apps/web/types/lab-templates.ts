@@ -214,6 +214,18 @@ export interface ReviseLabData {
     hint: string;
   }>;
   improvementAreas: string[];
+  // AI-generated structured steps like Explain template
+  steps?: Array<{
+    id: string;
+    title: string;
+    instruction?: string;
+    keyQuestions?: string[];
+    prompt?: string;
+    widgets?: Array<{
+      type: "text-input" | "multiple-choice";
+      config: any;
+    }>;
+  }>;
   visuals?: VisualDiagramData[];
 }
 

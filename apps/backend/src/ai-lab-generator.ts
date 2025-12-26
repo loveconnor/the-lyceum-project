@@ -66,7 +66,7 @@ export interface GeneratedLabResponse {
   raw: string;
 }
 
-const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, an educational platform. Your job is to choose the best template type for a learning goal.
+const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, an educational platform. Your job is to choose the best template type for a learning goal. Do not select "revise"; pick from the remaining templates only.
 
 Available templates:
 1. **analyze** - For data analysis, visualization, statistics, pattern recognition
@@ -74,13 +74,12 @@ Available templates:
 3. **derive** - For mathematical derivations, proofs, symbolic manipulation, step-by-step problem solving, and theoretical reasoning
 4. **explain** - For understanding and analyzing EXISTING code that's already written, code review, explaining how specific code works
 5. **explore** - For simulations, experiments, parameter exploration, interactive learning
-6. **revise** - For writing improvement, documentation, essays, technical writing
 
 Key distinction: Use "build" when the learner wants to WRITE code to learn (e.g., "learn how to write X", "practice coding Y"). Use "explain" only when analyzing EXISTING code.
 
 Based on the learning goal, respond with JSON only:
 {
-  "template_type": "analyze" | "build" | "derive" | "explain" | "explore" | "revise",
+  "template_type": "analyze" | "build" | "derive" | "explain" | "explore",
   "reasoning": "Brief explanation of why this template fits"
 }`;
 
@@ -462,7 +461,14 @@ ${request.userProfile?.level ? `User level: ${request.userProfile.level}` : ''}`
         throw new Error('Failed to select template type');
       }
 
-      const templateType = selection.template_type;
+      let templateType = selection.template_type;
+
+      // Temporarily disable generating "revise" labs; fall back to "build" if chosen
+      if (templateType === 'revise') {
+        console.warn('Template selector returned "revise" which is disabled; falling back to "build".');
+        templateType = 'build';
+      }
+
       const generatorPrompt = TEMPLATE_GENERATORS[templateType];
 
       if (!generatorPrompt) {

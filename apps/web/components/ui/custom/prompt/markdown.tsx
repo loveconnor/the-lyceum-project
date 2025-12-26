@@ -166,7 +166,9 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
     const chartTagPattern = /<Chart>([\s\S]*?)<\/Chart>/gi;
     const visuals: ReactFlowWidgetData[][] = [];
     const charts: ChartWidgetData[][] = [];
-    let processedText = children;
+    // Ensure we always work with a string to avoid runtime errors
+    const sourceText = typeof children === 'string' ? children : (children == null ? '' : String(children));
+    let processedText = sourceText;
 
     // Process Visual tags
     let match;
@@ -245,7 +247,8 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
   // This prevents KaTeX from trying to parse programming operators like &&, ||
   // Only match clearly programming-specific operators, not mathematical ones
   const finalProcessedContent = useMemo(() => {
-    let processed = processedContent;
+    const baseContent = typeof processedContent === 'string' ? processedContent : '';
+    let processed = baseContent;
     
     // Convert [ math ] style display math to $$ math $$
     // This handles cases where AI uses square brackets for display math
