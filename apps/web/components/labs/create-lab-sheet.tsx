@@ -27,6 +27,7 @@ import {
   FormLabel,
   FormMessage
 } from "@/components/ui/form";
+import { trackEvent } from "@/lib/analytics";
 
 interface CreateLabSheetProps {
   isOpen: boolean;
@@ -73,6 +74,23 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
       type: "exploration"
     }
   ];
+
+  const hasTrackedRecommendations = React.useRef(false);
+
+  React.useEffect(() => {
+    if (isOpen && !hasTrackedRecommendations.current && recommendedLabs.length > 0) {
+      hasTrackedRecommendations.current = true;
+      const estimated = parseInt(recommendedLabs[0]?.estimatedTime || "0", 10);
+      trackEvent("lab_recommended_shown", {
+        lab_type: "recommended",
+        estimated_duration: Number.isNaN(estimated) ? null : estimated
+      });
+    }
+
+    if (!isOpen) {
+      hasTrackedRecommendations.current = false;
+    }
+  }, [isOpen, recommendedLabs.length]);
 
   const defaultValues: LabFormValues = {
     title: "",
@@ -157,7 +175,7 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
       console.log("⏳ [CREATE LAB] Calling generateLab API...");
 
       // Generate lab using AI
-      const newLab = await generateLab(learningGoal, contextText || undefined);
+      const newLab = await generateLab(learningGoal, contextText || undefined, Boolean(selectedRecommendation));
       
       console.log("✨ [CREATE LAB] Lab generated successfully:", newLab);
       

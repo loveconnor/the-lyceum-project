@@ -13,6 +13,7 @@ import "katex/dist/katex.min.css";
 import { ActiveThemeProvider } from "@/components/active-theme";
 import { DEFAULT_THEME } from "@/lib/themes";
 import { Toaster } from "@/components/ui/sonner";
+import { AnalyticsProvider } from "@/components/providers/analytics-provider";
 
 export const metadata: Metadata = {
   title: "The Lyceum Project",
@@ -59,12 +60,14 @@ export default async function RootLayout({
           defaultTheme="light"
           enableSystem
           disableTransitionOnChange>
-          <ActiveThemeProvider initialTheme={themeSettings}>
-            {children}
-            <Toaster position="top-center" richColors />
-            <NextTopLoader color="var(--primary)" showSpinner={false} height={2} shadow-sm="none" />
-            {process.env.NODE_ENV === "production" ? <GoogleAnalyticsInit /> : null}
-          </ActiveThemeProvider>
+          <AnalyticsProvider>
+            <ActiveThemeProvider initialTheme={themeSettings}>
+              {children}
+              <Toaster position="top-center" richColors />
+              <NextTopLoader color="var(--primary)" showSpinner={false} height={2} shadow-sm="none" />
+              {process.env.NODE_ENV === "production" ? <GoogleAnalyticsInit /> : null}
+            </ActiveThemeProvider>
+          </AnalyticsProvider>
         </ThemeProvider>
       </body>
     </html>

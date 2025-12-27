@@ -8,7 +8,7 @@ import { useState } from "react";
 type StartingLevel = "new" | "familiar" | "comfortable" | null;
 
 export function WorkPreferencesStep() {
-  const { data, updateWorkPreferences, nextStep, prevStep } = useOnboardingStore();
+  const { data, updateWorkPreferences, nextStep, markSkipped } = useOnboardingStore();
   const [selectedLevel, setSelectedLevel] = useState<StartingLevel>(data.workPreferences.experience as StartingLevel || null);
 
   const handleSelect = (level: StartingLevel) => {
@@ -20,6 +20,7 @@ export function WorkPreferencesStep() {
 
   const handleSkip = () => {
     updateWorkPreferences({ experience: "adaptive" });
+    markSkipped();
     nextStep();
   };
 

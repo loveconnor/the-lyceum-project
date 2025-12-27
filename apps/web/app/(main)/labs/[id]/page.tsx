@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { fetchLabById } from "@/lib/api/labs";
 import { Lab } from "@/app/(main)/labs/types";
 import LabViewer from "@/components/labs/lab-viewer";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { markLabTouched, markPrimaryFeature, trackEvent } from "@/lib/analytics";
 
 export default function LabPage() {
   const params = useParams();
@@ -16,6 +17,8 @@ export default function LabPage() {
   const [lab, setLab] = useState<Lab | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasTracked = useRef(false);
+  const hasTrackedCompletion = useRef(false);
 
   useEffect(() => {
     if (!labId) return;
@@ -34,6 +37,56 @@ export default function LabPage() {
 
     loadLab();
   }, [labId]);
+
+  useEffect(() => {
+    if (!lab || hasTracked.current) return;
+
+    const labType = lab.starred ? "core" : "optional";
+    markLabTouched(lab.id);
+    markPrimaryFeature("lab");
+    trackEvent("lab_viewed", {
+      lab_id: lab.id,
+      lab_type: labType,
+      generated_by_ai: true,
+      estimated_duration: lab.estimated_duration ?? null
+    });
+
+    if (lab.status === "not-started") {
+      trackEvent("lab_started", {
+        lab_id: lab.id,
+        lab_type: labType,
+        generated_by_ai: true,
+        estimated_duration: lab.estimated_duration ?? null
+      });
+    }
+
+    hasTracked.current = true;
+  }, [lab]);
+
+  useEffect(() => {
+    if (!lab || hasTrackedCompletion.current) return;
+    if (lab.status !== "completed") return;
+
+    const labType = lab.starred ? "core" : "optional";
+    const completionTime = lab.completed_at
+      ? Math.max(
+          0,
+          Math.round(
+            (new Date(lab.completed_at).getTime() - new Date(lab.created_at).getTime()) / 1000
+          )
+        )
+      : null;
+
+    trackEvent("lab_completed", {
+      lab_id: lab.id,
+      lab_type: labType,
+      generated_by_ai: true,
+      estimated_duration: lab.estimated_duration ?? null,
+      completion_time_seconds: completionTime,
+      retries_count: lab.lab_progress?.filter((p) => !p.completed).length ?? null
+    });
+    hasTrackedCompletion.current = true;
+  }, [lab]);
 
   if (loading) {
     return (

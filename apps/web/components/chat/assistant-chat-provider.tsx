@@ -1,7 +1,9 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
+import { ANALYTICS_CONFIG } from "@/lib/analytics/config";
+import { markAiUsed, markPrimaryFeature, trackEvent } from "@/lib/analytics";
 
 type Conversation = {
   id: string;
@@ -17,6 +19,8 @@ type Message = {
   content: string;
   created_at?: string;
 };
+
+const AI_CONTEXT = "free_chat" as const;
 
 type AssistantContextValue = {
   conversations: Conversation[];
@@ -54,8 +58,45 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const sessionStartedAtRef = useRef<number | null>(null);
+  const lastMessageCountRef = useRef(0);
 
   const backendUrl = useMemo(() => getBackendUrl(), []);
+
+  const startAiSession = useCallback(
+    (existingCount = 0) => {
+      if (sessionStartedAtRef.current) return;
+
+      sessionStartedAtRef.current = Date.now();
+      markPrimaryFeature("ai_assistant");
+      markAiUsed();
+      trackEvent("ai_session_started", {
+        context: AI_CONTEXT,
+        widget_type: "text",
+        messages_count: existingCount,
+        model_tier: ANALYTICS_CONFIG.defaultModelTier
+      });
+    },
+    []
+  );
+
+  const endAiSession = useCallback(() => {
+    if (!sessionStartedAtRef.current) return;
+
+    const durationSeconds = Math.round((Date.now() - sessionStartedAtRef.current) / 1000);
+    trackEvent("ai_session_ended", {
+      context: AI_CONTEXT,
+      widget_type: "text",
+      messages_count: lastMessageCountRef.current,
+      session_duration_seconds: durationSeconds,
+      model_tier: ANALYTICS_CONFIG.defaultModelTier
+    });
+    sessionStartedAtRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    lastMessageCountRef.current = messages.length;
+  }, [messages.length]);
 
   const refreshConversations = useCallback(async () => {
     try {
@@ -110,13 +151,14 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
         const json = await res.json();
         setMessages(json.messages || []);
         setError(null);
+        startAiSession(json.messages?.length || 0);
       } catch (err: any) {
         console.error("Assistant messages fetch error", err);
         setError(err?.message || "Failed to load messages");
         setMessages([]);
       }
     },
-    [backendUrl]
+    [backendUrl, startAiSession]
   );
 
   const selectConversation = useCallback(
@@ -154,6 +196,7 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
 
         const json = await res.json();
         const conversationId = json?.conversation?.id as string;
+        startAiSession(0);
         await refreshConversations();
         if (conversationId) {
           await selectConversation(conversationId);
@@ -167,7 +210,7 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
         setIsCreatingConversation(false);
       }
     },
-    [backendUrl, refreshConversations, selectConversation, selectedConversationId, messages.length, isCreatingConversation]
+    [backendUrl, refreshConversations, selectConversation, selectedConversationId, messages.length, isCreatingConversation, startAiSession]
   );
 
   const sendMessage = useCallback(
@@ -175,6 +218,19 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
       if (!content.trim()) return;
       setIsSending(true);
       try {
+        startAiSession(messages.length);
+        markAiUsed();
+        const sessionDuration = sessionStartedAtRef.current
+          ? Math.round((Date.now() - sessionStartedAtRef.current) / 1000)
+          : undefined;
+        trackEvent("ai_message_sent", {
+          context: AI_CONTEXT,
+          widget_type: "text",
+          messages_count: messages.length + 1,
+          model_tier: ANALYTICS_CONFIG.defaultModelTier,
+          session_duration_seconds: sessionDuration
+        });
+
         const token = await getAccessToken();
         if (!token) {
           setError("Sign in required.");
@@ -266,7 +322,7 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
         setIsSending(false);
       }
     },
-    [backendUrl, refreshConversations, selectedConversationId, startNewConversation, selectConversation]
+    [backendUrl, refreshConversations, selectedConversationId, startNewConversation, selectConversation, startAiSession, messages.length]
   );
 
   const renameConversation = useCallback(
@@ -338,6 +394,12 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
       void selectConversation(conversations[0].id);
     }
   }, [conversations, selectedConversationId, selectConversation]);
+
+  useEffect(() => {
+    return () => {
+      endAiSession();
+    };
+  }, [endAiSession]);
 
   const value: AssistantContextValue = {
     conversations,

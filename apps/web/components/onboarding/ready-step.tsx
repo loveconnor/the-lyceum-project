@@ -8,11 +8,13 @@ import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
+import { ANALYTICS_CONFIG } from "@/lib/analytics/config";
+import { markPrimaryFeature, trackEvent } from "@/lib/analytics";
 
 export function AccountTypeStep() {
   const supabase = createClient();
   const router = useRouter();
-  const { data, prevStep, reset } = useOnboardingStore();
+  const { data, prevStep, reset, startedAt, skippedSteps } = useOnboardingStore();
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingPath, setIsCreatingPath] = useState(false);
   const [showWhy, setShowWhy] = useState(false);
@@ -96,7 +98,39 @@ export function AccountTypeStep() {
       if (!pathResponse.ok) throw new Error('Failed to create learning path');
       
       const pathData = await pathResponse.json();
-      
+
+      const totalLabs =
+        Array.isArray(pathData?.learning_path_items)
+          ? pathData.learning_path_items.filter((item: any) => item.item_type === "lab").length
+          : Array.isArray(pathData?.modules)
+            ? pathData.modules.length
+            : null;
+      const topicDomain = data.interests?.[0] || null;
+      const timeToCompleteSeconds = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
+
+      trackEvent("onboarding_completed", {
+        onboarding_version: ANALYTICS_CONFIG.onboardingVersion,
+        skipped_steps: skippedSteps,
+        time_to_complete_seconds: timeToCompleteSeconds
+      });
+
+      trackEvent("learning_path_created", {
+        path_id: pathData.id,
+        generated_by_ai: true,
+        topic_domain: topicDomain,
+        difficulty_level: recommendation.difficulty || "intermediate",
+        total_labs: totalLabs
+      });
+
+      trackEvent("activation_completed", {
+        path_id: pathData.id,
+        generated_by_ai: true,
+        topic_domain: topicDomain,
+        difficulty_level: recommendation.difficulty || "intermediate",
+        total_labs: totalLabs
+      });
+
+      markPrimaryFeature("learning_path");
       toast.success("Your learning path is ready!");
       reset();
       
@@ -120,6 +154,13 @@ export function AccountTypeStep() {
         onboarding_data: data
       });
       if (upsertError) throw new Error(upsertError.message);
+
+      const timeToCompleteSeconds = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
+      trackEvent("onboarding_completed", {
+        onboarding_version: ANALYTICS_CONFIG.onboardingVersion,
+        skipped_steps: true,
+        time_to_complete_seconds: timeToCompleteSeconds
+      });
 
       toast.success("Welcome to Lyceum!");
       reset();

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { LearningPath } from "@/app/(main)/paths/types";
 import { Progress } from "@/components/ui/progress";
@@ -9,6 +9,7 @@ import { ArrowLeft, BookOpen, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ModuleCard from "./module-card";
 import { cn } from "@/lib/utils";
+import { markPrimaryFeature, trackEvent } from "@/lib/analytics";
 
 interface ModulesViewProps {
   path: LearningPath;
@@ -16,11 +17,15 @@ interface ModulesViewProps {
 
 export default function ModulesView({ path }: ModulesViewProps) {
   const router = useRouter();
+  const hasTrackedStart = useRef(false);
+  const hasTrackedCompletion = useRef(false);
 
   // Calculate overall path progress
   const completedModules = path.modules?.filter((m) => m.completed).length || 0;
   const totalModules = path.modules?.length || 0;
   const progressPercentage = totalModules > 0 ? (completedModules / totalModules) * 100 : 0;
+  const totalLabs = path.modules?.filter((m: any) => m.lab_id).length ?? null;
+  const completedLabsCount = path.modules?.filter((m: any) => m.lab_id && m.completed).length ?? null;
 
   // Get difficulty label
   const difficultyLabels: Record<string, string> = {
@@ -29,6 +34,36 @@ export default function ModulesView({ path }: ModulesViewProps) {
     advanced: "Advanced"
   };
   const difficultyLabel = path.difficulty ? difficultyLabels[path.difficulty] : null;
+
+  useEffect(() => {
+    if (hasTrackedStart.current) return;
+
+    markPrimaryFeature("learning_path");
+    trackEvent("learning_path_started", {
+      path_id: path.id,
+      generated_by_ai: true,
+      topic_domain: path.modules?.[0]?.title || null,
+      difficulty_level: path.difficulty || null,
+      total_labs: totalLabs,
+      completed_labs_count: completedLabsCount
+    });
+    hasTrackedStart.current = true;
+  }, [path.id, path.modules, path.difficulty, completedLabsCount, totalLabs]);
+
+  useEffect(() => {
+    if (hasTrackedCompletion.current) return;
+    if (!totalModules || completedModules !== totalModules) return;
+
+    trackEvent("learning_path_completed", {
+      path_id: path.id,
+      generated_by_ai: true,
+      topic_domain: path.modules?.[0]?.title || null,
+      difficulty_level: path.difficulty || null,
+      total_labs: totalLabs,
+      completed_labs_count: completedLabsCount
+    });
+    hasTrackedCompletion.current = true;
+  }, [completedModules, totalModules, completedLabsCount, totalLabs, path.id, path.difficulty, path.modules]);
 
   return (
     <div className="space-y-6">

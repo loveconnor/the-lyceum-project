@@ -6,3 +6,4 @@ export * from "./chart-most-activity";
 export * from "./progress-statistics-card";
 export * from "./student-success-card";
 export * from "./welcome-card";
+export * from "./dashboard-analytics";

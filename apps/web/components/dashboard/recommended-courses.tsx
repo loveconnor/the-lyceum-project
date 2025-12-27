@@ -40,6 +40,7 @@ import { EmptyState } from "./empty-state";
 import PathDetailSheet from "@/components/paths/path-detail-sheet";
 import { generatePath, fetchPaths } from "@/lib/api/paths";
 import { usePathStore } from "@/app/(main)/paths/store";
+import { markPrimaryFeature, trackEvent } from "@/lib/analytics";
 
 export type Course = {
   id: number;
@@ -153,6 +154,14 @@ export function RecommendedCoursesTable({
     setStatus(null);
   }, [topics, userId]);
 
+  React.useEffect(() => {
+    trackEvent("widget_rendered", {
+      widget_type: "recommended_courses",
+      triggered_by_ai: true,
+      dashboard_variant: "main"
+    });
+  }, []);
+
   const data: Course[] = (recommended || []).map((t, idx) => ({
     id: idx + 1,
     name: t.name || "Recommended topic",
@@ -192,12 +201,27 @@ export function RecommendedCoursesTable({
           topics: [course.name, course.category].filter(Boolean),
           difficulty: "intermediate"
         });
+        trackEvent("learning_path_created", {
+          path_id: pathToShow.id,
+          generated_by_ai: true,
+          topic_domain: course.category,
+          difficulty_level: "intermediate",
+          total_labs: pathToShow.learning_path_items?.length ?? null
+        });
         
         toast.success("Learning path generated!");
         
         // Update the store with the new path
         setPaths([...currentPaths, pathToShow]);
       }
+      trackEvent("widget_interacted", {
+        widget_type: "recommended_courses",
+        triggered_by_ai: true,
+        dashboard_variant: "main",
+        interaction: "view_path_details",
+        target_id: pathToShow.id
+      });
+      markPrimaryFeature("learning_path");
       
       // Open the path detail sheet with the path
       setSelectedPathId(pathToShow.id);
@@ -221,6 +245,29 @@ export function RecommendedCoursesTable({
         topics: [course.name, course.category].filter(Boolean),
         difficulty: "intermediate"
       });
+      trackEvent("learning_path_created", {
+        path_id: newPath.id,
+        generated_by_ai: true,
+        topic_domain: course.category,
+        difficulty_level: "intermediate",
+        total_labs: newPath.learning_path_items?.length ?? null
+      });
+      trackEvent("learning_path_started", {
+        path_id: newPath.id,
+        generated_by_ai: true,
+        topic_domain: course.category,
+        difficulty_level: "intermediate",
+        total_labs: newPath.learning_path_items?.length ?? null,
+        completed_labs_count: 0
+      });
+      trackEvent("widget_interacted", {
+        widget_type: "recommended_courses",
+        triggered_by_ai: true,
+        dashboard_variant: "main",
+        interaction: "start_path_from_recommendations",
+        target_id: newPath.id
+      });
+      markPrimaryFeature("learning_path");
       
       toast.success("Learning path generated!");
       router.push(`/paths/${newPath.id}`);
@@ -286,6 +333,12 @@ export function RecommendedCoursesTable({
         setRecommended(refreshed.length ? refreshed : topics);
         setStatus("Recommendations refreshed.");
       }
+      trackEvent("widget_interacted", {
+        widget_type: "recommended_courses",
+        triggered_by_ai: true,
+        dashboard_variant: "main",
+        interaction: "regenerate_recommendations"
+      });
     } catch (error) {
       console.error("Regenerate recommendations error", error);
       setStatus(

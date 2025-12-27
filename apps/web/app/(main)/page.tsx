@@ -9,7 +9,8 @@ import {
   ProgressStatisticsCard,
   StudentSuccessCard,
   CourseProgressByMonth,
-  RecommendedCoursesTable
+  RecommendedCoursesTable,
+  DashboardAnalytics
 } from "@/components/dashboard";
 import { createClient } from "@/utils/supabase/server";
 
@@ -212,6 +213,8 @@ async function DashboardContent({
 
   return (
     <>
+      {/* Client-side analytics for dashboard usage */}
+      <DashboardAnalytics dashboard_variant="main" />
       {/* Top section - dynamic layout based on what's visible */}
       <div className={`grid gap-4 ${hasTopTopicsData ? 'lg:grid-cols-12' : 'lg:grid-cols-2'}`}>
         <div className={hasTopTopicsData ? 'lg:col-span-12 xl:col-span-6' : 'lg:col-span-1'}>

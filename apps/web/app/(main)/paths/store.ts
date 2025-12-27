@@ -8,6 +8,7 @@ import {
   Difficulty
 } from "./types";
 import { createPath, updatePath as updatePathAPI, deletePath as deletePathAPI, generatePath } from "@/lib/api/paths";
+import { markPrimaryFeature, trackEvent } from "@/lib/analytics";
 
 interface PathStore {
   paths: LearningPath[];
@@ -88,6 +89,16 @@ export const usePathStore = create<PathStore>((set) => ({
         difficulty: path.difficulty,
         estimated_duration: 0,
       });
+      trackEvent("learning_path_created", {
+        path_id: newPath.id,
+        generated_by_ai: false,
+        topic_domain: (newPath as any)?.topics?.[0] || null,
+        difficulty_level: (newPath as any)?.difficulty || null,
+        total_labs: Array.isArray((newPath as any)?.learning_path_items)
+          ? (newPath as any).learning_path_items.length
+          : null
+      });
+      markPrimaryFeature("learning_path");
       set((state) => ({
         paths: [...state.paths, newPath]
       }));
@@ -152,8 +163,19 @@ export const usePathStore = create<PathStore>((set) => ({
             } else if (data.type === "module_complete") {
               set({ generationStatus: `Finished module: ${data.title}` });
             } else if (data.type === "completed") {
+              const newPath = data.path;
+              trackEvent("learning_path_created", {
+                path_id: newPath.id,
+                generated_by_ai: true,
+                topic_domain: (newPath as any)?.topics?.[0] || null,
+                difficulty_level: (newPath as any)?.difficulty || null,
+                total_labs: Array.isArray((newPath as any)?.learning_path_items)
+                  ? (newPath as any).learning_path_items.length
+                  : null
+              });
+              markPrimaryFeature("learning_path");
               set((state) => ({
-                paths: [...state.paths, data.path],
+                paths: [...state.paths, newPath],
                 generationStatus: null
               }));
             } else if (data.type === "error") {

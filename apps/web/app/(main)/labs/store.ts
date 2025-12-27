@@ -18,6 +18,7 @@ import {
   generateLab as apiGenerateLab
 } from "@/lib/api/labs";
 import { UnifiedLabData } from "@/types/lab-templates";
+import { markLabTouched, markPrimaryFeature, trackEvent } from "@/lib/analytics";
 
 interface CreateLabPayload {
   title: string;
@@ -47,7 +48,7 @@ interface LabStore {
   // Actions
   fetchLabs: () => Promise<void>;
   addLab: (lab: CreateLabPayload) => Promise<void>;
-  generateLab: (learningGoal: string, context?: string) => Promise<Lab>;
+  generateLab: (learningGoal: string, context?: string, isRecommendation?: boolean) => Promise<Lab>;
   updateLab: (id: string, updatedLab: Partial<Lab>) => Promise<void>;
   deleteLab: (id: string, onSuccess?: () => void) => Promise<void>;
   setSelectedLabId: (id: string | null) => void;
@@ -93,6 +94,14 @@ export const useLabStore = create<LabStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const newLab = await apiCreateLab(labPayload);
+      markLabTouched(newLab.id);
+      markPrimaryFeature("lab");
+      trackEvent("lab_started", {
+        lab_id: newLab.id,
+        lab_type: newLab.starred ? "core" : "optional",
+        generated_by_ai: false,
+        estimated_duration: newLab.estimated_duration ?? null
+      });
       set((state) => ({
         labs: [...state.labs, newLab],
         loading: false
@@ -103,10 +112,25 @@ export const useLabStore = create<LabStore>((set, get) => ({
     }
   },
 
-  generateLab: async (learningGoal, context) => {
+  generateLab: async (learningGoal, context, isRecommendation = false) => {
     set({ loading: true, error: null });
     try {
       const newLab = await apiGenerateLab({ learningGoal, context });
+      markLabTouched(newLab.id);
+      markPrimaryFeature("lab");
+      trackEvent("lab_started", {
+        lab_id: newLab.id,
+        lab_type: isRecommendation ? "recommended" : "optional",
+        generated_by_ai: true,
+        estimated_duration: newLab.estimated_duration ?? null
+      });
+      if (isRecommendation) {
+        trackEvent("lab_recommended_started", {
+          lab_id: newLab.id,
+          lab_type: "recommended",
+          estimated_duration: newLab.estimated_duration ?? null
+        });
+      }
       set((state) => ({
         labs: [...state.labs, newLab],
         loading: false
@@ -122,6 +146,23 @@ export const useLabStore = create<LabStore>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const updated = await apiUpdateLab(id, updatedLab);
+      if (updated.status === "completed") {
+        trackEvent("lab_completed", {
+          lab_id: updated.id,
+          lab_type: updated.starred ? "core" : "optional",
+          generated_by_ai: true,
+          estimated_duration: updated.estimated_duration ?? null,
+          completion_time_seconds: updated.completed_at
+            ? Math.max(
+                0,
+                Math.round(
+                  (new Date(updated.completed_at).getTime() - new Date(updated.created_at).getTime()) / 1000
+                )
+              )
+            : null,
+          retries_count: updated.lab_progress?.filter((p: any) => p.completed === false).length ?? null
+        });
+      }
       set((state) => ({
         labs: state.labs.map((lab) => (lab.id === id ? updated : lab)),
         loading: false
@@ -249,6 +290,14 @@ export const useLabStore = create<LabStore>((set, get) => ({
         ),
         loading: false
       }));
+      if (!lab.starred) {
+        trackEvent("lab_marked_core", {
+          lab_id: lab.id,
+          lab_type: "core",
+          generated_by_ai: true,
+          estimated_duration: lab.estimated_duration ?? null
+        });
+      }
     } catch (error) {
       set({ error: (error as Error).message, loading: false });
       throw error;

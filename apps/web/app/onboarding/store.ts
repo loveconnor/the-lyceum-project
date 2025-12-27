@@ -13,12 +13,16 @@ export interface OnboardingData {
 interface OnboardingStore {
   currentStep: number;
   data: OnboardingData;
+  startedAt: number | null;
+  skippedSteps: boolean;
   setCurrentStep: (step: number) => void;
   updateInterests: (interests: string[]) => void;
   updateWorkPreferences: (preferences: Partial<OnboardingData["workPreferences"]>) => void;
   updateAccountType: (accountType: string) => void;
   nextStep: () => void;
   prevStep: () => void;
+  markStarted: (timestamp: number) => void;
+  markSkipped: () => void;
   reset: () => void;
 }
 
@@ -35,6 +39,8 @@ const initialData: OnboardingData = {
 export const useOnboardingStore = create<OnboardingStore>((set, get) => ({
   currentStep: 0,
   data: initialData,
+  startedAt: null,
+  skippedSteps: false,
   setCurrentStep: (step) => set({ currentStep: step }),
   updateInterests: (interests) =>
     set((state) => ({
@@ -53,5 +59,10 @@ export const useOnboardingStore = create<OnboardingStore>((set, get) => ({
     })),
   nextStep: () => set((state) => ({ currentStep: state.currentStep + 1 })),
   prevStep: () => set((state) => ({ currentStep: Math.max(0, state.currentStep - 1) })),
+  markStarted: (timestamp: number) =>
+    set((state) => ({
+      startedAt: state.startedAt ?? timestamp
+    })),
+  markSkipped: () => set({ skippedSteps: true }),
   reset: () => set({ currentStep: 0, data: initialData })
 }));
