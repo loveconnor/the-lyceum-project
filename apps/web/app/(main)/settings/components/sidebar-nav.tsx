@@ -7,6 +7,7 @@ import {
   BellIcon,
   ContrastIcon,
   CreditCardIcon,
+  HeartIcon,
   PaletteIcon,
   ShieldIcon,
   UserIcon
@@ -26,6 +27,11 @@ const sidebarNavItems = [
     href: "/settings/billing",
     icon: CreditCardIcon
   }*/
+  {
+    title: "Interests",
+    href: "/settings/interests",
+    icon: HeartIcon
+  },
   {
     title: "Appearance",
     href: "/settings/appearance",
