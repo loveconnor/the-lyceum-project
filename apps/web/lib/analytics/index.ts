@@ -55,6 +55,9 @@ function sanitizeProperties<T extends Record<string, unknown>>(properties?: T): 
 export function initAnalytics() {
   if (isInitialized || typeof window === "undefined") return;
 
+  const disabled = process.env.NEXT_PUBLIC_POSTHOG_DISABLED === "true";
+  if (disabled) return;
+
   const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
   if (!apiKey) {
     if (process.env.NODE_ENV === "development") {
