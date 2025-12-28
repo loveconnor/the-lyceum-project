@@ -125,6 +125,11 @@ router.post("/", async (req, res) => {
             .single();
         if (pathError) {
             console.error("Error creating learning path:", pathError);
+            if (stream) {
+                res.write(`data: ${JSON.stringify({ type: 'error', message: 'Failed to create learning path' })}\n\n`);
+                res.end();
+                return;
+            }
             return res.status(500).json({ error: "Failed to create learning path" });
         }
         // Create path items if provided
@@ -166,26 +171,57 @@ router.post("/", async (req, res) => {
 });
 // AI-generate learning path with modules and content
 router.post("/generate", async (req, res) => {
+    const stream = req.query.stream === 'true';
     try {
         const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
         const userId = req.user?.id;
         if (!userId) {
             return res.status(401).json({ error: "Unauthorized" });
         }
-        const { title, description, difficulty, estimatedDuration, topics } = req.body;
+        const { title, description, estimatedDuration, topics } = req.body;
         if (!description || !description.trim()) {
             return res.status(400).json({ error: "Description is required" });
         }
+        if (stream) {
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+            res.flushHeaders?.();
+        }
+        // Get user's difficulty/experience level from onboarding data
+        const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("onboarding_data")
+            .eq("id", userId)
+            .single();
+        if (profileError) {
+            console.error("Error fetching user profile:", profileError);
+        }
+        // Map experience level from onboarding to difficulty
+        const experienceMap = {
+            'new': 'intro',
+            'familiar': 'intermediate',
+            'comfortable': 'advanced'
+        };
+        const experience = profile?.onboarding_data?.workPreferences?.experience;
+        const difficulty = experience ? (experienceMap[experience] || 'intermediate') : 'intermediate';
+        console.log(`Using difficulty level: ${difficulty} (from user experience: ${experience || 'not set'})`);
         // Generate path and modules using AI
         console.log('Step 1: Generating learning path outline from description:', description);
+        if (stream) {
+            res.write(`data: ${JSON.stringify({ type: 'status', message: 'Generating learning path outline...' })}\n\n`);
+        }
         const outline = await (0, ai_path_generator_1.generatePathOutline)({
             title: title || "", // Allow empty title - AI will generate it
             description,
-            difficulty: difficulty || 'intermediate',
+            difficulty,
             estimatedDuration,
             topics
         });
         console.log(`Outline generated: ${outline.modules.length} modules planned`);
+        if (stream) {
+            res.write(`data: ${JSON.stringify({ type: 'outline', outline })}\n\n`);
+        }
         // Create the learning path
         const { data: newPath, error: pathError } = await supabase
             .from("learning_paths")
@@ -208,55 +244,105 @@ router.post("/generate", async (req, res) => {
             return res.status(500).json({ error: "Failed to create learning path" });
         }
         console.log(`Path created: ${newPath.id}`);
-        // Generate content for each module one at a time
-        const pathItems = [];
-        for (let i = 0; i < outline.modules.length; i++) {
-            const moduleOutline = outline.modules[i];
-            console.log(`Step ${i + 2}: Generating content for module "${moduleOutline.title}"...`);
-            try {
-                const content = await (0, ai_path_generator_1.generateModuleContent)(moduleOutline.title, moduleOutline.description, `${outline.title}: ${outline.description}`, outline.difficulty, i);
-                pathItems.push({
-                    path_id: newPath.id,
-                    lab_id: null,
-                    order_index: i,
-                    title: moduleOutline.title,
-                    description: moduleOutline.description,
-                    item_type: 'reading',
-                    status: 'not-started',
-                    content_data: content
+        // Helper function to limit concurrency
+        const generateModulesWithConcurrencyLimit = async (modules, limit = 3) => {
+            const results = [];
+            for (let i = 0; i < modules.length; i += limit) {
+                const batch = modules.slice(i, i + limit);
+                console.log(`Generating batch ${Math.floor(i / limit) + 1}: ${batch.map(m => m.title).join(', ')}`);
+                const batchPromises = batch.map(async (moduleOutline, batchIndex) => {
+                    const moduleIndex = i + batchIndex;
+                    console.log(`Starting module generation: "${moduleOutline.title}"...`);
+                    if (stream) {
+                        res.write(`data: ${JSON.stringify({ type: 'module_start', title: moduleOutline.title, index: moduleIndex })}\n\n`);
+                    }
+                    try {
+                        const content = await (0, ai_path_generator_1.generateModuleContent)(moduleOutline.title, moduleOutline.description, `${outline.title}: ${outline.description}`, outline.difficulty, moduleIndex);
+                        console.log(`Module "${moduleOutline.title}" content generated successfully`);
+                        if (stream) {
+                            res.write(`data: ${JSON.stringify({ type: 'module_complete', title: moduleOutline.title, index: moduleIndex })}\n\n`);
+                        }
+                        return {
+                            path_id: newPath.id,
+                            lab_id: null,
+                            order_index: moduleIndex,
+                            title: moduleOutline.title,
+                            description: moduleOutline.description,
+                            item_type: 'module',
+                            status: 'not-started',
+                            content_data: content
+                        };
+                    }
+                    catch (error) {
+                        console.error(`Error generating content for module "${moduleOutline.title}":`, error);
+                        // Return item with null content if generation fails
+                        return {
+                            path_id: newPath.id,
+                            lab_id: null,
+                            order_index: moduleIndex,
+                            title: moduleOutline.title,
+                            description: moduleOutline.description,
+                            item_type: 'module',
+                            status: 'not-started',
+                            content_data: null
+                        };
+                    }
                 });
-                console.log(`Module ${i + 1}/${outline.modules.length} content generated`);
+                const batchResults = await Promise.all(batchPromises);
+                results.push(...batchResults);
+                console.log(`Batch ${Math.floor(i / limit) + 1} completed`);
             }
-            catch (error) {
-                console.error(`Error generating content for module "${moduleOutline.title}":`, error);
-                // Continue with remaining modules even if one fails
-                pathItems.push({
+            return results;
+        };
+        // Generate content for modules in batches of 3 to avoid overwhelming the API
+        console.log(`Generating content for ${outline.modules.length} modules (3 at a time)...`);
+        const moduleItems = await generateModulesWithConcurrencyLimit(outline.modules, 3);
+        console.log(`All ${moduleItems.length} modules generated`);
+        // Now interleave lab suggestions with modules for hands-on practice
+        // For example: Module 1 -> Lab 1 -> Module 2 -> Lab 2 -> Module 3 -> etc.
+        const allPathItems = [];
+        let currentOrderIndex = 0;
+        for (let i = 0; i < moduleItems.length; i++) {
+            // Add the module
+            allPathItems.push({
+                ...moduleItems[i],
+                order_index: currentOrderIndex++
+            });
+            // After each module (except the last), suggest a practice lab
+            if (i < moduleItems.length - 1) {
+                const labSuggestion = {
                     path_id: newPath.id,
-                    lab_id: null,
-                    order_index: i,
-                    title: moduleOutline.title,
-                    description: moduleOutline.description,
-                    item_type: 'reading',
+                    lab_id: null, // Will be filled in when user creates the lab
+                    order_index: currentOrderIndex++,
+                    title: `Practice Lab: ${moduleItems[i].title}`,
+                    description: `Apply what you learned in "${moduleItems[i].title}" through hands-on practice. Create a lab to reinforce these concepts.`,
+                    item_type: 'lab',
                     status: 'not-started',
-                    content_data: null
-                });
+                    content_data: {
+                        suggested: true,
+                        module_context: moduleItems[i].title
+                    }
+                };
+                allPathItems.push(labSuggestion);
             }
         }
-        // Create path items from generated modules
-        if (pathItems.length > 0) {
-            console.log(`Inserting ${pathItems.length} modules into database`);
+        console.log(`Created ${allPathItems.length} items total (${moduleItems.length} modules + ${allPathItems.length - moduleItems.length} lab suggestions)`);
+        // Create path items from generated modules and lab suggestions
+        // Create path items from generated modules and lab suggestions
+        if (allPathItems.length > 0) {
+            console.log(`Inserting ${allPathItems.length} items into database`);
             const { data: insertedItems, error: itemsError } = await supabase
                 .from("learning_path_items")
-                .insert(pathItems)
+                .insert(allPathItems)
                 .select();
             if (itemsError) {
                 console.error("Error creating path items:", itemsError);
-                return res.status(500).json({ error: "Failed to create modules" });
+                return res.status(500).json({ error: "Failed to create path items" });
             }
-            console.log(`Successfully created ${insertedItems?.length || 0} modules`);
+            console.log(`Successfully created ${insertedItems?.length || 0} items`);
         }
         else {
-            console.log('No modules generated by AI');
+            console.log('No items generated by AI');
         }
         // Update dashboard
         try {
@@ -290,12 +376,27 @@ router.post("/generate", async (req, res) => {
             .single();
         if (fetchError) {
             console.error("Error fetching complete path:", fetchError);
+            if (stream) {
+                res.write(`data: ${JSON.stringify({ type: 'error', message: 'Failed to fetch complete path' })}\n\n`);
+                res.end();
+                return;
+            }
             return res.status(500).json({ error: "Failed to fetch complete path" });
+        }
+        if (stream) {
+            res.write(`data: ${JSON.stringify({ type: 'completed', path: completePath })}\n\n`);
+            res.end();
+            return;
         }
         return res.status(201).json(completePath);
     }
     catch (error) {
         console.error("Error in POST /paths/generate:", error);
+        if (stream) {
+            res.write(`data: ${JSON.stringify({ type: 'error', message: error instanceof Error ? error.message : 'Unknown error' })}\n\n`);
+            res.end();
+            return;
+        }
         return res.status(500).json({
             error: "Internal server error",
             details: error instanceof Error ? error.message : 'Unknown error'

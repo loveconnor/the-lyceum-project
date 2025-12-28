@@ -146,15 +146,15 @@ Respond with JSON only in this structure:
         "content": "Rich markdown content with headings (##, ###), bullet points, code examples if relevant, and clear explanations. Make this substantive and educational - 3-5 paragraphs.",
         "quizzes": [
           {
-            "question": "Clear, specific question testing understanding",
+            "question": "Clear, specific question testing understanding (wrap any math in $ like: What is $x^2 + y^2$?)",
             "options": [
-              { "id": "A", "text": "Option A text" },
-              { "id": "B", "text": "Option B text" },
+              { "id": "A", "text": "Option A text (if math: $\\\\mathbf{v} = (3, 4)$)" },
+              { "id": "B", "text": "Option B text (if math: $x = 3 + 4i$)" },
               { "id": "C", "text": "Option C text" },
               { "id": "D", "text": "Option D text" }
             ],
             "correct": "B",
-            "explanation": "Brief explanation of why this is correct"
+            "explanation": "Brief explanation of why this is correct (wrap math in $ as well)"
           }
         ]
       }
@@ -163,15 +163,34 @@ Respond with JSON only in this structure:
       {
         "concept": "Concept name",
         "explanation": "Clear 3-4 sentence explanation with depth",
-        "examples": ["Concrete example 1", "Concrete example 2", "Real-world example 3"]
+        "example_sections": [
+          {
+            "type": "pattern",
+            "title": "Step-by-Step Solution",
+            "items": [
+              "**Problem:** Find $\\\\lim_{x \\\\to 2} \\\\frac{x^2-4}{x-2}$\\n\\n**Step 1:** Factor the numerator\\n$x^2 - 4 = (x+2)(x-2)$\\nWe factor because we can cancel the common term with the denominator.\\n\\n**Step 2:** Simplify\\n$\\\\frac{(x+2)(x-2)}{x-2} = x+2$ (for $x \\\\neq 2$)\\nWe cancel since we're taking the limit, not evaluating at $x=2$.\\n\\n**Step 3:** Evaluate\\n$\\\\lim_{x \\\\to 2} (x+2) = 4$\\n\\n**Answer:** The limit is 4.",
+              "Second example with similar detailed step-by-step format"
+            ]
+          }
+        ]
       }
     ],
     "practical_exercises": [
       {
-        "title": "Exercise title",
-        "description": "Detailed description of what the learner will do and what they'll learn",
+        "title": "Short descriptive title for the problem",
+        "description": "The actual problem to solve. For math: 'Solve: $2x + 5 = 13$' or 'Find the derivative of $f(x) = x^3 + 2x$'. For other subjects: A specific question or task the learner must complete.",
         "difficulty": "beginner" | "intermediate" | "advanced",
-        "estimated_time": "15-30 min"
+        "estimated_time": "5-15 min",
+        "hints": [
+          "First hint - a small nudge in the right direction",
+          "Second hint - more specific guidance",
+          "Third hint - nearly gives the approach but not the answer"
+        ],
+        "worked_example": "Complete step-by-step solution:\\n**Step 1:** First step with explanation\\n**Step 2:** Second step with explanation\\n**Answer:** Final answer with interpretation",
+        "common_mistakes": [
+          "Common mistake 1 and why it's wrong",
+          "Common mistake 2 and how to avoid it"
+        ]
       }
     ],
     "resources": [
@@ -238,17 +257,148 @@ Guidelines:
 - Each chapter should take 5-15 minutes to read
 - Include 1-2 quiz questions per chapter (simple questions to check understanding)
 - Include 3-5 key concepts with thorough explanations
-- Include 2-4 practical exercises
+- Include 2-4 practical exercises (MUST be actual problems to solve, see below)
 - Include 4-6 assessment questions (more comprehensive)
 - Use markdown formatting for better readability (headings, bold, lists, code blocks for CODE only)
 - Make content specific, actionable, and pedagogically sound
 - Write in an engaging, conversational but professional tone
-- Include real-world examples and applications
-- IMPORTANT: For mathematical content, use LaTeX syntax with dollar sign delimiters:
-  - Inline math: wrap in single dollar signs like $x^2 + y^2 = z^2$
-  - Block math: wrap in double dollar signs on own line like $$\\int_0^1 f(x) dx$$
-  - NEVER use triple backtick code blocks for math - only use $ delimiters
-  - Remember to escape backslashes in JSON strings (use \\\\ for a single backslash)
+
+PRACTICAL EXERCISES REQUIREMENTS (CRITICAL):
+===============================================
+Exercises MUST be actual problems the learner solves, NOT descriptions of activities.
+
+✓ CORRECT exercise description examples:
+  - "Solve for x: $3x - 7 = 14$"
+  - "Find the derivative: $f(x) = 5x^4 - 3x^2 + 2$"
+  - "Simplify the expression: $\\frac{x^2 - 9}{x + 3}$"
+  - "Calculate the area of a triangle with base 8cm and height 5cm"
+  - "Convert 0.75 to a fraction in lowest terms"
+  - "Factor completely: $x^2 + 7x + 12$"
+  - "What is $\\frac{3}{4} + \\frac{2}{5}$?"
+  
+✗ WRONG exercise description examples (DO NOT DO THIS):
+  - "Students will practice solving equations" (too vague)
+  - "Using manipulatives, learners will explore..." (describes activity, not problem)
+  - "Work with a partner to discuss..." (not a problem to solve)
+  - "Count objects and record observations" (activity, not problem)
+
+For each exercise, you MUST include:
+1. title: Short name (e.g., "Solve Linear Equation", "Find the Derivative")
+2. description: The ACTUAL PROBLEM with specific numbers/expressions in LaTeX
+3. hints: 2-3 progressive hints that guide without giving the answer
+4. worked_example: Complete step-by-step solution
+5. common_mistakes: 1-2 mistakes learners often make
+
+ADAPTIVE EXAMPLES STRATEGY (CRITICAL):
+- Examples should be adaptive and intentional based on what best helps learners understand each specific concept
+- Choose example types that genuinely add clarity—do NOT force real-world examples on every concept
+- Each concept should have 1-3 example sections (not all types are needed for every concept)
+- Only include example sections that meaningfully contribute to understanding
+
+Example Type Selection Guide:
+1. "code" type - Use ONLY for: Programming/software development concepts, syntax, APIs, data structures, algorithms
+   - Title examples: "Code Example", "Implementation", "Syntax Example"
+   - Show concise, working code snippets with brief explanation
+   - Prioritize for: Functions, classes, language features, technical implementations
+   - DO NOT USE for: Math, physics, chemistry, or other subjects where code is just a tool (not the subject itself)
+
+2. "conceptual" type - Use for: Abstract concepts, theories, mental models, foundational ideas
+   - Title examples: "Conceptual Example", "Mental Model", "Core Idea"
+   - Use analogies, explanations, or thought experiments
+   - Prioritize for: Theoretical concepts, philosophical ideas, abstract principles
+
+3. "pattern" type - Use for: Best practices, design patterns, common approaches
+   - Title examples: "Common Pattern", "Best Practice", "Typical Approach", "Step-by-Step Solution"
+   - Show established, recommended ways to solve problems
+   - For MATH: Use this for worked problems with FULL step-by-step solutions
+   - Prioritize for: Intermediate/advanced topics, architectural concepts, mathematical problem-solving
+
+4. "antipattern" type - Use for: Common mistakes, pitfalls, what to avoid
+   - Title examples: "What Not to Do", "Common Mistake", "Pitfall to Avoid"
+   - Highlight incorrect approaches with explanation of why they fail
+   - Prioritize for: Topics with common misconceptions or frequent errors
+
+5. "applied" type - Use for: Practical application, use cases, problem-solving
+   - Title examples: "Applied Example", "Use Case", "Practical Application"
+   - Show how concept solves specific problems
+   - Prioritize for: Skills, techniques, methodologies
+
+6. "real-world" type - Use ONLY when real-world context genuinely adds clarity
+   - Title examples: "Real-World Application", "Industry Example", "Production Use Case"
+   - Connect to actual systems, companies, or scenarios
+   - Use sparingly—only when concrete real-world context enhances understanding
+
+Selection Strategy by Topic Type:
+- Foundational/Abstract concepts → "conceptual" + optionally "applied"
+- Programming syntax/technical topics → "code" (primary) + optionally "pattern" or "antipattern"
+- Intermediate concepts → "pattern" + "antipattern" + optionally "applied"
+- Advanced topics → "pattern" + optionally "applied"
+- Practical skills → "applied" + optionally "real-world"
+- Theoretical concepts → "conceptual" + optionally "applied"
+- Math topics → "pattern" (for step-by-step solutions) + "conceptual" (for theory/intuition)
+- Science topics → "conceptual" + "applied" (show experiments, phenomena, calculations—NOT code)
+- Design/Architecture → "pattern" + "antipattern" + optionally "real-world"
+
+CRITICAL RULES:
+- Do NOT create empty sections
+- Do NOT force real-world examples on every concept
+- Do NOT use "code" type for math, science, or non-programming topics (use "conceptual", "pattern", or "applied" instead)
+- Only use "code" type when the learning goal is programming/software development itself
+- Prioritize clarity and learning value over metaphor
+
+MATH-SPECIFIC REQUIREMENTS (ABSOLUTELY CRITICAL - MUST FOLLOW):
+==================================================================
+For ANY mathematics topic (calculus, algebra, linear algebra, etc.):
+
+1. STRUCTURE REQUIREMENT:
+   - Use "pattern" type with title "Step-by-Step Solution" or "Worked Example"
+   - Each item in the items array is ONE COMPLETE worked problem with full walkthrough
+   
+2. CONTENT REQUIREMENT - Each item MUST contain ALL of these:
+   ✓ **Problem:** statement with proper LaTeX
+   ✓ **Step 1:** First step of solution with work shown
+      - Show the mathematical work
+      - Explain WHY we do this step
+   ✓ **Step 2:** Second step with work shown
+      - Show the mathematical work  
+      - Explain the reasoning
+   ✓ **Step 3:** Continue until problem is solved
+   ✓ **Answer:** Final answer with interpretation
+   
+3. FORMAT REQUIREMENTS:
+   - Use \\n\\n for line breaks between sections (newlines in JSON string)
+   - Use $...$ for inline math, $$...$$ for display math
+   - Remember to escape backslashes: \\\\ for LaTeX commands in JSON
+   - Each step needs: operation shown + reasoning explained
+   
+4. EXAMPLE OF CORRECT FORMAT (this is what each item should look like):
+   "**Problem:** Find $\\\\lim_{x \\\\to 2} \\\\frac{x^2-4}{x-2}$\\n\\n**Step 1:** Factor the numerator\\n$x^2 - 4 = (x+2)(x-2)$\\nWe factor because we can cancel the common term with the denominator.\\n\\n**Step 2:** Simplify the expression\\n$\\\\frac{(x+2)(x-2)}{x-2} = x+2$ (for $x \\\\neq 2$)\\nWe cancel the $(x-2)$ terms since we're taking the limit as $x$ approaches 2, not evaluating at 2.\\n\\n**Step 3:** Evaluate the limit\\n$\\\\lim_{x \\\\to 2} (x+2) = 2+2 = 4$\\nNow the limit is straightforward to evaluate.\\n\\n**Answer:** The limit is 4."
+
+5. WHAT NOT TO DO (INCORRECT):
+   ✗ "Approaching $x=2$ for $f(x) = \\frac{x^2-4}{x-2}$ simplifies to $f(x) = x+2$, so the limit is 4."
+   ✗ Brief explanations without step-by-step work
+   ✗ Just showing the answer without the process
+   
+6. GOAL: TEACH the problem-solving PROCESS, not just show answers
+   - Students need to see HOW to solve similar problems
+   - Every step needs both the math AND the reasoning
+   - Think like a tutor explaining to a student
+
+CRITICAL MATH FORMATTING RULES (MUST FOLLOW):
+- ALL mathematical expressions, formulas, equations, variables, and symbols MUST be wrapped in dollar signs
+- Inline math: wrap in single $ like $x^2 + y^2 = z^2$ or $\\mathbf{v}$ or $\\alpha$
+- Block math: wrap in double $$ on own line like $$\\int_0^1 f(x) dx$$
+- This applies to ALL content: chapter content, quiz questions, quiz options, explanations, examples, everywhere
+- Examples of what MUST be wrapped:
+  * Variables: $x$, $y$, $v$, $\\alpha$, $\\beta$
+  * Expressions: $x + y$, $2x - 3$, $\\frac{a}{b}$
+  * Vectors: $\\mathbf{v}$, $\\vec{u}$
+  * Functions: $f(x)$, $\\sin(x)$, $\\log(n)$
+  * Equations: $E = mc^2$, $a^2 + b^2 = c^2$
+  * Sets: $\\{1, 2, 3\\}$
+- NEVER write raw LaTeX without $ delimiters (e.g., "\\mathbf{v}" is WRONG, "$\\mathbf{v}$" is CORRECT)
+- NEVER use triple backtick code blocks for math - only use $ delimiters
+- Remember to escape backslashes in JSON strings (use \\\\ for a single backslash in LaTeX commands)
 - Generate 2-4 visual diagrams using ReactFlow format:
   - Position nodes using x,y coordinates (canvas is roughly 800x600)
   - For vertical flows: increment y by 100-120 for each row
@@ -263,12 +413,19 @@ Guidelines:
   - Always include markerEnd with type "arrowclosed" for directional edges
   - Give each node a width of 150-250 based on label length`;
 async function generatePathOutline(request) {
-    const client = ensureClient();
-    const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
-    const titleInstruction = request.title
-        ? `Title: ${request.title}`
-        : `Generate an appropriate title based on the learning goals described below.`;
-    const userPrompt = `Generate a comprehensive learning path outline for:
+    const maxRetries = 2;
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            if (attempt > 0) {
+                console.log(`Retrying path outline generation (attempt ${attempt}/${maxRetries})...`);
+            }
+            const client = ensureClient();
+            const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+            const titleInstruction = request.title
+                ? `Title: ${request.title}`
+                : `Generate an appropriate title based on the learning goals described below.`;
+            const userPrompt = `Generate a comprehensive learning path outline for:
 
 ${titleInstruction}
 Description: ${request.description || 'Create a structured learning path'}
@@ -277,32 +434,52 @@ ${request.topics && request.topics.length > 0 ? `Focus Topics: ${request.topics.
 
 Note: Determine an appropriate total duration (in hours) based on the content scope and difficulty level.
 Create module titles and descriptions that build on each other progressively.`;
-    const completion = await client.chat.completions.create({
-        model,
-        messages: [
-            { role: 'system', content: PATH_OUTLINE_PROMPT },
-            { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 2000,
-        response_format: { type: 'json_object' },
-    });
-    const rawResponse = completion.choices[0]?.message?.content || '{}';
-    console.log('Path outline response:', rawResponse.substring(0, 500));
-    const parsed = tryParseJson(rawResponse);
-    if (!parsed || !parsed.path || !parsed.modules) {
-        console.error('Failed to parse path outline. Raw response:', rawResponse);
-        throw new Error('Failed to parse AI response for path outline');
+            const completion = await client.chat.completions.create({
+                model,
+                messages: [
+                    { role: 'system', content: PATH_OUTLINE_PROMPT },
+                    { role: 'user', content: userPrompt }
+                ],
+                temperature: 0.7,
+                max_tokens: 2000,
+                response_format: { type: 'json_object' },
+            });
+            const rawResponse = completion.choices[0]?.message?.content || '{}';
+            console.log('Path outline response:', rawResponse.substring(0, 500));
+            const parsed = tryParseJson(rawResponse);
+            if (!parsed || !parsed.path || !parsed.modules) {
+                console.error('Failed to parse path outline. Raw response:', rawResponse);
+                throw new Error('Failed to parse AI response for path outline');
+            }
+            return {
+                ...parsed.path,
+                modules: parsed.modules
+            };
+        }
+        catch (error) {
+            lastError = error;
+            console.error(`Attempt ${attempt + 1} failed for path outline:`, error.message);
+            if (attempt === maxRetries) {
+                throw error;
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        }
     }
-    return {
-        ...parsed.path,
-        modules: parsed.modules
-    };
+    throw lastError;
 }
 async function generateModuleContent(moduleTitle, moduleDescription, pathContext, difficulty, orderIndex) {
-    const client = ensureClient();
-    const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
-    const userPrompt = `Generate detailed content for this learning module:
+    const maxRetries = 1;
+    let lastError;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            if (attempt > 0) {
+                console.log(`Retrying module generation for "${moduleTitle}" (attempt ${attempt}/${maxRetries})...`);
+                // Short delay before retry when generating in parallel
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            const client = ensureClient();
+            const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+            const userPrompt = `Generate detailed content for this learning module:
 
 Module Title: ${moduleTitle}
 Module Description: ${moduleDescription}
@@ -311,28 +488,38 @@ Difficulty Level: ${difficulty}
 Module Position: ${orderIndex + 1}
 
 Create comprehensive learning content with chapters, quizzes, concepts, exercises, and assessments.`;
-    const completion = await client.chat.completions.create({
-        model,
-        messages: [
-            { role: 'system', content: MODULE_CONTENT_PROMPT },
-            { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 12000,
-        response_format: { type: 'json_object' },
-    });
-    const rawResponse = completion.choices[0]?.message?.content || '{}';
-    const finishReason = completion.choices[0]?.finish_reason;
-    console.log(`Module "${moduleTitle}" content generated (${rawResponse.length} chars, finish_reason: ${finishReason})`);
-    // Check if response was truncated
-    if (finishReason === 'length') {
-        console.error('WARNING: Response was truncated due to max_tokens limit!');
+            const completion = await client.chat.completions.create({
+                model,
+                messages: [
+                    { role: 'system', content: MODULE_CONTENT_PROMPT },
+                    { role: 'user', content: userPrompt }
+                ],
+                temperature: 0.7,
+                max_tokens: 12000,
+                response_format: { type: 'json_object' },
+            });
+            const rawResponse = completion.choices[0]?.message?.content || '{}';
+            const finishReason = completion.choices[0]?.finish_reason;
+            console.log(`Module "${moduleTitle}" content generated (${rawResponse.length} chars, finish_reason: ${finishReason})`);
+            // Check if response was truncated
+            if (finishReason === 'length') {
+                console.error('WARNING: Response was truncated due to max_tokens limit!');
+            }
+            const parsed = tryParseJson(rawResponse);
+            if (!parsed || !parsed.content) {
+                console.error('Failed to parse module content. Raw response:', rawResponse.substring(0, 500));
+                throw new Error('Failed to parse AI response for module content');
+            }
+            // Fix any literal \n strings in the content
+            return fixLiteralNewlines(parsed.content);
+        }
+        catch (error) {
+            lastError = error;
+            console.error(`Attempt ${attempt + 1} failed for module "${moduleTitle}":`, error.message);
+            if (attempt === maxRetries) {
+                throw error;
+            }
+        }
     }
-    const parsed = tryParseJson(rawResponse);
-    if (!parsed || !parsed.content) {
-        console.error('Failed to parse module content. Raw response:', rawResponse.substring(0, 500));
-        throw new Error('Failed to parse AI response for module content');
-    }
-    // Fix any literal \n strings in the content
-    return fixLiteralNewlines(parsed.content);
+    throw lastError;
 }

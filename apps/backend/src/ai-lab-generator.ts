@@ -66,20 +66,19 @@ export interface GeneratedLabResponse {
   raw: string;
 }
 
-const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, an educational platform. Your job is to choose the best template type for a learning goal. Do not select "revise"; pick from the remaining templates only.
+const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, an educational platform. Your job is to choose the best template type for a learning goal. Do not select "revise" or "explore"; pick from the remaining templates only.
 
 Available templates:
 1. **analyze** - For data analysis, visualization, statistics, pattern recognition
 2. **build** - For hands-on coding practice, learning syntax, writing functions, implementing algorithms, practicing programming concepts. Use when someone wants to "learn how to code/write/implement" something.
 3. **derive** - For mathematical derivations, proofs, symbolic manipulation, step-by-step problem solving, and theoretical reasoning
 4. **explain** - For understanding and analyzing EXISTING code that's already written, code review, explaining how specific code works
-5. **explore** - For simulations, experiments, parameter exploration, interactive learning
 
 Key distinction: Use "build" when the learner wants to WRITE code to learn (e.g., "learn how to write X", "practice coding Y"). Use "explain" only when analyzing EXISTING code.
 
 Based on the learning goal, respond with JSON only:
 {
-  "template_type": "analyze" | "build" | "derive" | "explain" | "explore",
+  "template_type": "analyze" | "build" | "derive" | "explain",
   "reasoning": "Brief explanation of why this template fits"
 }`;
 
@@ -463,9 +462,13 @@ ${request.userProfile?.level ? `User level: ${request.userProfile.level}` : ''}`
 
       let templateType = selection.template_type;
 
-      // Temporarily disable generating "revise" labs; fall back to "build" if chosen
+      // Temporarily disable generating "revise" and "explore" labs; fall back to "build" if chosen
       if (templateType === 'revise') {
         console.warn('Template selector returned "revise" which is disabled; falling back to "build".');
+        templateType = 'build';
+      }
+      if (templateType === 'explore') {
+        console.warn('Template selector returned "explore" which is disabled; falling back to "build".');
         templateType = 'build';
       }
 

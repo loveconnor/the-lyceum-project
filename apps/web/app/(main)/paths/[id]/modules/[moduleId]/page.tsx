@@ -18,7 +18,15 @@ import {
   Network,
   FileText,
   Clock,
-  X
+  X,
+  Code2,
+  Brain,
+  CheckSquare,
+  XCircle,
+  Wrench,
+  Globe,
+  ChevronDown,
+  ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
@@ -46,6 +54,7 @@ import { fetchLabById, generateLab } from "@/lib/api/labs";
 import { Lab } from "@/app/(main)/labs/types";
 import LabViewer from "@/components/labs/lab-viewer";
 import { toast } from "sonner";
+import { ShortAnswerWidget, MultipleChoiceWidget, MultiStepWidget } from "@/components/exercises";
 
 // --- Types & Constants ---
 
@@ -73,13 +82,24 @@ interface ModuleData {
     key_concepts: Array<{
       concept: string;
       explanation: string;
-      examples: string[];
+      examples?: string[]; // Legacy support
+      example_sections?: Array<{
+        type: 'code' | 'conceptual' | 'pattern' | 'antipattern' | 'applied' | 'walkthrough';
+        title: string;
+        items: string[];
+      }>;
     }>;
     practical_exercises: Array<{
       title: string;
       description: string;
+      exercise_type?: 'short_answer' | 'multiple_choice' | 'multi_step';
       difficulty: string;
       estimated_time?: string;
+      correct_answer?: string;
+      options?: string[];
+      hints?: string[];
+      worked_example?: string;
+      common_mistakes?: string[];
     }>;
     resources: Array<{
       type: 'reading' | 'video' | 'interactive';
@@ -169,6 +189,76 @@ const ensureMathDelimiters = (text: string): string => {
   }
   
   return text;
+};
+
+/**
+ * Auto-detects and formats mathematical expressions for rendering.
+ * Converts plain math notation to LaTeX-wrapped expressions.
+ * Handles expressions like "x^2 + 2x + 1 = 0" or "f(x) = 2x + 3"
+ */
+const autoFormatMathExpression = (input: string): string => {
+  // If already has $ delimiters, return as-is
+  if (input.includes('$')) {
+    return input;
+  }
+  
+  const trimmed = input.trim();
+  if (!trimmed) return input;
+  
+  // Check if text contains explicit LaTeX commands - wrap entire thing
+  const latexCommandPattern = /\\(?:frac|sqrt|sum|prod|int|lim|sin|cos|tan|log|ln|exp|mathbf|mathit|mathrm|vec|hat|bar|tilde|alpha|beta|gamma|delta|theta|lambda|mu|sigma|pi|phi|psi|omega|infty|partial|nabla|cdot|times|div|pm|mp|leq|geq|neq|approx|equiv|rightarrow|leftarrow|Rightarrow|Leftarrow|subset|supset|cup|cap|in|forall|exists|left|right|begin|end)/;
+  
+  if (latexCommandPattern.test(trimmed)) {
+    return `$${trimmed}$`;
+  }
+  
+  // Patterns that strongly indicate mathematical content
+  const mathIndicators = [
+    /[a-zA-Z]\s*\^\s*[\d{}\w]/,        // Exponents: x^2, x^{2n}
+    /[a-zA-Z]\s*_\s*[\d{}\w]/,          // Subscripts: x_1, a_{n}
+    /\d+\s*[a-zA-Z]/,                    // Coefficients: 2x, 3y
+    /[a-zA-Z]\s*\(\s*[a-zA-Z]\s*\)/,    // Functions: f(x), g(t)
+    /[=<>]\s*\d/,                        // Equations/inequalities: = 5, > 3
+    /\d\s*[=<>]/,                        // Equations/inequalities: 5 =, 3 <
+    /[+\-*/]\s*[a-zA-Z]/,               // Operations with variables: + x, - y
+    /[a-zA-Z]\s*[+\-*/=]\s*[a-zA-Z\d]/, // Variable operations: x + y, a = 5
+    /\(\s*[a-zA-Z\d+\-*/^_\s]+\s*\)/,   // Expressions in parens: (x + 1)
+    /[±≤≥≠≈∞∑∏∫√]/,                     // Unicode math symbols
+  ];
+  
+  const hasMathContent = mathIndicators.some(pattern => pattern.test(trimmed));
+  
+  if (hasMathContent) {
+    // Process line by line for multi-line input
+    const lines = trimmed.split('\n');
+    const processedLines = lines.map(line => {
+      const lineTrimmed = line.trim();
+      if (!lineTrimmed) return line;
+      
+      // Check if line looks like pure text (starts with common text patterns)
+      const textPatterns = /^(therefore|hence|since|because|let|where|given|note|thus|so|if|then|when|for|the|a|an|is|are|was|were|this|that|these|those|we|can|get|have|by|from|to|with|using|applying|substituting|factoring|expanding|simplifying|solving|evaluating)/i;
+      
+      if (textPatterns.test(lineTrimmed)) {
+        // It's explanatory text - check if it contains inline math
+        // Look for math-like segments within the text
+        return lineTrimmed.replace(
+          /([a-zA-Z]\s*[=<>≤≥]\s*[\d\w+\-*/^_().\s]+)|(\d+\s*[a-zA-Z][\w+\-*/^_().\s]*)|([a-zA-Z]\s*\^\s*\d+)|([a-zA-Z]\s*_\s*\d+)/g,
+          (match) => `$${match.trim()}$`
+        );
+      }
+      
+      // Entire line looks like a math expression - wrap it
+      if (mathIndicators.some(pattern => pattern.test(lineTrimmed))) {
+        return `$${lineTrimmed}$`;
+      }
+      
+      return line;
+    });
+    
+    return processedLines.join('\n');
+  }
+  
+  return input;
 };
 
 // --- Components ---
@@ -498,6 +588,478 @@ const ImmersiveTextView = ({
   );
 };
 
+// Helper to get neutral, adaptive label for example type
+const getExampleTypeLabel = (type: string): string => {
+  switch (type) {
+    case 'code':
+      return 'Code Example';
+    case 'conceptual':
+      return 'Concept Example';
+    case 'pattern':
+      return 'Pattern Example';
+    case 'antipattern':
+      return 'Common Mistake';
+    case 'applied':
+      return 'Applied Example';
+    case 'walkthrough':
+      return 'Walkthrough';
+    default:
+      return 'Example';
+  }
+};
+
+// Helper to get icon for example section type
+const getExampleSectionIcon = (type: string) => {
+  switch (type) {
+    case 'code':
+      return Code2;
+    case 'conceptual':
+      return Brain;
+    case 'pattern':
+      return CheckSquare;
+    case 'antipattern':
+      return XCircle;
+    case 'applied':
+      return Wrench;
+    case 'walkthrough':
+      return ArrowRight;
+    default:
+      return Lightbulb;
+  }
+};
+
+// --- Concepts Sub-Tab (Passive, illustrative examples) ---
+const ConceptsSubView = ({
+  keyConcepts,
+  currentIndex,
+  setCurrentIndex,
+  viewedConcepts,
+}: {
+  keyConcepts: Array<{
+    concept: string;
+    explanation: string;
+    examples?: string[];
+    example_sections?: Array<{
+      type: 'code' | 'conceptual' | 'pattern' | 'antipattern' | 'applied' | 'walkthrough';
+      title: string;
+      items: string[];
+    }>;
+  }>;
+  currentIndex: number;
+  setCurrentIndex: (i: number) => void;
+  viewedConcepts: Set<number>;
+}) => {
+  const currentConcept = keyConcepts[currentIndex];
+  
+  if (!currentConcept) return null;
+
+  return (
+    <motion.div
+      key={`concept-${currentIndex}`}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-6"
+    >
+      {/* Concept Header */}
+      <div>
+        <Badge variant="outline" className="mb-3">
+          Concept {currentIndex + 1} of {keyConcepts.length}
+        </Badge>
+        <h2 className="text-2xl font-semibold mb-3">{currentConcept.concept}</h2>
+        <div className="prose prose-stone dark:prose-invert max-w-none break-words">
+          <Markdown>{currentConcept.explanation}</Markdown>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Adaptive Examples - render based on example_sections or fallback to legacy examples */}
+      {currentConcept.example_sections && currentConcept.example_sections.length > 0 ? (
+        <div className="space-y-6">
+          {currentConcept.example_sections.map((section, sectionIdx) => {
+            const Icon = getExampleSectionIcon(section.type);
+            const label = section.title || getExampleTypeLabel(section.type);
+            
+            return (
+              <div key={sectionIdx} className="space-y-3">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Icon className="w-5 h-5 text-muted-foreground" />
+                  {label}
+                </h3>
+                <div className="space-y-3">
+                  {section.items.map((item, itemIdx) => (
+                    <Card key={itemIdx} className="border shadow-none">
+                      <CardContent className="p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {itemIdx + 1}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="prose prose-sm prose-stone dark:prose-invert max-w-none break-words overflow-hidden">
+                              <Markdown>{item}</Markdown>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : currentConcept.examples && currentConcept.examples.length > 0 ? (
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-muted-foreground" />
+            Examples
+          </h3>
+          <div className="space-y-3">
+            {currentConcept.examples.map((example, i) => (
+              <Card key={i} className="border shadow-none">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-xs font-medium text-muted-foreground">{i + 1}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="prose prose-sm prose-stone dark:prose-invert max-w-none break-words overflow-hidden">
+                        <Markdown>{example}</Markdown>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Navigation buttons */}
+      <div className="flex items-center justify-between pt-6">
+        <Button
+          variant="outline"
+          onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+          disabled={currentIndex === 0}
+        >
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Previous
+        </Button>
+        <span className="text-sm text-muted-foreground">
+          {currentIndex + 1} of {keyConcepts.length}
+        </span>
+        <Button
+          variant="outline"
+          onClick={() => setCurrentIndex(Math.min(keyConcepts.length - 1, currentIndex + 1))}
+          disabled={currentIndex === keyConcepts.length - 1}
+        >
+          Next
+          <ChevronRight className="w-4 h-4 ml-1" />
+        </Button>
+      </div>
+    </motion.div>
+  );
+};
+
+// --- Exercises Sub-Tab (Active workspace with AI-selected widgets) ---
+const ExercisesSubView = ({
+  practicalExercises,
+  currentIndex,
+  setCurrentIndex,
+  attemptedExercises,
+  setAttemptedExercises,
+  completedExercises,
+  setCompletedExercises,
+}: {
+  practicalExercises: Array<{
+    title: string;
+    description: string;
+    exercise_type?: 'short_answer' | 'multiple_choice' | 'multi_step';
+    difficulty: string;
+    estimated_time?: string;
+    correct_answer?: string;
+    options?: string[];
+    hints?: string[];
+    worked_example?: string;
+    common_mistakes?: string[];
+  }>;
+  currentIndex: number;
+  setCurrentIndex: (i: number) => void;
+  attemptedExercises: Set<number>;
+  setAttemptedExercises: React.Dispatch<React.SetStateAction<Set<number>>>;
+  completedExercises: Set<number>;
+  setCompletedExercises: React.Dispatch<React.SetStateAction<Set<number>>>;
+}) => {
+  // Support section state
+  const [showHints, setShowHints] = useState(false);
+  const [showWorkedExample, setShowWorkedExample] = useState(false);
+  const [showCommonMistakes, setShowCommonMistakes] = useState(false);
+  const [hintsRevealed, setHintsRevealed] = useState(0);
+  
+  const currentExercise = practicalExercises[currentIndex];
+  const hasAttempted = attemptedExercises.has(currentIndex);
+  const isCompleted = completedExercises.has(currentIndex);
+  
+  // Determine widget type from exercise data (AI-selected) or fallback detection
+  const widgetType = currentExercise?.exercise_type || 
+    (currentExercise?.options && currentExercise.options.length > 0 ? 'multiple_choice' : 
+     currentExercise?.correct_answer ? 'short_answer' : 'multi_step');
+  
+  // Reset support states when changing exercises
+  useEffect(() => {
+    setShowHints(false);
+    setShowWorkedExample(false);
+    setShowCommonMistakes(false);
+    setHintsRevealed(0);
+  }, [currentIndex]);
+  
+  // Mark as attempted when user starts working
+  const markAttempted = useCallback(() => {
+    if (!hasAttempted) {
+      setAttemptedExercises(prev => new Set(prev).add(currentIndex));
+    }
+  }, [hasAttempted, currentIndex, setAttemptedExercises]);
+  
+  const revealNextHint = () => {
+    const hints = currentExercise?.hints || [];
+    if (hintsRevealed < hints.length) {
+      setHintsRevealed(prev => prev + 1);
+    }
+  };
+  
+  if (!currentExercise) return null;
+
+  const hints = currentExercise.hints || [];
+  const hasHints = hints.length > 0;
+  const hasWorkedExample = !!currentExercise.worked_example;
+  const hasCommonMistakes = currentExercise.common_mistakes && currentExercise.common_mistakes.length > 0;
+
+  return (
+    <motion.div
+      key={`exercise-${currentIndex}`}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-6"
+    >
+      {/* Exercise Header */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Badge variant="outline">
+            Exercise {currentIndex + 1} of {practicalExercises.length}
+          </Badge>
+          <Badge variant="secondary">
+            {currentExercise.difficulty}
+          </Badge>
+          {currentExercise.estimated_time && (
+            <Badge variant="outline" className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {currentExercise.estimated_time}
+            </Badge>
+          )}
+        </div>
+        <h2 className="text-2xl font-semibold mb-3">{currentExercise.title}</h2>
+      </div>
+
+      {/* Problem Prompt - Primary focus */}
+      <Card className="border-2">
+        <CardContent className="p-6">
+          <div className="prose prose-stone dark:prose-invert max-w-none break-words overflow-hidden [&_.katex]:text-lg">
+            <Markdown>{currentExercise.description}</Markdown>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Completed Banner */}
+      {isCompleted && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 p-4 rounded-lg bg-green-500/10 border border-green-500/20"
+        >
+          <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+            <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+          </div>
+          <div>
+            <p className="font-semibold text-green-600 dark:text-green-400">Correct!</p>
+            <p className="text-sm text-muted-foreground">Great work. You can move on to the next exercise.</p>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Widget-based Answer Input - AI selects the widget type */}
+      {widgetType === 'short_answer' && currentExercise.correct_answer ? (
+        <ShortAnswerWidget
+          correctAnswer={currentExercise.correct_answer}
+          isCompleted={isCompleted}
+          onComplete={() => setCompletedExercises(prev => new Set(prev).add(currentIndex))}
+          onAttempt={markAttempted}
+        />
+      ) : widgetType === 'multiple_choice' && currentExercise.options && currentExercise.correct_answer ? (
+        <MultipleChoiceWidget
+          options={currentExercise.options}
+          correctAnswer={currentExercise.correct_answer}
+          isCompleted={isCompleted}
+          onComplete={() => setCompletedExercises(prev => new Set(prev).add(currentIndex))}
+          onAttempt={markAttempted}
+        />
+      ) : (
+        <MultiStepWidget
+          onAttempt={markAttempted}
+          hasWorkedExample={hasWorkedExample}
+          onShowWorkedExample={() => setShowWorkedExample(true)}
+        />
+      )}
+
+      {/* Progressive Support Section - Secondary, collapsed by default */}
+      {(hasHints || hasWorkedExample || hasCommonMistakes) && (
+        <div className="space-y-3 pt-4 border-t">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Support</p>
+          
+          {/* Hints - Progressive reveal */}
+          {hasHints && (
+            <div className="space-y-2">
+              <button
+                onClick={() => setShowHints(!showHints)}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronDown className={cn("w-4 h-4 transition-transform", !showHints && "-rotate-90")} />
+                <HelpCircle className="w-4 h-4" />
+                <span>Hints ({hintsRevealed}/{hints.length} revealed)</span>
+              </button>
+              
+              {showHints && (
+                <div className="ml-6 space-y-2">
+                  {hints.slice(0, hintsRevealed).map((hint, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="px-3 py-2 bg-muted/50 rounded-md text-sm"
+                    >
+                      <span className="font-medium text-muted-foreground mr-2">Hint {i + 1}:</span>
+                      <Markdown className="inline prose prose-sm prose-stone dark:prose-invert [&>p]:inline">{hint}</Markdown>
+                    </motion.div>
+                  ))}
+                  {hintsRevealed < hints.length && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={revealNextHint}
+                      className="text-xs"
+                    >
+                      Reveal next hint
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Common Mistakes - Collapsed */}
+          {hasCommonMistakes && (
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  markAttempted();
+                  setShowCommonMistakes(!showCommonMistakes);
+                }}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronDown className={cn("w-4 h-4 transition-transform", !showCommonMistakes && "-rotate-90")} />
+                <XCircle className="w-4 h-4" />
+                <span>Common Mistakes</span>
+              </button>
+              
+              {showCommonMistakes && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="ml-6 space-y-2"
+                >
+                  {currentExercise.common_mistakes?.map((mistake, i) => (
+                    <div key={i} className="px-3 py-2 bg-destructive/5 border border-destructive/10 rounded-md text-sm">
+                      <Markdown className="prose prose-sm prose-stone dark:prose-invert max-w-none [&>p]:m-0">{mistake}</Markdown>
+                    </div>
+                  ))}
+                </motion.div>
+              )}
+            </div>
+          )}
+          
+          {/* Worked Example - Only after attempt */}
+          {hasWorkedExample && (
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  markAttempted();
+                  setShowWorkedExample(!showWorkedExample);
+                }}
+                className={cn(
+                  "flex items-center gap-2 text-sm transition-colors",
+                  hasAttempted 
+                    ? "text-muted-foreground hover:text-foreground" 
+                    : "text-muted-foreground/50"
+                )}
+              >
+                <ChevronDown className={cn("w-4 h-4 transition-transform", !showWorkedExample && "-rotate-90")} />
+                <BookOpen className="w-4 h-4" />
+                <span>Worked Example</span>
+                {!hasAttempted && (
+                  <span className="text-xs text-muted-foreground/50">(try first)</span>
+                )}
+              </button>
+              
+              {showWorkedExample && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="ml-6"
+                >
+                  <Card className="border shadow-none bg-muted/30">
+                    <CardContent className="p-4">
+                      <div className="prose prose-sm prose-stone dark:prose-invert max-w-none break-words overflow-hidden">
+                        <Markdown>{currentExercise.worked_example}</Markdown>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Navigation buttons */}
+      <div className="flex items-center justify-between pt-6">
+        <Button
+          variant="outline"
+          onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+          disabled={currentIndex === 0}
+        >
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Previous
+        </Button>
+        <span className="text-sm text-muted-foreground">
+          {currentIndex + 1} of {practicalExercises.length}
+        </span>
+        <Button
+          variant="outline"
+          onClick={() => setCurrentIndex(Math.min(practicalExercises.length - 1, currentIndex + 1))}
+          disabled={currentIndex === practicalExercises.length - 1}
+        >
+          Next
+          <ChevronRight className="w-4 h-4 ml-1" />
+        </Button>
+      </div>
+    </motion.div>
+  );
+};
+
+// --- Main Examples View (Parent Container) ---
 const ExamplesView = ({ 
   keyConcepts, 
   practicalExercises,
@@ -511,13 +1073,21 @@ const ExamplesView = ({
   keyConcepts: Array<{
     concept: string;
     explanation: string;
-    examples: string[];
+    examples?: string[];
+    example_sections?: Array<{
+      type: 'code' | 'conceptual' | 'pattern' | 'antipattern' | 'applied' | 'walkthrough';
+      title: string;
+      items: string[];
+    }>;
   }>;
   practicalExercises: Array<{
     title: string;
     description: string;
     difficulty: string;
     estimated_time?: string;
+    hints?: string[];
+    worked_example?: string;
+    common_mistakes?: string[];
   }>;
   isExamplesComplete: boolean; 
   setIsExamplesComplete: (v: boolean) => void;
@@ -526,60 +1096,76 @@ const ExamplesView = ({
   viewedExercises: Set<number>;
   setViewedExercises: React.Dispatch<React.SetStateAction<Set<number>>>;
 }) => {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [conceptIndex, setConceptIndex] = useState(0);
+  const [exerciseIndex, setExerciseIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<'concepts' | 'exercises'>('concepts');
+  const [attemptedExercises, setAttemptedExercises] = useState<Set<number>>(new Set());
+  const [completedExercises, setCompletedExercises] = useState<Set<number>>(new Set());
 
   // Helper to strip markdown syntax for preview text
   const stripMarkdown = (text: string): string => {
     return text
-      .replace(/\*\*(.+?)\*\*/g, '$1') // Bold
-      .replace(/\*(.+?)\*/g, '$1') // Italic
-      .replace(/`(.+?)`/g, '$1') // Inline code
-      .replace(/#{1,6}\s/g, '') // Headers
-      .replace(/\[(.+?)\]\(.+?\)/g, '$1') // Links
-      .replace(/^>\s/gm, '') // Blockquotes
-      .replace(/^[-*+]\s/gm, '') // List items
-      .replace(/\n/g, ' ') // Newlines to spaces
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/`(.+?)`/g, '$1')
+      .replace(/#{1,6}\s/g, '')
+      .replace(/\[(.+?)\]\(.+?\)/g, '$1')
+      .replace(/^>\s/gm, '')
+      .replace(/^[-*+]\s/gm, '')
+      .replace(/\n/g, ' ')
       .trim();
   };
 
-  // Mark item as viewed when user stays on it
+  // Mark concept as viewed when user stays on it
   useEffect(() => {
+    if (activeTab !== 'concepts') return;
+    
     const timer = setTimeout(() => {
-      if (activeTab === 'concepts') {
-        if (!viewedConcepts.has(currentIndex)) {
-          setViewedConcepts(prev => {
-            const newViewed = new Set(prev);
-            newViewed.add(currentIndex);
-            return newViewed;
-          });
-        }
-      } else {
-        if (!viewedExercises.has(currentIndex)) {
-          setViewedExercises(prev => new Set(prev).add(currentIndex));
-        }
+      if (!viewedConcepts.has(conceptIndex)) {
+        setViewedConcepts(prev => {
+          const newViewed = new Set(prev);
+          newViewed.add(conceptIndex);
+          return newViewed;
+        });
       }
-    }, 2000); // Mark as viewed after 2 seconds
+    }, 2000);
 
     return () => clearTimeout(timer);
-  }, [currentIndex, activeTab, viewedConcepts, viewedExercises]);
+  }, [conceptIndex, activeTab, viewedConcepts, setViewedConcepts]);
 
-  // Separate effect to mark examples complete when all concepts are viewed
+  // Mark exercise as viewed when user stays on it
   useEffect(() => {
-    if (viewedConcepts.size >= keyConcepts.length && viewedExercises.size >= practicalExercises.length && !isExamplesComplete) {
+    if (activeTab !== 'exercises') return;
+    
+    const timer = setTimeout(() => {
+      if (!viewedExercises.has(exerciseIndex)) {
+        setViewedExercises(prev => new Set(prev).add(exerciseIndex));
+      }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [exerciseIndex, activeTab, viewedExercises, setViewedExercises]);
+
+  // Mark examples complete when all concepts and exercises are viewed
+  useEffect(() => {
+    const conceptsComplete = viewedConcepts.size >= keyConcepts.length;
+    const exercisesComplete = viewedExercises.size >= practicalExercises.length;
+    
+    if (conceptsComplete && exercisesComplete && !isExamplesComplete) {
       setIsExamplesComplete(true);
     }
   }, [viewedConcepts.size, keyConcepts.length, viewedExercises.size, practicalExercises.length, isExamplesComplete, setIsExamplesComplete]);
 
-  if (!keyConcepts || keyConcepts.length === 0) {
+  // Empty state
+  if ((!keyConcepts || keyConcepts.length === 0) && (!practicalExercises || practicalExercises.length === 0)) {
     return (
       <div className="flex items-center justify-center min-h-[600px]">
         <Card className="max-w-2xl border-2 border-dashed">
           <CardContent className="p-12 text-center space-y-4">
             <Lightbulb className="w-16 h-16 mx-auto text-muted-foreground opacity-20" />
-            <h3 className="text-2xl font-display text-foreground">No Examples Available</h3>
+            <h3 className="text-2xl font-display text-foreground">No Content Available</h3>
             <p className="text-muted-foreground leading-relaxed">
-              The AI hasn't generated key concepts or examples for this module yet.
+              Examples and exercises for this module haven't been generated yet.
             </p>
           </CardContent>
         </Card>
@@ -587,8 +1173,8 @@ const ExamplesView = ({
     );
   }
 
-  const currentConcept = keyConcepts[currentIndex];
-  const currentExercise = practicalExercises[currentIndex];
+  const hasConcepts = keyConcepts && keyConcepts.length > 0;
+  const hasExercises = practicalExercises && practicalExercises.length > 0;
 
   return (
     <div className="flex gap-6 h-full">
@@ -597,31 +1183,29 @@ const ExamplesView = ({
         <div className="sticky top-[calc(var(--header-height)+6rem)]">
           <Card className="py-0">
             <CardContent className="p-2">
-              <Tabs value={activeTab} onValueChange={(v) => {
-                setActiveTab(v as 'concepts' | 'exercises');
-                setCurrentIndex(0);
-              }}>
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'concepts' | 'exercises')}>
                 <TabsList className="w-full grid grid-cols-2 mb-2">
-                  <TabsTrigger value="concepts" className="text-xs">
+                  <TabsTrigger value="concepts" className="text-xs" disabled={!hasConcepts}>
                     <Lightbulb className="w-3 h-3 mr-1" />
-                    Concepts ({keyConcepts.length})
+                    Concepts {hasConcepts && `(${keyConcepts.length})`}
                   </TabsTrigger>
-                  <TabsTrigger value="exercises" className="text-xs">
+                  <TabsTrigger value="exercises" className="text-xs" disabled={!hasExercises}>
                     <BookOpen className="w-3 h-3 mr-1" />
-                    Exercises ({practicalExercises.length})
+                    Exercises {hasExercises && `(${practicalExercises.length})`}
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="concepts" className="mt-0 space-y-0.5">
+                {/* Concepts navigation list */}
+                <TabsContent value="concepts" className="mt-0 space-y-0.5 max-h-[calc(100vh-20rem)] overflow-y-auto">
                   {keyConcepts.map((concept, i) => {
                     const isViewed = viewedConcepts.has(i);
-                    const isActive = currentIndex === i && activeTab === 'concepts';
+                    const isActive = conceptIndex === i;
 
                     return (
                       <Button
                         key={i}
                         variant="ghost"
-                        onClick={() => setCurrentIndex(i)}
+                        onClick={() => setConceptIndex(i)}
                         className={cn(
                           "w-full text-left px-3 py-2 h-auto flex-col items-start gap-1 overflow-hidden",
                           isActive && "bg-muted hover:bg-muted"
@@ -641,26 +1225,42 @@ const ExamplesView = ({
                   })}
                 </TabsContent>
 
-                <TabsContent value="exercises" className="mt-0 space-y-0.5">
+                {/* Exercises navigation list */}
+                <TabsContent value="exercises" className="mt-0 space-y-0.5 max-h-[calc(100vh-20rem)] overflow-y-auto">
                   {practicalExercises.map((exercise, i) => {
                     const isViewed = viewedExercises.has(i);
-                    const isActive = currentIndex === i && activeTab === 'exercises';
+                    const isAttempted = attemptedExercises.has(i);
+                    const isCompleted = completedExercises.has(i);
+                    const isActive = exerciseIndex === i;
 
                     return (
                       <Button
                         key={i}
                         variant="ghost"
-                        onClick={() => setCurrentIndex(i)}
+                        onClick={() => setExerciseIndex(i)}
                         className={cn(
                           "w-full text-left px-3 py-2 h-auto flex-col items-start gap-1 overflow-hidden",
-                          isActive && "bg-muted hover:bg-muted"
+                          isActive && "bg-muted hover:bg-muted",
+                          isCompleted && "bg-green-500/5"
                         )}
                       >
                         <div className="flex items-center justify-between w-full mb-1 min-w-0">
                           <div className="font-medium text-sm truncate flex-1 min-w-0">{exercise.title}</div>
-                          {isViewed && (
-                            <CheckCircle2 className="w-3 h-3 ml-2 text-green-600 dark:text-green-400 flex-shrink-0" />
-                          )}
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {isCompleted ? (
+                              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400">
+                                <CheckCircle2 className="w-2.5 h-2.5 mr-0.5" />
+                                Correct
+                              </Badge>
+                            ) : isAttempted ? (
+                              <Badge variant="outline" className="text-[10px] h-4 px-1 bg-primary/5 border-primary/20 text-primary">
+                                Started
+                              </Badge>
+                            ) : null}
+                            {isViewed && !isCompleted && (
+                              <CheckCircle2 className="w-3 h-3 ml-1 text-muted-foreground" />
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground w-full overflow-hidden">
                           <Badge variant="outline" className="text-xs h-4 px-1 flex-shrink-0">
@@ -682,7 +1282,7 @@ const ExamplesView = ({
                   <CardContent className="p-2">
                     <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
                       <CheckCircle2 className="w-3 h-3" />
-                      <span className="text-xs font-medium">All concepts viewed!</span>
+                      <span className="text-xs font-medium">All content reviewed!</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -695,122 +1295,25 @@ const ExamplesView = ({
       {/* Main content area */}
       <div className="flex-1 max-w-3xl">
         <AnimatePresence mode="wait">
-          {activeTab === 'concepts' && currentConcept && (
-            <motion.div
-              key={`concept-${currentIndex}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              <div>
-                <Badge variant="outline" className="mb-3">
-                  Key Concept {currentIndex + 1} of {keyConcepts.length}
-                </Badge>
-                <h2 className="text-2xl font-semibold mb-2">{currentConcept.concept}</h2>
-                <div className="prose prose-stone dark:prose-invert max-w-none break-words">
-                  <Markdown>{currentConcept.explanation}</Markdown>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-3">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Lightbulb className="w-5 h-5" />
-                  Real-world Examples
-                </h3>
-                <div className="space-y-3">
-                  {currentConcept.examples.map((example, i) => (
-                    <Card key={i} className="border shadow-none">
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <span className="text-xs font-semibold text-primary">{i + 1}</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="prose prose-sm prose-stone dark:prose-invert max-w-none break-words overflow-hidden">
-                              <Markdown>{example}</Markdown>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-
-              {/* Navigation buttons */}
-              <div className="flex items-center justify-between pt-6">
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
-                  disabled={currentIndex === 0}
-                >
-                  <ChevronLeft className="w-4 h-4 mr-1" />
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentIndex(Math.min(keyConcepts.length - 1, currentIndex + 1))}
-                  disabled={currentIndex === keyConcepts.length - 1}
-                >
-                  Next
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </div>
-            </motion.div>
+          {activeTab === 'concepts' && hasConcepts && (
+            <ConceptsSubView
+              keyConcepts={keyConcepts}
+              currentIndex={conceptIndex}
+              setCurrentIndex={setConceptIndex}
+              viewedConcepts={viewedConcepts}
+            />
           )}
 
-          {activeTab === 'exercises' && currentExercise && (
-            <motion.div
-              key={`exercise-${currentIndex}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Badge variant="outline">
-                    Exercise {currentIndex + 1} of {practicalExercises.length}
-                  </Badge>
-                  <Badge variant="secondary">
-                    {currentExercise.difficulty}
-                  </Badge>
-                  {currentExercise.estimated_time && (
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {currentExercise.estimated_time}
-                    </Badge>
-                  )}
-                </div>
-                <h2 className="text-2xl font-semibold mb-3">{currentExercise.title}</h2>
-                <div className="prose prose-stone dark:prose-invert max-w-none break-words overflow-hidden">
-                  <Markdown>{currentExercise.description}</Markdown>
-                </div>
-              </div>
-
-              {/* Navigation buttons */}
-              <div className="flex items-center justify-between pt-6">
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
-                  disabled={currentIndex === 0}
-                >
-                  <ChevronLeft className="w-4 h-4 mr-1" />
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentIndex(Math.min(practicalExercises.length - 1, currentIndex + 1))}
-                  disabled={currentIndex === practicalExercises.length - 1}
-                >
-                  Next
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </div>
-            </motion.div>
+          {activeTab === 'exercises' && hasExercises && (
+            <ExercisesSubView
+              practicalExercises={practicalExercises}
+              currentIndex={exerciseIndex}
+              setCurrentIndex={setExerciseIndex}
+              attemptedExercises={attemptedExercises}
+              setAttemptedExercises={setAttemptedExercises}
+              completedExercises={completedExercises}
+              setCompletedExercises={setCompletedExercises}
+            />
           )}
         </AnimatePresence>
       </div>

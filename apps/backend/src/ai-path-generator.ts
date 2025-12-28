@@ -152,7 +152,12 @@ export interface GeneratedModule {
     key_concepts: Array<{
       concept: string;
       explanation: string;
-      examples: string[];
+      examples?: string[]; // Legacy support - will be deprecated
+      example_sections?: Array<{
+        type: 'code' | 'conceptual' | 'pattern' | 'antipattern' | 'applied' | 'real-world';
+        title: string;
+        items: string[];
+      }>;
     }>;
     practical_exercises: Array<{
       title: string;
@@ -276,7 +281,7 @@ Respond with JSON only in this structure:
         "id": 0,
         "title": "Chapter title",
         "duration": "5-10 min",
-        "content": "Rich markdown content with headings (##, ###), bullet points, code examples if relevant, and clear explanations. Make this substantive and educational - 3-5 paragraphs.",
+        "content": "READING CONTENT ONLY. Rich markdown with headings, bullet points, code examples if relevant, and clear explanations. 3-5 paragraphs of EDUCATIONAL READING. Do NOT include any quiz questions, 'Quick Check', 'Practice Activity', 'Quiz', or any interactive elements here - those go ONLY in the quizzes array below.",
         "quizzes": [
           {
             "question": "Clear, specific question testing understanding (wrap any math in $ like: What is $x^2 + y^2$?)",
@@ -296,15 +301,35 @@ Respond with JSON only in this structure:
       {
         "concept": "Concept name",
         "explanation": "Clear 3-4 sentence explanation with depth",
-        "examples": ["Concrete example 1", "Concrete example 2", "Real-world example 3"]
+        "example_sections": [
+          {
+            "type": "pattern",
+            "title": "Step-by-Step Solution",
+            "items": [
+              "**Problem:** Find $\\\\lim_{x \\\\to 2} \\\\frac{x^2-4}{x-2}$\\n\\n**Step 1:** Factor the numerator\\n$x^2 - 4 = (x+2)(x-2)$\\nWe factor because we can cancel the common term with the denominator.\\n\\n**Step 2:** Simplify\\n$\\\\frac{(x+2)(x-2)}{x-2} = x+2$ (for $x \\\\neq 2$)\\nWe cancel since we're taking the limit, not evaluating at $x=2$.\\n\\n**Step 3:** Evaluate\\n$\\\\lim_{x \\\\to 2} (x+2) = 4$\\n\\n**Answer:** The limit is 4.",
+              "Second example with similar detailed step-by-step format"
+            ]
+          }
+        ]
       }
     ],
     "practical_exercises": [
       {
-        "title": "Exercise title",
-        "description": "Detailed description of what the learner will do and what they'll learn",
+        "title": "Short descriptive title for the problem",
+        "description": "The actual problem to solve (e.g., 'Solve: $2x + 5 = 13$' or 'Fill in the blank: 4, 5, _, 7, 8')",
+        "exercise_type": "short_answer" | "multiple_choice" | "multi_step",
         "difficulty": "beginner" | "intermediate" | "advanced",
-        "estimated_time": "15-30 min"
+        "estimated_time": "5-15 min",
+        "correct_answer": "The correct answer (e.g., '4' or 'x = 7')",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
+        "hints": [
+          "First hint - a small nudge in the right direction",
+          "Second hint - more specific guidance"
+        ],
+        "worked_example": "Complete step-by-step solution with explanation",
+        "common_mistakes": [
+          "Common mistake 1 and why it's wrong"
+        ]
       }
     ],
     "resources": [
@@ -371,12 +396,166 @@ Guidelines:
 - Each chapter should take 5-15 minutes to read
 - Include 1-2 quiz questions per chapter (simple questions to check understanding)
 - Include 3-5 key concepts with thorough explanations
-- Include 2-4 practical exercises
+- Include 2-4 practical exercises (MUST be actual problems to solve, see below)
 - Include 4-6 assessment questions (more comprehensive)
 - Use markdown formatting for better readability (headings, bold, lists, code blocks for CODE only)
 - Make content specific, actionable, and pedagogically sound
 - Write in an engaging, conversational but professional tone
-- Include real-world examples and applications
+
+CHAPTER CONTENT SEPARATION (CRITICAL):
+======================================
+The chapter "content" field is for READING ONLY. The UI renders this as readable text.
+Quiz questions are handled by a SEPARATE quiz component that reads from the "quizzes" array.
+
+✗ DO NOT put these in the "content" field:
+  - "Quiz", "Quick Check", "Practice Activity", "Check Your Understanding"
+  - Any questions with answer options (A, B, C, D)
+  - Any interactive exercises or fill-in-the-blank prompts
+  - Numbered quiz questions (1., 2., 3.)
+
+✓ The "content" field should ONLY contain:
+  - Educational explanations and reading material
+  - Examples that illustrate concepts
+  - Definitions and key points
+  - Diagrams described in text (actual diagrams go in visuals)
+
+✓ All questions go in the "quizzes" array as structured objects.
+
+PRACTICAL EXERCISES REQUIREMENTS (CRITICAL):
+===============================================
+Exercises MUST be actual problems with correct answers that can be verified.
+
+EXERCISE TYPES - Choose the right type for each problem:
+
+1. "short_answer" - Simple problems with a single answer
+   Examples:
+   - "Fill in the blank: 4, 5, _, 7, 8" → correct_answer: "6"
+   - "What is 7 × 8?" → correct_answer: "56"
+   - "Solve: $2x = 10$" → correct_answer: "5" or "x = 5"
+   - "What is the GCD of 12 and 18?" → correct_answer: "6"
+   Use when: Single number, single word, or simple expression answer
+
+2. "multiple_choice" - Select from options
+   Examples:
+   - "Which is prime: 9, 11, 15, 21?" → options: ["9", "11", "15", "21"], correct_answer: "11"
+   - "What is $\\sqrt{64}$?" → options: ["6", "7", "8", "9"], correct_answer: "8"
+   Use when: Testing recognition, or when there are natural distractor options
+   MUST include "options" array with 3-4 choices
+
+3. "multi_step" - Complex problems requiring multiple steps
+   Examples:
+   - "Factor completely: $x^2 + 7x + 12$" → correct_answer: "(x + 3)(x + 4)"
+   - "Find the derivative of $f(x) = 3x^4 - 2x^2 + 5$"
+   Use when: Derivations, proofs, or problems requiring work shown
+   Include detailed worked_example
+
+For ALL exercise types, you MUST include:
+- title: Short descriptive name
+- description: The ACTUAL PROBLEM with specific numbers/expressions
+- exercise_type: One of "short_answer", "multiple_choice", or "multi_step"
+- correct_answer: The exact correct answer for validation
+- hints: 1-2 hints that guide without giving the answer
+- worked_example: Step-by-step solution
+
+✗ WRONG exercise description examples (DO NOT DO THIS):
+  - "Students will practice solving equations" (no specific problem)
+  - "Using manipulatives, learners will explore..." (activity, not problem)
+  - Missing correct_answer field
+
+ADAPTIVE EXAMPLES STRATEGY (CRITICAL):
+- Examples should be adaptive and intentional based on what best helps learners understand each specific concept
+- Choose example types that genuinely add clarity—do NOT force real-world examples on every concept
+- Each concept should have 1-3 example sections (not all types are needed for every concept)
+- Only include example sections that meaningfully contribute to understanding
+
+Example Type Selection Guide:
+1. "code" type - Use ONLY for: Programming/software development concepts, syntax, APIs, data structures, algorithms
+   - Title examples: "Code Example", "Implementation", "Syntax Example"
+   - Show concise, working code snippets with brief explanation
+   - Prioritize for: Functions, classes, language features, technical implementations
+   - DO NOT USE for: Math, physics, chemistry, or other subjects where code is just a tool (not the subject itself)
+
+2. "conceptual" type - Use for: Abstract concepts, theories, mental models, foundational ideas
+   - Title examples: "Conceptual Example", "Mental Model", "Core Idea"
+   - Use analogies, explanations, or thought experiments
+   - Prioritize for: Theoretical concepts, philosophical ideas, abstract principles
+
+3. "pattern" type - Use for: Best practices, design patterns, common approaches
+   - Title examples: "Common Pattern", "Best Practice", "Typical Approach", "Step-by-Step Solution"
+   - Show established, recommended ways to solve problems
+   - For MATH: Use this for worked problems with FULL step-by-step solutions
+   - Prioritize for: Intermediate/advanced topics, architectural concepts, mathematical problem-solving
+
+4. "antipattern" type - Use for: Common mistakes, pitfalls, what to avoid
+   - Title examples: "What Not to Do", "Common Mistake", "Pitfall to Avoid"
+   - Highlight incorrect approaches with explanation of why they fail
+   - Prioritize for: Topics with common misconceptions or frequent errors
+
+5. "applied" type - Use for: Practical application, use cases, problem-solving
+   - Title examples: "Applied Example", "Use Case", "Practical Application"
+   - Show how concept solves specific problems
+   - Prioritize for: Skills, techniques, methodologies
+
+6. "real-world" type - Use ONLY when real-world context genuinely adds clarity
+   - Title examples: "Real-World Application", "Industry Example", "Production Use Case"
+   - Connect to actual systems, companies, or scenarios
+   - Use sparingly—only when concrete real-world context enhances understanding
+
+Selection Strategy by Topic Type:
+- Foundational/Abstract concepts → "conceptual" + optionally "applied"
+- Programming syntax/technical topics → "code" (primary) + optionally "pattern" or "antipattern"
+- Intermediate concepts → "pattern" + "antipattern" + optionally "applied"
+- Advanced topics → "pattern" + optionally "applied"
+- Practical skills → "applied" + optionally "real-world"
+- Theoretical concepts → "conceptual" + optionally "applied"
+- Math topics → "pattern" (for step-by-step solutions) + "conceptual" (for theory/intuition)
+- Science topics → "conceptual" + "applied" (show experiments, phenomena, calculations—NOT code)
+- Design/Architecture → "pattern" + "antipattern" + optionally "real-world"
+
+CRITICAL RULES:
+- Do NOT create empty sections
+- Do NOT force real-world examples on every concept
+- Do NOT use "code" type for math, science, or non-programming topics (use "conceptual", "pattern", or "applied" instead)
+- Only use "code" type when the learning goal is programming/software development itself
+- Prioritize clarity and learning value over metaphor
+
+MATH-SPECIFIC REQUIREMENTS (ABSOLUTELY CRITICAL - MUST FOLLOW):
+==================================================================
+For ANY mathematics topic (calculus, algebra, linear algebra, etc.):
+
+1. STRUCTURE REQUIREMENT:
+   - Use "pattern" type with title "Step-by-Step Solution" or "Worked Example"
+   - Each item in the items array is ONE COMPLETE worked problem with full walkthrough
+   
+2. CONTENT REQUIREMENT - Each item MUST contain ALL of these:
+   ✓ **Problem:** statement with proper LaTeX
+   ✓ **Step 1:** First step of solution with work shown
+      - Show the mathematical work
+      - Explain WHY we do this step
+   ✓ **Step 2:** Second step with work shown
+      - Show the mathematical work  
+      - Explain the reasoning
+   ✓ **Step 3:** Continue until problem is solved
+   ✓ **Answer:** Final answer with interpretation
+   
+3. FORMAT REQUIREMENTS:
+   - Use \\n\\n for line breaks between sections (newlines in JSON string)
+   - Use $...$ for inline math, $$...$$ for display math
+   - Remember to escape backslashes: \\\\ for LaTeX commands in JSON
+   - Each step needs: operation shown + reasoning explained
+   
+4. EXAMPLE OF CORRECT FORMAT (this is what each item should look like):
+   "**Problem:** Find $\\\\lim_{x \\\\to 2} \\\\frac{x^2-4}{x-2}$\\n\\n**Step 1:** Factor the numerator\\n$x^2 - 4 = (x+2)(x-2)$\\nWe factor because we can cancel the common term with the denominator.\\n\\n**Step 2:** Simplify the expression\\n$\\\\frac{(x+2)(x-2)}{x-2} = x+2$ (for $x \\\\neq 2$)\\nWe cancel the $(x-2)$ terms since we're taking the limit as $x$ approaches 2, not evaluating at 2.\\n\\n**Step 3:** Evaluate the limit\\n$\\\\lim_{x \\\\to 2} (x+2) = 2+2 = 4$\\nNow the limit is straightforward to evaluate.\\n\\n**Answer:** The limit is 4."
+
+5. WHAT NOT TO DO (INCORRECT):
+   ✗ "Approaching $x=2$ for $f(x) = \\frac{x^2-4}{x-2}$ simplifies to $f(x) = x+2$, so the limit is 4."
+   ✗ Brief explanations without step-by-step work
+   ✗ Just showing the answer without the process
+   
+6. GOAL: TEACH the problem-solving PROCESS, not just show answers
+   - Students need to see HOW to solve similar problems
+   - Every step needs both the math AND the reasoning
+   - Think like a tutor explaining to a student
 
 CRITICAL MATH FORMATTING RULES (MUST FOLLOW):
 - ALL mathematical expressions, formulas, equations, variables, and symbols MUST be wrapped in dollar signs

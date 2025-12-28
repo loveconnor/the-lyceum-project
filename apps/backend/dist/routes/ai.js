@@ -28,6 +28,94 @@ const assistantSystemPrompt = process.env.ASSISTANT_SYSTEM_PROMPT ||
         '✗ ```\\nfor\\n``` or ```java\\nfor\\n```\n' +
         '✗ ```\\ntrue\\n``` or ```\\ni++\\n```\n' +
         '✗ Any code block for single words/expressions\n' +
+        '\n\n' +
+        '=== VISUAL DIAGRAMS ===\n' +
+        'You can create interactive flow diagrams using the <Visual> tag with JSON data.\n' +
+        'Use this for: process flows, system architecture, state machines, relationships, algorithm steps.\n' +
+        '\n' +
+        'SYNTAX:\n' +
+        '<Visual>\n' +
+        '{\n' +
+        '  "title": "Diagram Title",\n' +
+        '  "description": "Optional description",\n' +
+        '  "nodes": [\n' +
+        '    {"id": "1", "position": {"x": 250, "y": 0}, "data": {"label": "Node Text"}, "type": "input"},\n' +
+        '    {"id": "2", "position": {"x": 250, "y": 100}, "data": {"label": "Second Node"}}\n' +
+        '  ],\n' +
+        '  "edges": [\n' +
+        '    {"id": "e1-2", "source": "1", "target": "2", "label": "Flow", "animated": true}\n' +
+        '  ]\n' +
+        '}\n' +
+        '</Visual>\n' +
+        '\n' +
+        'KEY GUIDELINES:\n' +
+        '• Use for concepts that benefit from visual representation\n' +
+        '• Keep diagrams simple (4-8 nodes ideal, max 15)\n' +
+        '• Space nodes 150-200px apart horizontally, 80-120px vertically\n' +
+        '• Node types: "input" (start), "output" (end), "default" (middle)\n' +
+        '• Edge types: "smoothstep" (recommended), "straight", "step"\n' +
+        '• Set animated: true for primary flow paths\n' +
+        '• Use arrays for multiple related diagrams: [diagram1, diagram2]\n' +
+        '• CRITICAL: NO TRAILING COMMAS in JSON. The parser will fail.\n' +
+        '• CRITICAL: DO NOT wrap JSON in markdown code blocks (```) inside the <Visual> tag.\n' +
+        '• Always validate JSON syntax.\n' +
+        '\n' +
+        'WHEN TO USE:\n' +
+        '✓ Explaining processes, workflows, algorithms\n' +
+        '✓ System architectures and component relationships\n' +
+        '✓ State transitions and decision trees\n' +
+        '✓ Data flow and information hierarchies\n' +
+        '✗ Simple lists (use markdown)\n' +
+        '✗ Single relationships (describe in text)\n' +
+        '\n\n' +
+        '=== DATA CHARTS ===\n' +
+        'You can create interactive data visualizations using the <Chart> tag with D3-based JSON data.\n' +
+        'Use this for: statistical data, comparisons, trends, distributions, relationships in data.\n' +
+        '\n' +
+        'SYNTAX:\n' +
+        '<Chart>\n' +
+        '{\n' +
+        '  "title": "Chart Title",\n' +
+        '  "description": "Optional description",\n' +
+        '  "chartOptions": {\n' +
+        '    "data": [\n' +
+        '      {"category": "A", "value": 45},\n' +
+        '      {"category": "B", "value": 62}\n' +
+        '    ],\n' +
+        '    "series": [\n' +
+        '      {"type": "bar", "xKey": "category", "yKey": "value", "yName": "Sales"}\n' +
+        '    ]\n' +
+        '  }\n' +
+        '}\n' +
+        '</Chart>\n' +
+        '\n' +
+        'AVAILABLE CHART TYPES:\n' +
+        '• BASIC: "bar", "line", "area", "pie", "donut", "scatter", "bubble", "heatmap", "histogram"\n' +
+        '\n' +
+        'KEY GUIDELINES:\n' +
+        '• Choose the right chart type for your data story\n' +
+        '• Bar/Column: comparisons across categories\n' +
+        '• Line/Area: trends over time (use "curve": "smooth"|"step"|"linear")\n' +
+        '• Pie/Donut: parts of a whole (max 6-8 slices)\n' +
+        '• Scatter: correlations and distributions (use numeric xKey for best results)\n' +
+        '• Bubble: scatter with a third dimension (use "sizeKey" for bubble radius)\n' +
+        '• Heatmap: 2D data grids (use "xKey" for columns, "yKey" for rows, "colorKey" for values)\n' +
+        '• Histogram: frequency distributions (provide binned data as "bar" or use "histogram" type)\n' +
+        '• Multiple series: use arrays of series objects\n' +
+        '• Use arrays for multiple related charts: [chart1, chart2]\n' +
+        '• CRITICAL: NO TRAILING COMMAS in JSON. The parser will fail.\n' +
+        '• CRITICAL: DO NOT wrap JSON in markdown code blocks (```) inside the <Chart> tag.\n' +
+        '• Always validate JSON syntax.\n' +
+        '\n' +
+        'WHEN TO USE:\n' +
+        '✓ Presenting numerical data, statistics, metrics\n' +
+        '✓ Showing trends, patterns, distributions\n' +
+        '✓ Comparing values across categories or time\n' +
+        '✓ Illustrating correlations and relationships in data\n' +
+        '✓ Explaining complex data structures like heatmaps or histograms\n' +
+        '✓ ALWAYS use <Chart> when the user asks "how to read [chart type]" to provide a concrete example\n' +
+        '✗ Conceptual flows (use <Visual> instead)\n' +
+        '✗ Non-numeric information\n' +
         '\n' +
         'If unsure whether the user wants mathematical theory or code implementation, ask a brief clarifying question.';
 const buildAssistantContext = async (userId) => {
@@ -101,7 +189,7 @@ aiRouter.post('/assistant/chat', async (req, res) => {
     }
     try {
         const contextString = await buildAssistantContext(userId);
-        const conversation = await (0, assistantStore_1.ensureConversation)(userId, conversationId, userMessage);
+        const conversation = await (0, assistantStore_1.ensureConversation)(userId, conversationId);
         const history = await (0, assistantStore_1.getAssistantMessages)(conversation.id, userId);
         // Check if this is the first message (no history, or only the current message)
         const isFirstMessage = history.length === 0;
@@ -132,9 +220,11 @@ aiRouter.post('/assistant/chat', async (req, res) => {
                     { role: 'assistant', content: full, conversation_id: conversation.id },
                 ], full.slice(0, 200));
                 // Generate title for new conversations after first exchange
-                if (isFirstMessage) {
+                if (isFirstMessage || !conversation.title || conversation.title === 'New chat' || conversation.title === 'Untitled chat') {
                     const title = await (0, ai_1.generateChatTitle)(userMessage, full);
-                    await (0, assistantStore_1.updateConversationTitle)(conversation.id, userId, title);
+                    if (title && title !== 'New chat' && title !== 'Untitled chat') {
+                        await (0, assistantStore_1.updateConversationTitle)(conversation.id, userId, title);
+                    }
                 }
                 res.write(`event: end\ndata: done\n\n`);
                 res.end();
@@ -155,9 +245,11 @@ aiRouter.post('/assistant/chat', async (req, res) => {
                 { role: 'assistant', content: result.reply, conversation_id: conversation.id },
             ], result.reply.slice(0, 200));
             // Generate title for new conversations after first exchange
-            if (isFirstMessage) {
+            if (isFirstMessage || !conversation.title || conversation.title === 'New chat' || conversation.title === 'Untitled chat') {
                 const title = await (0, ai_1.generateChatTitle)(userMessage, result.reply);
-                await (0, assistantStore_1.updateConversationTitle)(conversation.id, userId, title);
+                if (title && title !== 'New chat' && title !== 'Untitled chat') {
+                    await (0, assistantStore_1.updateConversationTitle)(conversation.id, userId, title);
+                }
             }
             const updatedMessages = await (0, assistantStore_1.getAssistantMessages)(conversation.id, userId);
             res.json({

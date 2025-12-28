@@ -88,8 +88,8 @@ const ensureConversation = async (userId, conversationId, fallbackTitle) => {
         const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
         return ensureConversationOwnership(supabase, conversationId, userId);
     }
-    // Always use "New chat" as initial title - will be updated by AI after first message
-    return (0, exports.createAssistantConversation)(userId, 'New chat');
+    // Use fallbackTitle if provided, otherwise "New chat" - will be updated by AI after first message
+    return (0, exports.createAssistantConversation)(userId, fallbackTitle || 'New chat');
 };
 exports.ensureConversation = ensureConversation;
 const updateConversationTitle = async (conversationId, userId, title) => {
