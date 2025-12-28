@@ -1,15 +1,13 @@
 import React from "react";
-import { Sparkles, TrendingUp, Target, ChevronRight, Paperclip, X } from "lucide-react";
+import { Sparkles, TrendingUp, Target, ChevronRight} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
 import { usePathStore } from "@/app/(main)/paths/store";
-import { LearningPath } from "@/app/(main)/paths/types";
 import { EnumPathStatus } from "@/app/(main)/paths/enum";
 import { toast } from "sonner";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Shimmer } from "@/components/ui/shimmer";
 
@@ -156,160 +154,182 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
   };
 
   return (
-    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="overflow-y-auto">
-        <SheetHeader>
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <SheetTitle>{editPathId ? "Edit Learning Path" : "Generate Learning Path"}</SheetTitle>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Describe what you want to learn and AI will create a complete learning path with modules.
-          </p>
-        </SheetHeader>
-
-        <form onSubmit={onSubmit} className="space-y-6 p-4 pt-0">
-          {/* Recommended Paths Section */}
-          <div className="space-y-3">
+    <>
+      <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <SheetContent className="overflow-y-auto">
+          <SheetHeader>
             <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-medium">Recommended for You</h3>
+              <Sparkles className="h-5 w-5 text-primary" />
+              <SheetTitle>{editPathId ? "Edit Learning Path" : "Generate Learning Path"}</SheetTitle>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Based on your current progress and learning goals
+            <p className="text-sm text-muted-foreground">
+              Describe what you want to learn and AI will create a complete learning path with modules.
             </p>
-            
-            <div className="space-y-2">
-              {recommendedPaths.map((rec) => (
-                  <button
-                    key={rec.id}
-                    type="button"
-                    onClick={() => setSelectedRecommendation(
-                      selectedRecommendation === rec.id ? null : rec.id
-                    )}
-                    className={cn(
-                      "w-full text-left rounded-lg border p-3 transition-all hover:border-primary/50",
-                      selectedRecommendation === rec.id 
-                        ? "border-primary bg-primary/5" 
-                        : "border-border"
-                    )}
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 space-y-1">
-                          <h4 className="text-sm font-medium leading-tight">{rec.title}</h4>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Target className="h-3 w-3" />
-                            <span>{rec.reason}</span>
-                          </div>
-                        </div>
-                        <ChevronRight className={cn(
-                          "h-4 w-4 text-muted-foreground transition-transform",
-                          selectedRecommendation === rec.id && "rotate-90"
-                        )} />
-                      </div>
-                      
-                      {selectedRecommendation === rec.id && (
-                        <div className="space-y-2 pt-2 border-t">
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            {rec.description}
-                          </p>
-                          <div className="flex items-center gap-3 text-xs">
-                            <span className="text-muted-foreground">{rec.estimatedDuration}</span>
-                            <span className="text-muted-foreground">•</span>
-                            <span className="capitalize text-muted-foreground">{rec.difficulty}</span>
-                            <span className="text-muted-foreground">•</span>
-                            <span className="text-muted-foreground">{rec.moduleCount} modules</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
+          </SheetHeader>
 
-            {/* Divider */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
+          <form onSubmit={onSubmit} className="space-y-6 p-4 pt-0">
+            {/* Recommended Paths Section */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-medium">Recommended for You</h3>
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or create custom
-                </span>
-              </div>
-            </div>
-
-            {/* Custom Path Creation */}
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="description" className="text-sm font-medium">
-                  What do you want to learn? <span className="text-destructive">*</span>
-                </label>
-                <Textarea
-                  id="description"
-                  placeholder="I want to learn full-stack web development, covering frontend technologies like React, backend with Node.js and Express, working with databases, building REST APIs, and deploying applications to production."
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  disabled={!!selectedRecommendation}
-                  rows={6}
-                  className="mt-1.5"
-                />
-                <p className="text-xs text-muted-foreground mt-1.5">
-                  Be specific about topics, skills, and your learning goals. The AI will generate a title, modules, and complete content.
-                </p>
-              </div>
-            </div>
-
-            <Button 
-              className={cn(
-                "w-full overflow-hidden transition-all duration-300 relative",
-                isGenerating && "!opacity-100 !bg-primary"
-              )}
-              type="submit"
-              disabled={(!selectedRecommendation && !description.trim()) || isGenerating}
-            >
-              <motion.div
-                initial={false}
-                animate={{ 
-                  opacity: isGenerating ? 0 : 1,
-                  y: isGenerating ? -10 : 0
-                }}
-                transition={{ duration: 0.3, ease: "easeInOut" }}
-                className={cn(
-                  "flex items-center gap-2",
-                  isGenerating && "absolute pointer-events-none"
-                )}
-              >
-                <Sparkles className="h-4 w-4" />
-                {selectedRecommendation 
-                  ? "Generate This Path with AI" 
-                  : "Generate Learning Path with AI"}
-              </motion.div>
+              <p className="text-xs text-muted-foreground">
+                Based on your current progress and learning goals
+              </p>
               
-              <motion.div
-                initial={false}
-                animate={{ 
-                  opacity: isGenerating ? 1 : 0,
-                  y: isGenerating ? 0 : 10
-                }}
-                transition={{ duration: 0.3, ease: "easeInOut" }}
+              <div className="space-y-2">
+                {recommendedPaths.map((rec) => (
+                    <button
+                      key={rec.id}
+                      type="button"
+                      onClick={() => setSelectedRecommendation(
+                        selectedRecommendation === rec.id ? null : rec.id
+                      )}
+                      className={cn(
+                        "w-full text-left rounded-lg border p-3 transition-all hover:border-primary/50",
+                        selectedRecommendation === rec.id 
+                          ? "border-primary bg-primary/5" 
+                          : "border-border"
+                      )}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 space-y-1">
+                            <h4 className="text-sm font-medium leading-tight">{rec.title}</h4>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Target className="h-3 w-3" />
+                              <span>{rec.reason}</span>
+                            </div>
+                          </div>
+                          <ChevronRight className={cn(
+                            "h-4 w-4 text-muted-foreground transition-transform",
+                            selectedRecommendation === rec.id && "rotate-90"
+                          )} />
+                        </div>
+                        
+                        {selectedRecommendation === rec.id && (
+                          <div className="space-y-2 pt-2 border-t">
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              {rec.description}
+                            </p>
+                            <div className="flex items-center gap-3 text-xs">
+                              <span className="text-muted-foreground">{rec.estimatedDuration}</span>
+                              <span className="text-muted-foreground">•</span>
+                              <span className="capitalize text-muted-foreground">{rec.difficulty}</span>
+                              <span className="text-muted-foreground">•</span>
+                              <span className="text-muted-foreground">{rec.moduleCount} modules</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Or create custom
+                  </span>
+                </div>
+              </div>
+
+              {/* Custom Path Creation */}
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="description" className="text-sm font-medium">
+                    What do you want to learn? <span className="text-destructive">*</span>
+                  </label>
+                  <Textarea
+                    id="description"
+                    placeholder="I want to learn full-stack web development, covering frontend technologies like React, backend with Node.js and Express, working with databases, building REST APIs, and deploying applications to production."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    disabled={!!selectedRecommendation}
+                    rows={6}
+                    className="mt-1.5"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Be specific about topics, skills, and your learning goals. The AI will generate a title, modules, and complete content.
+                  </p>
+                </div>
+              </div>
+
+              <Button 
                 className={cn(
-                  "flex items-center justify-center gap-2.5 w-full min-w-0",
-                  !isGenerating && "absolute pointer-events-none"
+                  "w-full overflow-hidden transition-all duration-300 relative",
+                  isGenerating && "!opacity-100 !bg-primary"
                 )}
+                type="submit"
+                disabled={(!selectedRecommendation && !description.trim()) || isGenerating}
               >
-                <Sparkles className="h-4 w-4 shrink-0" />
-                <Shimmer className="font-medium truncate max-w-[200px] sm:max-w-none" duration={3.5}>
-                  {generationStatus || "Generating with AI..."}
-                </Shimmer>
-              </motion.div>
-            </Button>
-          </form>
-      </SheetContent>
-    </Sheet>
+                <motion.div
+                  initial={false}
+                  animate={{ 
+                    opacity: isGenerating ? 0 : 1,
+                    y: isGenerating ? -10 : 0
+                  }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  className={cn(
+                    "flex items-center gap-2",
+                    isGenerating && "absolute pointer-events-none"
+                  )}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {selectedRecommendation 
+                    ? "Generate This Path with AI" 
+                    : "Generate Learning Path with AI"}
+                </motion.div>
+                
+                <motion.div
+                  initial={false}
+                  animate={{ 
+                    opacity: isGenerating ? 1 : 0,
+                    y: isGenerating ? 0 : 10
+                  }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  className={cn(
+                    "flex items-center justify-center gap-2.5 w-full min-w-0",
+                    !isGenerating && "absolute pointer-events-none"
+                  )}
+                >
+                  <Sparkles className="h-4 w-4 shrink-0" />
+                  <Shimmer className="font-medium truncate max-w-[200px] sm:max-w-none" duration={3.5}>
+                    {generationStatus || "Generating with AI..."}
+                  </Shimmer>
+                </motion.div>
+              </Button>
+            </form>
+        </SheetContent>
+      </Sheet>
+
+      <PathGenerationNotifier status={generationStatus} />
+    </>
   );
 };
 
 export default CreatePathSheet;
+
+function PathGenerationNotifier({ status }: { status: string | null }) {
+  if (!status) return null;
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50">
+      <div className="relative max-w-sm overflow-hidden rounded-xl border bg-background shadow-lg ring-1 ring-border">
+        <div className="absolute inset-0 bg-primary/5" />
+        <div className="relative flex items-start gap-3 p-4">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">Generating your path</p>
+            <p className="text-sm text-muted-foreground">{status}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

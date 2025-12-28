@@ -149,6 +149,11 @@ router.post("/", async (req: Request, res: Response) => {
 
     if (pathError) {
       console.error("Error creating learning path:", pathError);
+      if (stream) {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: 'Failed to create learning path' })}\n\n`);
+        res.end();
+        return;
+      }
       return res.status(500).json({ error: "Failed to create learning path" });
     }
 
@@ -194,6 +199,8 @@ router.post("/", async (req: Request, res: Response) => {
 
 // AI-generate learning path with modules and content
 router.post("/generate", async (req: Request, res: Response) => {
+  const stream = req.query.stream === 'true';
+
   try {
     const supabase = getSupabaseAdmin();
     const userId = (req as any).user?.id;
@@ -208,7 +215,6 @@ router.post("/generate", async (req: Request, res: Response) => {
       estimatedDuration,
       topics
     } = req.body;
-    const stream = req.query.stream === 'true';
 
     if (!description || !description.trim()) {
       return res.status(400).json({ error: "Description is required" });

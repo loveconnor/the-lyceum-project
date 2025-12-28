@@ -1,8 +1,10 @@
 import { LearningPath } from "@/app/(main)/paths/types";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
-console.log("Paths API initialized with base URL:", API_BASE_URL);
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  process.env.BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:3001";
 
 interface CreatePathPayload {
   title: string;
@@ -85,10 +87,16 @@ async function handleResponse<T>(response: Response): Promise<T> {
 // Fetch all learning paths for the current user
 export async function fetchPaths(): Promise<LearningPath[]> {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_BASE_URL}/paths`, { 
-    headers,
-    cache: "no-store"
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/paths`, { 
+      headers,
+      cache: "no-store"
+    });
+  } catch (err) {
+    console.warn("fetchPaths network error, falling back to empty list", err);
+    return [];
+  }
   return handleResponse<LearningPath[]>(response);
 }
 
