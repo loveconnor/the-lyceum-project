@@ -45,9 +45,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useLabAI } from "@/hooks/use-lab-ai";
 import { toast } from "sonner";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
-import { TextInputWidget } from "@/components/labs/widgets/text-input-widget";
-import { MultipleChoiceWidget } from "@/components/labs/widgets/multiple-choice-widget";
-import { CodeEditorWidget } from "@/components/labs/widgets/code-editor-widget";
+import { TextInputWidget } from "@/components/widgets/text-input-widget";
+import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widget";
+import { CodeEditorWidget } from "@/components/widgets/code-editor-widget";
 
 interface Step {
   id: string;

@@ -5,8 +5,9 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { CodeBlock, CodeBlockCode } from "./code-block";
-import { ReactFlowWidget, ReactFlowWidgetData } from "@/components/labs/widgets/react-flow-widget";
-import { ChartWidget, ChartWidgetData } from "@/components/labs/widgets/chart-widget";
+import { ReactFlowWidget, ReactFlowWidgetData } from "@/components/widgets/react-flow-widget";
+import { ChartWidget, ChartWidgetData } from "@/components/widgets/chart-widget";
+import { Chart3DWidget, Chart3DWidgetData } from "@/components/widgets/chart3d-widget";
 
 export type MarkdownProps = {
   children: string;
@@ -161,11 +162,13 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
   );
 
   // Pre-process content to extract Visual tags and replace with custom markers
-  const { processedContent, visualComponents, chartComponents } = useMemo(() => {
+  const { processedContent, visualComponents, chartComponents, chart3dComponents } = useMemo(() => {
     const visualTagPattern = /<Visual>([\s\S]*?)<\/Visual>/gi;
     const chartTagPattern = /<Chart>([\s\S]*?)<\/Chart>/gi;
+    const chart3dTagPattern = /<Chart3D>([\s\S]*?)<\/Chart3D>/gi;
     const visuals: ReactFlowWidgetData[][] = [];
     const charts: ChartWidgetData[][] = [];
+    const charts3d: Chart3DWidgetData[][] = [];
     // Ensure we always work with a string to avoid runtime errors
     const sourceText = typeof children === 'string' ? children : (children == null ? '' : String(children));
     let processedText = sourceText;
@@ -236,10 +239,43 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
       }
     }
 
+    // Process Chart3D tags
+    chart3dTagPattern.lastIndex = 0;
+    offset = 0;
+    const tempText3d = processedText;
+    
+    while ((match = chart3dTagPattern.exec(tempText3d)) !== null) {
+      try {
+        const trimmedContent = match[1].trim();
+        let chart3dData: Chart3DWidgetData[];
+
+        // Handle both array and single object formats
+        if (trimmedContent.startsWith('[')) {
+          chart3dData = robustParseJSON(trimmedContent);
+        } else {
+          chart3dData = [robustParseJSON(trimmedContent)];
+        }
+
+        charts3d.push(chart3dData);
+        
+        // Replace the entire <Chart3D>...</Chart3D> with a unique marker
+        const marker = `\n\n[3D_CHART_${charts3d.length - 1}]\n\n`;
+        const startIdx = match.index - offset;
+        const endIdx = startIdx + match[0].length;
+        
+        processedText = processedText.substring(0, startIdx) + marker + processedText.substring(endIdx);
+        offset += match[0].length - marker.length;
+        
+      } catch (error) {
+        console.error('Failed to parse Chart3D tag content:', error);
+      }
+    }
+
     return {
       processedContent: processedText,
       visualComponents: visuals,
       chartComponents: charts,
+      chart3dComponents: charts3d,
     };
   }, [children]);
 
@@ -331,6 +367,27 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
             );
           }
         }
+        
+        // Check for 3D Charts marker
+        const chart3dMatch = text.match(/^\[3D_CHART_(\d+)\]$/);
+        if (chart3dMatch) {
+          const chart3dIndex = parseInt(chart3dMatch[1], 10);
+          const chart3dData = chart3dComponents[chart3dIndex];
+          
+          if (chart3dData) {
+            return (
+              <div className="my-6 not-prose w-full">
+                <Chart3DWidget
+                  charts={chart3dData}
+                  height="600px"
+                  showNavigation={true}
+                  showSidebar={false}
+                  variant="card"
+                />
+              </div>
+            );
+          }
+        }
       }
 
       // Default paragraph handling
@@ -341,7 +398,7 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
       
       return <p className="mb-2 leading-7">{children}</p>;
     },
-  }), [mergedComponents, visualComponents, chartComponents]);
+  }), [mergedComponents, visualComponents, chartComponents, chart3dComponents]);
 
   return (
     <div className={cn("prose prose-neutral dark:prose-invert max-w-none prose-headings:font-semibold prose-p:leading-relaxed prose-pre:bg-muted prose-pre:border prose-pre:overflow-x-auto break-words prose-code:before:content-none prose-code:after:content-none", className)}>

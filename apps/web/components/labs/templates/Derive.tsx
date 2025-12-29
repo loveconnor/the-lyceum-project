@@ -29,9 +29,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
-import { TextInputWidget } from "@/components/labs/widgets/text-input-widget";
-import { MultipleChoiceWidget } from "@/components/labs/widgets/multiple-choice-widget";
-import { DerivationStepsWidget, DerivationStep } from "@/components/labs/widgets/derivation-steps-widget";
+import { TextInputWidget } from "@/components/widgets/text-input-widget";
+import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widget";
+import { DerivationStepsWidget, DerivationStep } from "@/components/widgets/derivation-steps-widget";
 
 interface Step {
   id: string;

@@ -453,3 +453,4 @@ export function ReactFlowWidget({
 
 // Export the data type for use in lab templates
 export type { ReactFlowWidgetData };
+

@@ -145,6 +145,13 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
         });
 
         if (!res.ok) {
+          // If conversation doesn't exist (404), silently clear messages instead of showing error
+          if (res.status === 404) {
+            console.log("Conversation not found, clearing messages");
+            setMessages([]);
+            setSelectedConversationId(null);
+            return;
+          }
           throw new Error("Failed to fetch messages");
         }
 
@@ -360,6 +367,8 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
           setError("Sign in required.");
           return;
         }
+        
+        // Perform the delete
         const res = await fetch(`${backendUrl}/ai/assistant/conversations/${conversationId}`, {
           method: "DELETE",
           headers: {
@@ -367,17 +376,39 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
           }
         });
         if (!res.ok) throw new Error("Failed to delete conversation");
-        if (selectedConversationId === conversationId) {
-          setMessages([]);
-          setSelectedConversationId(null);
-        }
-        await refreshConversations();
+        
+        const wasSelected = selectedConversationId === conversationId;
+        
+        // Update conversations list optimistically
+        setConversations((prev) => {
+          const filtered = prev.filter((c) => c.id !== conversationId);
+          
+          // If we deleted the selected conversation, select the first remaining one
+          if (wasSelected && filtered.length > 0) {
+            // Clear current state first
+            setMessages([]);
+            setSelectedConversationId(null);
+            // Then select the first conversation in the next tick
+            setTimeout(() => {
+              selectConversation(filtered[0].id);
+            }, 100); // Small delay to ensure clean state transition
+          } else if (wasSelected) {
+            // No conversations left, just clear
+            setMessages([]);
+            setSelectedConversationId(null);
+          }
+          
+          return filtered;
+        });
+        
       } catch (err: any) {
         console.error("Assistant delete conversation error", err);
         setError(err?.message || "Failed to delete conversation");
+        // Refresh on error to resync with server
+        void refreshConversations();
       }
     },
-    [backendUrl, refreshConversations, selectedConversationId]
+    [backendUrl, selectedConversationId, selectConversation]
   );
 
   useEffect(() => {
@@ -389,11 +420,16 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
     void bootstrap();
   }, [refreshConversations]);
 
+  // Track if we've done the initial auto-selection
+  const hasAutoSelectedRef = useRef(false);
+
   useEffect(() => {
-    if (!selectedConversationId && conversations.length > 0) {
+    // Only auto-select on initial load, not on subsequent conversation updates
+    if (!selectedConversationId && conversations.length > 0 && !isLoading && !hasAutoSelectedRef.current) {
+      hasAutoSelectedRef.current = true;
       void selectConversation(conversations[0].id);
     }
-  }, [conversations, selectedConversationId, selectConversation]);
+  }, [conversations, selectedConversationId, selectConversation, isLoading]);
 
   useEffect(() => {
     return () => {

@@ -12,11 +12,15 @@
   ],
   "devDependencies": {
     "@types/d3": "^7.4.3",
+    "@types/three": "^0.170.0",
     "turbo": "latest"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.4.2",
     "commander": "^14.0.2",
-    "d3": "^7.9.0"
+    "d3": "^7.9.0",
+    "three": "^0.170.0"
   }
 }

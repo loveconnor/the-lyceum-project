@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
-import { D3Chart } from "./d3-chart";
+import { Chart3D } from "./3d-chart";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,19 +10,92 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Eye,
-  BarChart3,
+  Box,
   CheckCircle2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Markdown } from "@/components/ui/custom/prompt/markdown";
 
-interface ChartWidgetData {
+/**
+ * 3D Chart Widget Data Interface
+ * 
+ * Supports multiple 3D chart types including mathematical surface and parametric curve plotting.
+ * 
+ * Example for 3D surface:
+ * {
+ *   title: "Wave Surface",
+ *   description: "3D surface plot",
+ *   chartOptions: {
+ *     series: [{
+ *       type: 'surface',          // or 'function3d'
+ *       function: 'sin(sqrt(x^2 + z^2))',  // z = f(x, y)
+ *       xMin: -5,
+ *       xMax: 5,
+ *       zMin: -5,
+ *       zMax: 5,
+ *       resolution: 50,           // Grid resolution
+ *       color: '#3b82f6',
+ *       wireframe: false,         // Show as wireframe
+ *       opacity: 0.8
+ *     }]
+ *   }
+ * }
+ * 
+ * Example for 3D parametric curve:
+ * {
+ *   title: "Helix",
+ *   description: "3D parametric curve",
+ *   chartOptions: {
+ *     series: [{
+ *       type: 'curve3d',          // or 'parametric'
+ *       x: 'cos(t)',              // x(t)
+ *       y: 't',                   // y(t)
+ *       z: 'sin(t)',              // z(t)
+ *       tMin: 0,
+ *       tMax: 4*Math.PI,
+ *       numPoints: 200,
+ *       color: '#10b981',
+ *       lineWidth: 3
+ *     }]
+ *   }
+ * }
+ * 
+ * Example for 3D scatter:
+ * {
+ *   title: "3D Points",
+ *   description: "Scatter plot in 3D",
+ *   chartOptions: {
+ *     data: [
+ *       { x: 1, y: 2, z: 3 },
+ *       { x: 2, y: 3, z: 1 },
+ *       // ...
+ *     ],
+ *     series: [{
+ *       type: 'scatter3d',
+ *       xKey: 'x',
+ *       yKey: 'y',
+ *       zKey: 'z',
+ *       color: '#ef4444',
+ *       size: 0.2
+ *     }]
+ *   }
+ * }
+ * 
+ * Supported math operations:
+ * - Basic: +, -, *, /, ^(power)
+ * - Trig: sin, cos, tan, asin, acos, atan
+ * - Hyperbolic: sinh, cosh, tanh
+ * - Other: exp, log/ln, sqrt, abs, floor, ceil
+ * - Constants: PI, E
+ */
+interface Chart3DWidgetData {
   title: string;
   description?: string;
-  chartOptions: any; // Keep compatible with existing AI output for now
+  chartOptions: any;
 }
 
-interface ChartWidgetProps {
-  charts: ChartWidgetData[];
+interface Chart3DWidgetProps {
+  charts: Chart3DWidgetData[];
   height?: string;
   showNavigation?: boolean;
   showSidebar?: boolean;
@@ -30,14 +103,14 @@ interface ChartWidgetProps {
   variant?: "card" | "full";
 }
 
-export function ChartWidget({
+export function Chart3DWidget({
   charts,
-  height = "350px",
+  height = "500px",
   showNavigation = true,
   showSidebar = true,
   onViewComplete,
   variant = "card"
-}: ChartWidgetProps) {
+}: Chart3DWidgetProps) {
   const { theme } = useTheme();
   const [currentChartIndex, setCurrentChartIndex] = useState(0);
   const [viewedCharts, setViewedCharts] = useState<Set<number>>(new Set());
@@ -76,9 +149,9 @@ export function ChartWidget({
         <Card className="max-w-2xl border-2 border-dashed">
           <CardContent className="p-12 text-center space-y-4">
             <Eye className="w-16 h-16 mx-auto text-muted-foreground opacity-20" />
-            <h3 className="text-2xl font-display text-foreground">No Charts Available</h3>
+            <h3 className="text-2xl font-display text-foreground">No 3D Charts Available</h3>
             <p className="text-muted-foreground leading-relaxed">
-              Charts help visualize data and patterns through various chart types including bar, line, pie, scatter, and many more.
+              3D charts help visualize complex mathematical surfaces, parametric curves, and multidimensional data.
             </p>
           </CardContent>
         </Card>
@@ -90,7 +163,7 @@ export function ChartWidget({
   if (!isMounted) {
     return (
       <div className="flex items-center justify-center" style={{ height }}>
-        <div className="animate-pulse text-sm text-muted-foreground">Loading chart...</div>
+        <div className="animate-pulse text-sm text-muted-foreground">Loading 3D chart...</div>
       </div>
     );
   }
@@ -101,17 +174,26 @@ export function ChartWidget({
     <div className="space-y-3">
       {/* Header */}
       <div>
+        <Badge variant="outline" className="mb-2">
+          3D Visualization
+        </Badge>
         <h3 className="text-lg font-semibold mb-1">{currentChart.title}</h3>
         {currentChart.description && (
-          <p className="text-sm text-muted-foreground">{currentChart.description}</p>
+          <div className="text-sm text-muted-foreground">
+            <Markdown>{currentChart.description}</Markdown>
+          </div>
         )}
       </div>
 
-      {/* D3 Visualization */}
-      <div className="overflow-hidden rounded-xl border bg-card p-4">
+      {/* 3D Visualization */}
+      <div className="overflow-hidden rounded-xl border bg-card">
         <div style={{ height, width: '100%' }}>
-          <D3Chart options={currentChart.chartOptions} height={height} />
+          <Chart3D options={currentChart.chartOptions} height={height} />
         </div>
+      </div>
+
+      <div className="text-xs text-muted-foreground italic bg-muted/30 p-2 rounded">
+        💡 Tip: Click and drag to rotate, scroll to zoom, right-click to pan
       </div>
 
       {/* Navigation buttons */}
@@ -154,7 +236,7 @@ export function ChartWidget({
         <Card className="py-0">
           <CardContent className="p-2">
             <div className="flex items-center justify-between px-2 py-2 mb-1">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Charts</h3>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">3D Charts</h3>
               <Badge variant="outline" className="text-xs h-5">
                 {charts.length}
               </Badge>
@@ -165,7 +247,7 @@ export function ChartWidget({
                 const isActive = currentChartIndex === i;
 
                 // Extract chart type from chartOptions
-                const chartType = chart.chartOptions.series?.[0]?.type || 'chart';
+                const chartType = chart.chartOptions.series?.[0]?.type || '3d';
 
                 return (
                   <Button
@@ -179,7 +261,7 @@ export function ChartWidget({
                   >
                     <div className="flex items-center justify-between w-full mb-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <BarChart3 className="w-3 h-3" />
+                        <Box className="w-3 h-3" />
                         <span className="font-medium text-sm truncate">{chart.title}</span>
                       </div>
                       {isViewed && (
@@ -217,5 +299,5 @@ export function ChartWidget({
   );
 }
 
-export type { ChartWidgetData };
+export type { Chart3DWidgetData };
 

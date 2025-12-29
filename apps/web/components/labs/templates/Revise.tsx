@@ -30,9 +30,9 @@ import {
 import { cn, extractJSON } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
-import { ReactFlowWidget } from "@/components/labs/widgets/react-flow-widget";
-import { TextInputWidget } from "@/components/labs/widgets/text-input-widget";
-import { MultipleChoiceWidget } from "@/components/labs/widgets/multiple-choice-widget";
+import { ReactFlowWidget } from "@/components/widgets/react-flow-widget";
+import { TextInputWidget } from "@/components/widgets/text-input-widget";
+import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widget";
 import { useLabAI } from "@/hooks/use-lab-ai";
 import { toast } from "sonner";
 

@@ -107,12 +107,33 @@ const TEMPLATE_GENERATORS: Record<string, string> = {
         "id": "step1",
         "title": "Step title",
         "description": "What to do",
-        "hints": ["hint1", "hint2"]
+        "hints": ["hint1", "hint2"],
+        "widgets": [
+          {
+            "type": "chart",
+            "config": {
+              "charts": [{
+                "title": "Data Visualization",
+                "chartOptions": {
+                  "data": (reference to dataset.rows),
+                  "series": [{
+                    "type": "bar" | "line" | "scatter" | "area",
+                    "xKey": "column_name",
+                    "yKey": "column_name",
+                    "stroke": "#3b82f6"
+                  }]
+                }
+              }]
+            }
+          }
+        ]
       }
     ]
   }
 }
-Include 5-10 realistic data rows and 4-5 analysis steps.`,
+Include 5-10 realistic data rows and 4-5 analysis steps.
+Use "chart" widgets to visualize data patterns, trends, and relationships.
+Available chart types: bar, line, scatter, area, pie, histogram, heatmap.`,
 
   build: `Generate a coding challenge lab with this JSON structure:
 {
@@ -192,6 +213,51 @@ WIDGET CONFIGURATION DETAILS:
   - choices: Array of {id, name, formula (optional)}
   - multiSelect: true/false
   - showExplanation: true/false
+
+**chart**: (2D charts and graphs)
+  - type: "chart"
+  - config: {
+      charts: [{
+        title: "Chart Title",
+        description: "Chart description",
+        chartOptions: {
+          series: [{
+            type: "function" | "line" | "bar" | "scatter" | "area",
+            function: "sin(x)" (for function type - supports math expressions),
+            xMin: -10, xMax: 10 (for function type),
+            xKey: "x", yKey: "y" (for data types),
+            stroke: "#3b82f6",
+            strokeWidth: 3
+          }],
+          data: [{x: 1, y: 2}, ...] (optional, for non-function charts)
+        }
+      }]
+    }
+  Supports: Basic math (+,-,*,/,^), Trig (sin,cos,tan), exp, log, sqrt, abs, PI, E
+
+**chart3d**: (3D surface and parametric plots)
+  - type: "chart3d"
+  - config: {
+      charts: [{
+        title: "3D Visualization",
+        description: "Description",
+        chartOptions: {
+          series: [{
+            type: "surface" | "curve3d" | "scatter3d",
+            function: "sin(sqrt(x^2 + z^2))" (for surface: z=f(x,y)),
+            x: "cos(t)", y: "t", z: "sin(t)" (for curve3d: parametric),
+            xMin: -5, xMax: 5, zMin: -5, zMax: 5 (for surface),
+            tMin: 0, tMax: 6.28 (for curve3d),
+            resolution: 50 (surface density),
+            color: "#3b82f6",
+            wireframe: false,
+            opacity: 0.8
+          }],
+          data: [{x:1, y:2, z:3}, ...] (for scatter3d)
+        }
+      }]
+    }
+  Use for: 3D surfaces, parametric curves, mathematical visualizations
 
 Include 3-5 test cases with clear descriptions.
 Provide realistic starter code (5-15 lines) with function signature and helpful comments.`,
@@ -288,6 +354,44 @@ WIDGET CONFIGURATION DETAILS:
 
 **derivation-steps**:
   - showInstructions: true
+
+**chart**: (2D mathematical function plots)
+  - type: "chart"
+  - config: {
+      charts: [{
+        title: "Function Graph",
+        description: "Visualization",
+        chartOptions: {
+          series: [{
+            type: "function",
+            function: "x^2",
+            xMin: -10, xMax: 10,
+            stroke: "#3b82f6",
+            label: "y = x²"
+          }]
+        }
+      }]
+    }
+  Supports: +,-,*,/,^,sin,cos,tan,exp,log,sqrt,abs,PI,E
+  Use to visualize functions, derivatives, integrals
+
+**chart3d**: (3D surface plots)
+  - type: "chart3d"
+  - config: {
+      charts: [{
+        title: "3D Surface",
+        chartOptions: {
+          series: [{
+            type: "surface",
+            function: "sin(sqrt(x^2 + z^2))",
+            xMin: -5, xMax: 5, zMin: -5, zMax: 5,
+            resolution: 50,
+            color: "#3b82f6"
+          }]
+        }
+      }]
+    }
+  Use for multivariable calculus, 3D visualization
 
 RESPONSE FORMAT:
 {

@@ -17,7 +17,8 @@ import {
 import { Toggle } from "@/components/ui/toggle";
 import LabCard from "./lab-card";
 import { useLabStore } from "@/app/(main)/labs/store";
-import StatusTabs from "./status-tabs";
+import StatusTabs from "@/components/widgets/status-tabs";
+import { EnumLabStatus, labStatusNamed } from "@/app/(main)/labs/enum";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -247,7 +248,13 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
   return (
     <>
       <div className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-center">
-        <StatusTabs activeTab={activeTab} onTabChange={handleTabChange} />
+        <StatusTabs 
+          activeTab={activeTab} 
+          onTabChange={handleTabChange}
+          statusEnum={EnumLabStatus}
+          statusNamed={labStatusNamed}
+          allLabel="All Labs"
+        />
 
         <div className="flex w-full items-center gap-2 lg:w-auto">
           {/* Search input */}
