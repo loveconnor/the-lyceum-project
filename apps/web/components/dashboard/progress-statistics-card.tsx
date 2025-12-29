@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 export function ProgressStatisticsCard({
   totalActivity = 0,
@@ -45,18 +44,14 @@ export function ProgressStatisticsCard({
         <div className="space-y-4">
           <div className="flex items-center justify-between rounded-md border p-4">
             <div className="flex items-center gap-4">
-              <div className="flex size-10 items-center justify-center rounded-lg bg-orange-100">
-                <Clock className="size-5 text-orange-600" />
-              </div>
+              <span className="w-32 text-sm text-muted-foreground">Labs</span>
               <span className="text-2xl font-semibold">{inProgress}</span>
             </div>
             <Badge className="h-auto bg-orange-500 px-4 py-2 text-sm">In Progress</Badge>
           </div>
           <div className="flex items-center justify-between rounded-md border p-4">
             <div className="flex items-center gap-4">
-              <div className="flex size-10 items-center justify-center rounded-lg bg-green-100">
-                <CheckCircle2 className="size-5 text-green-600" />
-              </div>
+              <span className="w-32 text-sm text-muted-foreground">Learning Paths</span>
               <span className="text-2xl font-semibold">{completed}</span>
             </div>
             <Badge className="h-auto bg-green-500 px-4 py-2 text-sm">Completed</Badge>
