@@ -248,7 +248,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                   </label>
                   <Textarea
                     id="description"
-                    placeholder="I want to learn full-stack web development, covering frontend technologies like React, backend with Node.js and Express, working with databases, building REST APIs, and deploying applications to production."
+                    placeholder="Describe what you want to learn"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     disabled={!!selectedRecommendation}
