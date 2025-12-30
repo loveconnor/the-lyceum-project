@@ -8,6 +8,7 @@ import dashboardRouter from './routes/dashboard';
 import labsRouter from './routes/labs';
 import pathsRouter from './routes/paths';
 import notificationsRouter from './routes/notifications';
+import waitlistRouter from './routes/waitlist';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -29,6 +30,8 @@ app.use('/dashboard', requireAuth, dashboardRouter);
 app.use('/labs', requireAuth, labsRouter);
 app.use('/paths', requireAuth, pathsRouter);
 app.use('/notifications', requireAuth, notificationsRouter);
+// Waitlist (public)
+app.use('/waitlist', waitlistRouter);
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);

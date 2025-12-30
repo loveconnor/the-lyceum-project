@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
+    "@react-email/components": "^1.0.3",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
     "commander": "^14.0.2",
