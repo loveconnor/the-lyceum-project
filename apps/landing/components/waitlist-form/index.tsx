@@ -5,9 +5,10 @@ import type React from "react"
 import { useRef, useState, useEffect } from "react"
 
 type InputForm = {
-  formAction?: (data: FormData) => Promise<{ success: true } | { success: false; error: string }>
+  formAction?: (data: FormData) => Promise<{ success: true; status?: "new" | "duplicate" } | { success: false; error: string }>
   buttonCopy: {
     success: string
+    duplicate?: string
     idle: string
     loading: string
   }
@@ -26,6 +27,7 @@ export function InputForm({ formAction, buttonCopy, ...props }: InputForm) {
   const [state, setState] = useState<State>(STATES.idle)
   const [error, setError] = useState<string>()
   const [value, setValue] = useState("")
+  const [submissionStatus, setSubmissionStatus] = useState<"new" | "duplicate" | null>(null)
   const errorTimeout = useRef<NodeJS.Timeout | null>(null)
 
   // Auto-reset success state back to idle after 2 seconds
@@ -33,6 +35,7 @@ export function InputForm({ formAction, buttonCopy, ...props }: InputForm) {
     if (state === STATES.success) {
       const resetTimeout = setTimeout(() => {
         setState(STATES.idle)
+        setSubmissionStatus(null)
       }, 2000)
 
       return () => clearTimeout(resetTimeout)
@@ -55,6 +58,7 @@ export function InputForm({ formAction, buttonCopy, ...props }: InputForm) {
 
         if (data.success) {
           setState(STATES.success)
+          setSubmissionStatus(data.status ?? "new")
 
           formEl.reset()
           setValue("")
@@ -79,6 +83,8 @@ export function InputForm({ formAction, buttonCopy, ...props }: InputForm) {
   }
   const isSubmitted = state === "success"
   const inputDisabled = state === "loading"
+  const successLabel =
+    submissionStatus === "duplicate" ? buttonCopy.duplicate ?? buttonCopy.success : buttonCopy.success
 
   return (
     <form className="flex flex-col gap-2 w-full relative" onSubmit={handleSubmit}>
@@ -114,7 +120,7 @@ export function InputForm({ formAction, buttonCopy, ...props }: InputForm) {
               <Loading />
             </>
           ) : isSubmitted ? (
-            buttonCopy.success
+            successLabel
           ) : (
             buttonCopy.idle
           )}

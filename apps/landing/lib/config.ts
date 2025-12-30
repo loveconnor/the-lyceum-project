@@ -27,6 +27,7 @@ export const siteConfig = {
     button: {
       idleCopy: "Join",
       successCopy: "You're in!",
+      duplicateCopy: "Already in!",
       submittingCopy: "Joining...",
     },
     emailInput: {

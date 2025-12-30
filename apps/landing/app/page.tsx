@@ -12,7 +12,9 @@ export const metadata: Metadata = {
   icons: [siteConfig.metadata.favicon],
 }
 
-async function submitWaitlist(data: FormData): Promise<{ success: true } | { success: false; error: string }> {
+type SubmitResult = { success: true; status?: "new" | "duplicate" } | { success: false; error: string }
+
+async function submitWaitlist(data: FormData): Promise<SubmitResult> {
   "use server"
 
   const email = data.get("email") as string
@@ -34,17 +36,23 @@ async function submitWaitlist(data: FormData): Promise<{ success: true } | { suc
       cache: "no-store",
     })
 
+    if (response.status === 409) {
+      return { success: true, status: "duplicate" }
+    }
+
     if (!response.ok) {
       const body = await response.json().catch(() => ({}))
       const message = body?.error || "Something went wrong while joining the waitlist."
       return { success: false, error: message }
     }
+
+    return { success: true, status: "new" }
   } catch (error) {
     console.error("Failed to submit waitlist signup:", error)
     return { success: false, error: "Unable to reach the waitlist service. Please try again." }
   }
 
-  return { success: true }
+  return { success: true, status: "new" }
 }
 
 export default function Home() {
@@ -65,6 +73,7 @@ export default function Home() {
           buttonCopy={{
             idle: waitlist.button.idleCopy,
             success: waitlist.button.successCopy,
+            duplicate: waitlist.button.duplicateCopy,
             loading: waitlist.button.submittingCopy,
           }}
           formAction={submitWaitlist}

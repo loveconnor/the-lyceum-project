@@ -20,6 +20,21 @@ router.post('/', async (req, res) => {
     const supabase = getSupabaseAdmin();
     const normalizedEmail = email.trim().toLowerCase();
 
+    const { data: existingSignup, error: existingSignupError } = await supabase
+      .from('waitlist_signups')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (existingSignupError) {
+      console.error('Failed to check existing waitlist signup:', existingSignupError);
+      return res.status(500).json({ error: 'Failed to save waitlist signup.' });
+    }
+
+    if (existingSignup) {
+      return res.status(409).json({ error: 'You are already on the waitlist with this email.' });
+    }
+
     const { error } = await supabase
       .from('waitlist_signups')
       .upsert(
