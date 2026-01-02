@@ -19,7 +19,15 @@ export { MultipleChoiceWidget } from "./multiple-choice-widget";
 export { ReactFlowWidget } from "./react-flow-widget";
 export type { ReactFlowWidgetData } from "./react-flow-widget";
 
-export { TextInputWidget } from "./text-input-widget";
+export { 
+  EditorWidget, 
+  EditorWidgetReadOnly, 
+  EditorWidgetExample, 
+  EditorWidgetAIChat,
+  createEditorValue,
+  extractPlainText
+} from "./editor-widget";
+export type { EditorWidgetProps } from "./editor-widget";
 
 export { default as StatusTabs } from "./status-tabs";
 

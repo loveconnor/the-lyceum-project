@@ -221,12 +221,14 @@ Each step should:
 The number of steps should match the complexity of the topic - simple topics need fewer steps (3-4), complex topics need more (5-7).
 
 WIDGET CONFIGURATION DETAILS:
-**text-input**: 
-  - label: Question or instruction (can use LaTeX)
-  - description: Helper text (can use LaTeX, optional)
-  - placeholder: Example text in PLAIN ENGLISH ONLY (no LaTeX)
-  - showPreview: true (for math) or false (for normal text/pseudocode)
-  - mathMode: true (for multi-line math equations) or false (default)
+**editor**: 
+  - label: Question or instruction
+  - description: Helper text (optional)
+  - placeholder: Example text
+  - readOnly: false for editable, true for display only
+  - variant: "default" (standard), "fullWidth" (wide layout), "aiChat" (compact)
+  - height: CSS height value (e.g., "300px") - optional
+  Use for: Rich text responses, essays, explanations, code documentation, formatted notes
 
 **multiple-choice**:
   - label: Question text (can use LaTeX)
@@ -339,12 +341,12 @@ The "stepId" field in the test case MUST match the "id" of the step where the co
         "title": "Apply Integration by Parts",
         "widgets": [
           {
-            "type": "text-input",
+            "type": "editor",
             "config": {
               "label": "Write the integration by parts formula with your values",
               "description": "Substitute your u, du, v, and dv into the formula",
-              "placeholder": "Type your answer with LaTeX...",
-              "showPreview": true
+              "placeholder": "Type your answer...",
+              "height": "200px"
             }
           }
         ]
@@ -355,17 +357,19 @@ The "stepId" field in the test case MUST match the "id" of the step where the co
 
 CRITICAL - WIDGET REQUIREMENTS:
 1. EVERY step MUST have a "widgets" array with at least one widget
-2. Use "text-input" for: explaining concepts, restating problems, verification, conclusions
+2. Use "editor" for: explaining concepts, restating problems, verification, conclusions, essays, detailed responses
 3. Use "multiple-choice" for: selecting rules/methods/approaches (set multiSelect and showExplanation appropriately)
 4. Use "derivation-steps" for: step-by-step mathematical work, showing calculations
 
 WIDGET CONFIGURATION DETAILS:
-**text-input**: 
-  - label: Question or instruction (can use LaTeX)
-  - description: Helper text (can use LaTeX, optional)
-  - placeholder: Example text in PLAIN ENGLISH ONLY (no LaTeX - placeholders can't render math)
-  - showPreview: true (for math) or false
-  - mathMode: true (for multi-line math equations where each line is a separate expression) or false (default - for prose/explanations)
+**editor**: 
+  - label: Question or instruction
+  - description: Helper text (optional)
+  - placeholder: Example text
+  - readOnly: false for editable, true for display only
+  - variant: "default" (standard), "fullWidth" (wide layout), "aiChat" (compact)
+  - height: CSS height value (e.g., "300px") - optional
+  Use for: Rich text responses, mathematical explanations, formatted proofs, detailed reasoning
 
 **multiple-choice**:
   - label: Question text (can use LaTeX)

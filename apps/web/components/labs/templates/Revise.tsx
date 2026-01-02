@@ -31,7 +31,7 @@ import { cn, extractJSON } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
 import { ReactFlowWidget } from "@/components/widgets/react-flow-widget";
-import { TextInputWidget } from "@/components/widgets/text-input-widget";
+import { EditorWidget, createEditorValue, extractPlainText } from "@/components/widgets";
 import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widget";
 import { useLabAI } from "@/hooks/use-lab-ai";
 import { toast } from "sonner";
@@ -347,17 +347,18 @@ Approve if they show reasonable effort and understanding. If not approved, expla
         {currentStep.widgets.map((widget: any, idx: number) => {
           const widgetKey = `${stepKey}_widget_${idx}`;
           
-          if (widget.type === "text-input") {
+          if (widget.type === "editor") {
             return (
-              <TextInputWidget
+              <EditorWidget
                 key={widgetKey}
                 label={widget.config.label || "Response"}
                 description={widget.config.description}
                 placeholder={widget.config.placeholder || "Enter your response..."}
-                value={widgetResponses[widgetKey] || ""}
-                onChange={(value) => setWidgetResponses({...widgetResponses, [widgetKey]: value})}
-                minHeight={widget.config.minHeight || "150px"}
-                showPreview={widget.config.showPreview !== false}
+                initialValue={createEditorValue(widgetResponses[widgetKey] || "")}
+                onChange={(value) => setWidgetResponses({...widgetResponses, [widgetKey]: extractPlainText(value)})}
+                height={widget.config.height || widget.config.minHeight || "200px"}
+                variant={widget.config.variant || "default"}
+                readOnly={widget.config.readOnly === true}
               />
             );
           } else if (widget.type === "multiple-choice") {

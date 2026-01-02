@@ -40,14 +40,24 @@ import {
   ThumbsDown,
   Info
 } from "lucide-react";
-import { cn, extractJSON } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { useLabAI } from "@/hooks/use-lab-ai";
 import { toast } from "sonner";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
-import { TextInputWidget } from "@/components/widgets/text-input-widget";
+import { EditorWidget, createEditorValue, extractPlainText } from "@/components/widgets";
 import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widget";
 import { CodeEditorWidget } from "@/components/widgets/code-editor-widget";
+
+// Helper to extract JSON from AI responses
+function extractJSON<T>(text: string): T {
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  }
+  cleaned = cleaned.replace(/,\s*([\]}])/g, '$1');
+  return JSON.parse(cleaned) as T;
+}
 
 interface Step {
   id: string;
@@ -58,7 +68,7 @@ interface Step {
   prompt?: string;
   requiresInput?: boolean;
   widgets?: Array<{
-    type: "text-input" | "multiple-choice" | "code-editor";
+    type: "editor" | "multiple-choice" | "code-editor";
     config: any;
   }>;
 }
@@ -669,7 +679,7 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
     if (explainResponse) studentWork += `Explanation: ${explainResponse}\n`;
 
     const hasTextInput = currentStep.widgets 
-      ? currentStep.widgets.some(w => w.type === 'text-input' || (w.type === 'multiple-choice' && w.config.showExplanation))
+      ? currentStep.widgets.some(w => w.type === 'editor' || (w.type === 'multiple-choice' && w.config.showExplanation))
       : !!currentStep.requiresInput;
     
     const prompt = `You are a coding instructor reviewing a student's ${stepName.toLowerCase()} for learning to code.
@@ -808,19 +818,18 @@ Approve if they show reasonable understanding or selected the correct option. If
                         {currentStep.widgets ? (
                           <div className="space-y-6">
                             {currentStep.widgets.filter(w => w.type !== "code-editor").map((widget, idx) => {
-                              if (widget.type === "text-input") {
+                              if (widget.type === "editor") {
                                 return (
-                                  <TextInputWidget
+                                  <EditorWidget
                                     key={idx}
                                     label={widget.config.label || ""}
                                     description={widget.config.description}
                                     placeholder={widget.config.placeholder || ""}
-                                    value={stepResponses[currentStep.id] || ''}
-                                    onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: value})}
-                                    minHeight={widget.config.minHeight || "120px"}
-                                    showPreview={widget.config.showPreview !== false}
-                                    previewWithMath={widget.config.showPreview ? previewWithMath : undefined}
-                                    mathMode={widget.config.mathMode === true}
+                                    initialValue={createEditorValue(stepResponses[currentStep.id] || '')}
+                                    onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: extractPlainText(value)})}
+                                    height={widget.config.height || widget.config.minHeight || "200px"}
+                                    variant={widget.config.variant || "default"}
+                                    readOnly={widget.config.readOnly === true}
                                   />
                                 );
                               }
@@ -859,14 +868,12 @@ Approve if they show reasonable understanding or selected the correct option. If
                               </Markdown>
                             )}
                             {currentStep.requiresInput && (
-                              <TextInputWidget
+                              <EditorWidget
                                 label="Your Response"
                                 placeholder="Type your answer here..."
-                                value={stepResponses[currentStep.id] || ""}
-                                onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: value})}
-                                minHeight="150px"
-                                showPreview={true}
-                                previewWithMath={previewWithMath}
+                                initialValue={createEditorValue(stepResponses[currentStep.id] || "")}
+                                onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: extractPlainText(value)})}
+                                height="200px"
                               />
                             )}
                           </div>
@@ -1067,19 +1074,18 @@ Approve if they show reasonable understanding or selected the correct option. If
                     {currentStep.widgets ? (
                       <div className="space-y-8">
                         {currentStep.widgets.map((widget, idx) => {
-                          if (widget.type === "text-input") {
+                          if (widget.type === "editor") {
                             return (
-                              <TextInputWidget
+                              <EditorWidget
                                 key={idx}
                                 label={widget.config.label || ""}
                                 description={widget.config.description}
                                 placeholder={widget.config.placeholder || ""}
-                                value={stepResponses[currentStep.id] || ''}
-                                onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: value})}
-                                minHeight={widget.config.minHeight || "150px"}
-                                showPreview={widget.config.showPreview !== false}
-                                previewWithMath={widget.config.showPreview ? previewWithMath : undefined}
-                                mathMode={widget.config.mathMode === true}
+                                initialValue={createEditorValue(stepResponses[currentStep.id] || '')}
+                                onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: extractPlainText(value)})}
+                                height={widget.config.height || widget.config.minHeight || "200px"}
+                                variant={widget.config.variant || "default"}
+                                readOnly={widget.config.readOnly === true}
                               />
                             );
                           }
@@ -1118,14 +1124,12 @@ Approve if they show reasonable understanding or selected the correct option. If
                           </Markdown>
                         )}
                         {currentStep.requiresInput && (
-                          <TextInputWidget
+                          <EditorWidget
                             label="Your Response"
                             placeholder="Type your answer here..."
-                            value={stepResponses[currentStep.id] || ""}
-                            onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: value})}
-                            minHeight="200px"
-                            showPreview={true}
-                            previewWithMath={previewWithMath}
+                            initialValue={createEditorValue(stepResponses[currentStep.id] || "")}
+                            onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: extractPlainText(value)})}
+                            height="250px"
                           />
                         )}
                       </div>

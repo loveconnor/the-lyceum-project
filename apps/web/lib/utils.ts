@@ -41,3 +41,12 @@ export function generateMeta(options: MetaOptions): Metadata {
     },
   };
 }
+
+export function extractJSON<T>(text: string): T {
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  }
+  cleaned = cleaned.replace(/,\s*([\]}])/g, '$1');
+  return JSON.parse(cleaned) as T;
+}

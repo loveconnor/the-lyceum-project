@@ -29,16 +29,26 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
-import { TextInputWidget } from "@/components/widgets/text-input-widget";
+import { EditorWidget, createEditorValue, extractPlainText } from "@/components/widgets";
 import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widget";
 import { DerivationStepsWidget, DerivationStep } from "@/components/widgets/derivation-steps-widget";
+
+// Helper to extract JSON from AI responses
+function extractJSON<T>(text: string): T {
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  }
+  cleaned = cleaned.replace(/,\s*([\]}])/g, '$1');
+  return JSON.parse(cleaned) as T;
+}
 
 interface Step {
   id: string;
   title: string;
   status: "pending" | "current" | "completed";
   widgets?: Array<{
-    type: "text-input" | "multiple-choice" | "derivation-steps";
+    type: "editor" | "multiple-choice" | "derivation-steps";
     config: any;
   }>;
 }
@@ -341,7 +351,6 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
 
     try {
       const { getLabAIAssistance } = await import("@/lib/api/labs");
-      const { extractJSON } = await import("@/lib/utils");
       
     // Build context about what the student did
     let studentWork = '';
@@ -367,7 +376,7 @@ export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
       studentWork += `Derivation steps:\n${derivationSteps.map(s => `- ${s.expression} (${s.rule || 'no rule'}: ${s.justification || 'no justification'})`).join('\n')}`;
     }
 
-    const hasTextInput = currentStep.widgets?.some(w => w.type === 'text-input' || (w.type === 'multiple-choice' && w.config.showExplanation));
+    const hasTextInput = currentStep.widgets?.some(w => w.type === 'editor' || (w.type === 'multiple-choice' && w.config.showExplanation));
     
     const prompt = `You are a mathematics instructor reviewing a student's work on: ${problemStatement}
 
@@ -466,19 +475,18 @@ Approve if they show reasonable understanding and correct approach. If not appro
                     {currentStep.widgets && currentStep.widgets.length > 0 ? (
                       <div className="space-y-6">
                         {currentStep.widgets.map((widget, idx) => {
-                          if (widget.type === "text-input") {
+                          if (widget.type === "editor") {
                             return (
-                              <TextInputWidget
+                              <EditorWidget
                                 key={idx}
                                 label={widget.config.label || ""}
                                 description={widget.config.description}
                                 placeholder={widget.config.placeholder || ""}
-                                value={stepResponses[currentStep.id] || ''}
-                                onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: value})}
-                                minHeight={widget.config.minHeight || "150px"}
-                                showPreview={widget.config.showPreview !== false}
-                                previewWithMath={widget.config.showPreview ? previewWithMath : undefined}
-                                mathMode={widget.config.mathMode === true}
+                                initialValue={createEditorValue(stepResponses[currentStep.id] || '')}
+                                onChange={(value) => setStepResponses({...stepResponses, [currentStep.id]: extractPlainText(value)})}
+                                height={widget.config.height || widget.config.minHeight || "200px"}
+                                variant={widget.config.variant || "default"}
+                                readOnly={widget.config.readOnly === true}
                               />
                             );
                           }

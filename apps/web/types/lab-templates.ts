@@ -105,7 +105,7 @@ export interface BuildLabData {
     keyQuestions?: string[];
     prompt?: string;
     widgets?: Array<{
-      type: "text-input" | "multiple-choice" | "code-editor";
+      type: "editor" | "multiple-choice" | "code-editor";
       config: any;
     }>;
   }>;
@@ -137,7 +137,7 @@ export interface DeriveLabData {
     id: string;
     title: string;
     widgets?: Array<{
-      type: "text-input" | "multiple-choice" | "derivation-steps";
+      type: "editor" | "multiple-choice" | "derivation-steps";
       config: any;
     }>;
   }>;
@@ -222,7 +222,7 @@ export interface ReviseLabData {
     keyQuestions?: string[];
     prompt?: string;
     widgets?: Array<{
-      type: "text-input" | "multiple-choice";
+      type: "editor" | "multiple-choice";
       config: any;
     }>;
   }>;
