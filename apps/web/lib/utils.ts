@@ -1,58 +1,43 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import { Metadata } from "next";
+import type { Metadata } from "next"
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function absoluteUrl(path: string) {
-  return `${process.env.NEXT_PUBLIC_APP_URL}${path}`
-}
-
-export function extractJSON<T>(text: string): T {
-  try {
-    // Try direct parse first
-    return JSON.parse(text.trim());
-  } catch {
-    // Try to extract from markdown code blocks
-    const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (match) {
-      try {
-        return JSON.parse(match[1].trim());
-      } catch {
-        // Fall through to second attempt
-      }
-    }
-    
-    // Last ditch effort: find the first { and last }
-    const firstBrace = text.indexOf('{');
-    const lastBrace = text.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      try {
-        return JSON.parse(text.substring(firstBrace, lastBrace + 1));
-      } catch {
-        // Fall through
-      }
-    }
-    
-    throw new Error("Failed to parse JSON from text");
-  }
-}
-
-export function generateMeta({
-  title,
-  description,
-  canonical
-}: {
+interface MetaOptions {
   title: string;
   description: string;
-  canonical: string;
-}): Metadata {
+  canonical?: string;
+  image?: string;
+}
+
+export function generateMeta(options: MetaOptions): Metadata {
+  const { title, description, canonical, image } = options;
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://thelyceum.dev";
+  
   return {
-    title: `${title}`,
-      description: description,
-    alternates: {
-      canonical: `${canonical}`
+    title,
+    description,
+    ...(canonical && {
+      alternates: {
+        canonical: `${baseUrl}${canonical}`,
+      },
+    }),
+    openGraph: {
+      title,
+      description,
+      url: canonical ? `${baseUrl}${canonical}` : baseUrl,
+      siteName: "The Lyceum Project",
+      ...(image && { images: [image] }),
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      ...(image && { images: [image] }),
     },
   };
 }
