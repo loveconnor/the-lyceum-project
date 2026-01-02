@@ -131,7 +131,17 @@ const TEMPLATE_GENERATORS: Record<string, string> = {
     ]
   }
 }
-Include 5-10 realistic data rows and 4-5 analysis steps.
+Include 5-10 realistic data rows.
+
+CRITICAL - CREATE UNIQUE STEPS:
+Create 3-6 steps with titles SPECIFIC to THIS dataset and research question. DO NOT use generic titles like "Explore the Data" or "Analyze Patterns".
+
+Examples of good step titles:
+- For sales data: "Compare Q1 vs Q2 Revenue", "Identify Top-Selling Products", "Calculate Monthly Growth Rate"
+- For weather data: "Plot Temperature Trends", "Find Correlation with Humidity", "Predict Tomorrow's High"
+- For survey data: "Segment Responses by Age Group", "Calculate Response Rate", "Visualize Satisfaction Distribution"
+
+The number and type of steps should match the complexity of the analysis needed.
 Use "chart" widgets to visualize data patterns, trends, and relationships.
 Available chart types: bar, line, scatter, area, pie, histogram, heatmap.`,
 
@@ -191,14 +201,24 @@ Available chart types: bar, line, scatter, area, pie, histogram, heatmap.`,
     ]
   }
 }
-Create 4-6 structured steps for the coding process. Each step should use appropriate widgets to guide the learner.
+CRITICAL - CREATE UNIQUE STEPS:
+You MUST create unique, topic-specific steps tailored to THIS specific coding challenge. DO NOT use generic steps like "Understand the Problem", "Plan Your Approach", or "Analyze Time and Space Complexity". 
 
-Example step sequence:
-1. Understand the problem: Use text-input or multiple-choice to check understanding of requirements.
-2. Plan your approach: Use text-input for pseudocode or algorithm design.
-3. Implement solution: Use code-editor widget.
-4. Test and debug: Use code-editor widget and provide guidance on debugging.
-5. Analyze complexity: Use multiple-choice or text-input to discuss time/space complexity.
+DO NOT include a step about analyzing time/space complexity unless the user specifically asked about algorithm complexity.
+
+Instead, create 3-7 steps with titles that are SPECIFIC to the learning goal. Examples of good step titles:
+- For array iteration: "Write a for loop to sum array elements", "Handle empty array edge case", "Refactor using reduce()"
+- For recursion: "Define the base case", "Implement recursive call", "Add memoization"
+- For API calls: "Set up fetch request", "Parse JSON response", "Handle errors with try-catch"
+- For sorting: "Compare adjacent elements", "Implement swap logic", "Add optimization for sorted arrays"
+
+Each step should:
+1. Have a SPECIFIC, action-oriented title related to THIS problem (not generic titles)
+2. Focus on ONE small concept or coding task
+3. Use widgets appropriate for that specific task
+4. Build progressively toward the complete solution
+
+The number of steps should match the complexity of the topic - simple topics need fewer steps (3-4), complex topics need more (5-7).
 
 WIDGET CONFIGURATION DETAILS:
 **text-input**: 
@@ -260,7 +280,11 @@ WIDGET CONFIGURATION DETAILS:
   Use for: 3D surfaces, parametric curves, mathematical visualizations
 
 Include 3-5 test cases with clear descriptions.
-Provide realistic starter code (5-15 lines) with function signature and helpful comments.`,
+Provide realistic starter code (5-15 lines) with function signature and helpful comments.
+
+CRITICAL - TEST CASES:
+Every step that includes a "code-editor" widget MUST have at least one corresponding test case in the "testCases" array.
+The "stepId" field in the test case MUST match the "id" of the step where the code is written.`,
 
   derive: `Generate a step-by-step problem-solving lab (for math derivations, proofs, symbolic manipulation, or step-by-step reasoning) with this JSON structure:
 {
@@ -413,7 +437,17 @@ RESPONSE FORMAT:
   }
 }
 
-Use proper LaTeX notation ($...$). Include 5-8 calculus/algebra rules relevant to THIS specific problem. Include a conceptCheck with a question that helps students understand WHY they're using certain approaches. Create 3-5 steps where EACH step has widgets appropriate for its learning activity.`,
+Use proper LaTeX notation ($...$). Include 5-8 calculus/algebra rules relevant to THIS specific problem. Include a conceptCheck with a question that helps students understand WHY they're using certain approaches.
+
+CRITICAL - CREATE UNIQUE STEPS:
+Create 3-6 steps with titles SPECIFIC to THIS mathematical problem. DO NOT use generic titles like "Apply the Formula" or "Simplify the Expression".
+
+Examples of good step titles based on problem type:
+- For integration by parts: "Identify $u = x$ and $dv = e^x dx$", "Compute $du$ and $v$", "Apply $uv - \\int v\\,du$"
+- For derivative problems: "Apply Chain Rule to $\\sin(x^2)$", "Differentiate the Inner Function", "Combine Using Product Rule"
+- For limit problems: "Factor Out $(x-2)$", "Cancel Common Terms", "Evaluate at $x = 2$"
+
+Each step title should reference ACTUAL mathematical expressions from THIS problem. The number of steps should match the problem's complexity.`,
 
   explain: `Generate a code explanation lab with this JSON structure:
 {
@@ -440,13 +474,20 @@ Use proper LaTeX notation ($...$). Include 5-8 calculus/algebra rules relevant t
     ]
   }
 }
-Create 3-5 steps tailored to the code complexity. Each step should have:
-- Unique id (e.g., "read-structure", "trace-execution", "identify-patterns")
-- Clear title and instructions
-- 2-4 key questions specific to THIS code
-- Helpful prompts/hints
+CRITICAL - CREATE UNIQUE STEPS:
+Create 3-5 steps with titles SPECIFIC to THIS code and what it does. DO NOT use generic titles like "Analyze the Code" or "Understand the Structure".
 
-Example step types: analyze structure, predict output, trace execution, identify edge cases, optimize performance, explain complexity.
+Examples of good step titles based on code type:
+- For a sorting algorithm: "Trace the First Swap", "Identify the Pivot Selection", "Count Comparisons for Input [3,1,4,1,5]"
+- For an API handler: "Follow the Request Object", "Spot the Error Handling Gap", "Predict Response for Invalid Input"
+- For a recursive function: "Find the Base Case", "Trace the Call Stack for n=3", "Identify the Recursive Call Pattern"
+
+Each step should have:
+- A SPECIFIC title that references actual elements of THIS code
+- Clear instructions related to THIS specific implementation
+- 2-4 key questions specific to THIS code's logic
+- Helpful prompts/hints about THIS code's behavior
+
 Provide working, realistic code (10-30 lines).`,
 
   explore: `Generate an interactive exploration lab with this JSON structure:
@@ -485,7 +526,15 @@ Provide working, realistic code (10-30 lines).`,
     ]
   }
 }
-Include 3-5 parameters and 3-4 exploration steps.`,
+CRITICAL - CREATE UNIQUE STEPS:
+Create 3-5 exploration steps with titles SPECIFIC to THIS simulation/topic. DO NOT use generic titles like "Explore Parameters" or "Observe the Results".
+
+Examples of good step titles based on simulation type:
+- For physics simulation: "Double the Mass and Measure Impact", "Find the Critical Velocity", "Compare Friction Coefficients"
+- For economics model: "Increase Interest Rate by 1%", "Find the Equilibrium Price", "Test Supply Shock Scenario"
+- For biology simulation: "Introduce a Predator", "Vary the Reproduction Rate", "Simulate Drought Conditions"
+
+Include 3-5 parameters with appropriate ranges for THIS specific simulation.`,
 
   revise: `Generate a writing revision lab with this JSON structure:
 {
@@ -525,7 +574,15 @@ Include 3-5 parameters and 3-4 exploration steps.`,
     ]
   }
 }
-Include a realistic draft with issues, 4-5 rubric criteria, and 3-4 revision steps.`
+CRITICAL - CREATE UNIQUE STEPS:
+Create 3-4 revision steps with focus areas SPECIFIC to THIS draft's actual problems. DO NOT use generic steps like "Improve Clarity" or "Fix Grammar".
+
+Examples of good step focuses based on actual issues in the draft:
+- For an argument essay: "Strengthen the Thesis in Paragraph 1", "Add Evidence for the Climate Claim", "Address the Counterargument"
+- For a narrative: "Show the Character's Fear, Don't Tell It", "Add Sensory Details to the Forest Scene", "Vary Sentence Length in the Action Sequence"
+- For technical writing: "Define 'API' Before First Use", "Break the 50-Word Sentence Into Three", "Add a Code Example for the Setup Step"
+
+Include a realistic draft with specific issues, 4-5 rubric criteria relevant to THIS writing type.`
 };
 
 export const generateLab = async (request: GenerateLabRequest): Promise<GeneratedLabResponse> => {

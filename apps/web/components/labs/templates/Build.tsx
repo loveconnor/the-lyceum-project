@@ -788,17 +788,14 @@ Approve if they show reasonable understanding or selected the correct option. If
         {/* Center Panel: Primary Workspace */}
         <ResizablePanel defaultSize={75} minSize={40}>
           {hasCodeEditor ? (
-            <ResizablePanelGroup direction="vertical">
+            <ResizablePanelGroup direction="horizontal">
               {/* Instructions Section */}
-              <ResizablePanel defaultSize={20} minSize={10}>
+              <ResizablePanel defaultSize={40} minSize={20}>
                 <ScrollArea className="h-full w-full">
                   <div className="p-6 max-w-4xl mx-auto w-full space-y-6">
                     {/* Problem Statement */}
                     {data.problemStatement && data.problemStatement !== "No problem statement provided." && (
                       <div className="space-y-3">
-                        <Badge variant="outline" className="px-2 py-0.5 text-[10px] uppercase tracking-widest font-bold">
-                          Instructions
-                        </Badge>
                         <div className="text-lg font-serif leading-relaxed">
                           <Markdown>{data.problemStatement}</Markdown>
                         </div>
@@ -808,15 +805,6 @@ Approve if they show reasonable understanding or selected the correct option. If
                     {/* Dynamic Widget Rendering (Non-code) */}
                     {currentStep && (
                       <div className="space-y-6 pb-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
-                            <span className="text-xs font-bold text-primary">{steps.findIndex(s => s.id === currentStep.id) + 1}</span>
-                          </div>
-                          <h3 className="text-base font-semibold">
-                            <Markdown>{currentStep.title}</Markdown>
-                          </h3>
-                        </div>
-
                         {currentStep.widgets ? (
                           <div className="space-y-6">
                             {currentStep.widgets.filter(w => w.type !== "code-editor").map((widget, idx) => {
@@ -936,8 +924,10 @@ Approve if they show reasonable understanding or selected the correct option. If
 
               <ResizableHandle withHandle />
 
-              {/* Editor Section */}
-              <ResizablePanel defaultSize={55} minSize={30}>
+              <ResizablePanel defaultSize={60} minSize={30}>
+                <ResizablePanelGroup direction="vertical">
+                  {/* Editor Section */}
+                  <ResizablePanel defaultSize={70} minSize={30}>
                 <div className="h-full w-full overflow-hidden">
                   {currentStep?.widgets ? (
                     currentStep.widgets.filter(w => w.type === "code-editor").map((widget, idx) => (
@@ -1014,6 +1004,8 @@ Approve if they show reasonable understanding or selected the correct option. If
                   </form>
                 </div>
               </ResizablePanel>
+                </ResizablePanelGroup>
+              </ResizablePanel>
             </ResizablePanelGroup>
           ) : (
             /* No Editor Layout */
@@ -1031,9 +1023,6 @@ Approve if they show reasonable understanding or selected the correct option. If
 
                 {/* Reference Code */}
                 <div className="space-y-4">
-                  <Badge variant="outline" className="px-2 py-0.5 text-[10px] uppercase tracking-widest font-bold">
-                    Reference Code
-                  </Badge>
                   <div className="rounded-lg overflow-hidden border bg-[#1e1e1e]">
                     <div className="px-4 py-2 border-b border-white/5 bg-white/5 flex items-center justify-between">
                       <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">

@@ -40,38 +40,58 @@ export function LabStepPanel({
       className="border-r bg-muted/5"
     >
       <ScrollArea className="h-full w-full">
-        <div className="p-4 space-y-2">
-            {steps.map((step) => {
+        <div className="p-4 space-y-3">
+            {steps.map((step, index) => {
               const isAccessible = accessedSteps 
                 ? (step.status === "completed" || step.status === "current" || accessedSteps.has(step.id))
                 : (step.status === "completed" || step.status === "current");
               
+              const isCurrent = step.status === "current";
+              const isCompleted = step.status === "completed";
+
               return (
                 <button
                   key={step.id}
-                  ref={step.status === "current" && currentStepRef ? currentStepRef : null}
+                  ref={isCurrent && currentStepRef ? currentStepRef : null}
                   onClick={() => onStepClick(step.id)}
                   disabled={!isAccessible}
                   className={cn(
-                    "w-full text-left p-3 rounded-lg transition-all duration-200",
-                    step.status === "current" 
-                      ? "bg-primary/10 border border-primary/20 text-primary font-medium" 
-                      : step.status === "completed"
-                      ? "text-foreground hover:bg-muted/50 cursor-pointer"
+                    "w-full text-left p-4 rounded-xl transition-all duration-200 border group relative overflow-hidden",
+                    isCurrent
+                      ? "bg-background border-primary/50 shadow-sm ring-1 ring-primary/20"
+                      : isCompleted
+                      ? "bg-muted/30 border-transparent hover:bg-muted/50 text-muted-foreground"
                       : isAccessible
-                      ? "text-foreground hover:bg-muted/50 cursor-pointer"
-                      : "text-muted-foreground/60 cursor-not-allowed"
+                      ? "bg-muted/30 border-transparent hover:bg-muted/50 text-foreground"
+                      : "bg-transparent border-transparent text-muted-foreground/40 cursor-not-allowed"
                   )}
                 >
-                  <div className="flex items-center justify-between gap-2 min-h-[24px]">
-                    <div className="text-sm font-medium leading-none">
-                      <Markdown components={{ p: ({children}) => <span className="leading-none">{children}</span> }}>
-                        {step.title}
-                      </Markdown>
+                  <div className="flex items-start gap-3">
+                    <div className={cn(
+                      "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-medium transition-colors",
+                      isCurrent
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : isCompleted
+                        ? "border-green-500 bg-green-500 text-white"
+                        : "border-muted-foreground/30 text-muted-foreground/50"
+                    )}>
+                      {isCompleted ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <span>{index + 1}</span>
+                      )}
                     </div>
-                    {step.status === "completed" && (
-                      <Check className="w-4 h-4 text-green-500 shrink-0" />
-                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <div className={cn(
+                        "text-sm font-medium leading-tight break-words",
+                        isCurrent ? "text-foreground" : "text-inherit"
+                      )}>
+                        <Markdown components={{ p: ({children}) => <span className="block">{children}</span> }}>
+                          {step.title}
+                        </Markdown>
+                      </div>
+                    </div>
                   </div>
                 </button>
               );

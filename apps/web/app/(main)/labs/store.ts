@@ -12,6 +12,7 @@ import {
   createLab as apiCreateLab,
   updateLab as apiUpdateLab,
   deleteLab as apiDeleteLab,
+  resetLab as apiResetLab,
   addLabComment,
   deleteLabComment,
   updateLabProgress,
@@ -50,6 +51,7 @@ interface LabStore {
   addLab: (lab: CreateLabPayload) => Promise<void>;
   generateLab: (learningGoal: string, context?: string, isRecommendation?: boolean) => Promise<Lab>;
   updateLab: (id: string, updatedLab: Partial<Lab>) => Promise<void>;
+  resetLab: (id: string) => Promise<void>;
   deleteLab: (id: string, onSuccess?: () => void) => Promise<void>;
   setSelectedLabId: (id: string | null) => void;
   setActiveTab: (tab: FilterTab) => void;
@@ -163,6 +165,20 @@ export const useLabStore = create<LabStore>((set, get) => ({
           retries_count: updated.lab_progress?.filter((p: any) => p.completed === false).length ?? null
         });
       }
+      set((state) => ({
+        labs: state.labs.map((lab) => (lab.id === id ? updated : lab)),
+        loading: false
+      }));
+    } catch (error) {
+      set({ error: (error as Error).message, loading: false });
+      throw error;
+    }
+  },
+
+  resetLab: async (id) => {
+    set({ loading: true, error: null });
+    try {
+      const updated = await apiResetLab(id);
       set((state) => ({
         labs: state.labs.map((lab) => (lab.id === id ? updated : lab)),
         loading: false

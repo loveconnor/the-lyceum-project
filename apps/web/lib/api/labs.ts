@@ -106,6 +106,15 @@ export async function deleteLab(id: string): Promise<void> {
   }
 }
 
+export async function resetLab(id: string): Promise<Lab> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_BASE_URL}/labs/${id}/reset`, {
+    method: "POST",
+    headers,
+  });
+  return handleResponse<Lab>(response);
+}
+
 export async function updateLabProgress(
   labId: string,
   payload: UpdateProgressPayload

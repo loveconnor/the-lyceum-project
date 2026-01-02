@@ -283,6 +283,62 @@ router.delete("/:id", async (req: Request, res: Response) => {
   }
 });
 
+// Reset lab progress
+router.post("/:id/reset", async (req: Request, res: Response) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    const userId = (req as any).user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const { id } = req.params;
+
+    // Verify lab ownership
+    const { data: lab, error: labError } = await supabase
+      .from("labs")
+      .select("id")
+      .eq("id", id)
+      .eq("user_id", userId)
+      .single();
+
+    if (labError || !lab) {
+      return res.status(404).json({ error: "Lab not found" });
+    }
+
+    // Delete all progress for this lab
+    const { error: deleteError } = await supabase
+      .from("lab_progress")
+      .delete()
+      .eq("lab_id", id)
+      .eq("user_id", userId);
+
+    if (deleteError) {
+      console.error("Error resetting lab progress:", deleteError);
+      return res.status(500).json({ error: "Failed to reset lab progress" });
+    }
+
+    // Reset lab status to not-started
+    const { data: updatedLab, error: updateError } = await supabase
+      .from("labs")
+      .update({ status: "not-started", completed_at: null })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error("Error resetting lab status:", updateError);
+      return res.status(500).json({ error: "Failed to reset lab status" });
+    }
+
+    return res.json(updatedLab);
+  } catch (error) {
+    console.error("Error in POST /labs/:id/reset:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // Update lab progress
 router.post("/:id/progress", async (req: Request, res: Response) => {
   try {

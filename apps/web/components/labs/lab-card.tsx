@@ -1,7 +1,7 @@
 import React from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Clock, Eye, MoreVertical, RotateCcw, Star, Trash2, PlayCircle } from "lucide-react";
+import { Clock, Eye, MoreVertical, RotateCcw, Star, Trash2 } from "lucide-react";
 import { statusClasses } from "@/app/(main)/labs/enum";
 import { Lab, LabStatus } from "@/app/(main)/labs/types";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
@@ -36,6 +36,8 @@ const LabCard: React.FC<LabCardProps> = ({
   onRestart,
   onDelete
 }) => {
+  const router = useRouter();
+
   // Helper function to auto-wrap LaTeX patterns
   const wrapMath = (text: string): string => {
     if (!text) return text;
@@ -87,12 +89,18 @@ const LabCard: React.FC<LabCardProps> = ({
   // Learning outcome - placeholder, would come from data
   const learningOutcome = lab.description?.split('\n')[0] || "Build practical skills through hands-on exercises";
 
+  const handleNavigateToLab = () => {
+    router.push(`/labs/${lab.id}`);
+  };
+
   if (viewMode === "grid") {
     return (
       <Card
         className={cn(
-          "flex h-full flex-col transition-shadow hover:shadow-md"
-        )}>
+          "flex h-full flex-col transition-shadow hover:shadow-md cursor-pointer"
+        )}
+        onClick={handleNavigateToLab}
+      >
           <CardContent className="flex h-full flex-col justify-between gap-3 pt-6 pb-4">
             <div className="flex flex-col gap-3">
               <div className="flex items-start justify-between gap-2">
@@ -101,7 +109,7 @@ const LabCard: React.FC<LabCardProps> = ({
                 </h3>
 
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -113,7 +121,8 @@ const LabCard: React.FC<LabCardProps> = ({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (onView) onView(lab.id);
                       }}
                     >
@@ -122,7 +131,8 @@ const LabCard: React.FC<LabCardProps> = ({
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (onRestart) onRestart(lab.id);
                       }}
                     >
@@ -130,7 +140,8 @@ const LabCard: React.FC<LabCardProps> = ({
                       Restart Lab
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (onCoreToggle) onCoreToggle(lab.id);
                       }}
                     >
@@ -142,7 +153,8 @@ const LabCard: React.FC<LabCardProps> = ({
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (onDelete) onDelete(lab.id);
                       }}
                       className="text-destructive focus:text-destructive"
@@ -175,12 +187,6 @@ const LabCard: React.FC<LabCardProps> = ({
               
               <div className="flex items-center gap-2">
                 <Badge className={statusClasses[actualStatus]}>{statusLabel}</Badge>
-                <Link href={`/labs/${lab.id}`}>
-                  <Button size="sm" variant="outline" className="h-7 text-xs">
-                    <PlayCircle className="h-3 w-3" />
-                    {hasStarted ? "Resume Lab" : "Start Lab"}
-                  </Button>
-                </Link>
               </div>
             </div>
           </CardContent>
@@ -191,8 +197,10 @@ const LabCard: React.FC<LabCardProps> = ({
   return (
     <Card
       className={cn(
-        "transition-shadow hover:shadow-md"
-      )}>
+        "transition-shadow hover:shadow-md cursor-pointer"
+      )}
+      onClick={handleNavigateToLab}
+    >
         <CardContent className="flex items-start gap-4 py-4">
           <div className="flex grow flex-col space-y-3">
             <div className="flex flex-col items-start justify-between gap-3 lg:flex-row lg:gap-4">
@@ -202,7 +210,7 @@ const LabCard: React.FC<LabCardProps> = ({
                 </h3>
 
                 <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
+                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -214,7 +222,8 @@ const LabCard: React.FC<LabCardProps> = ({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (onView) onView(lab.id);
                       }}
                     >
@@ -223,7 +232,8 @@ const LabCard: React.FC<LabCardProps> = ({
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (onRestart) onRestart(lab.id);
                       }}
                     >
@@ -231,7 +241,8 @@ const LabCard: React.FC<LabCardProps> = ({
                       Restart Lab
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (onCoreToggle) onCoreToggle(lab.id);
                       }}
                     >
@@ -243,7 +254,8 @@ const LabCard: React.FC<LabCardProps> = ({
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (onDelete) onDelete(lab.id);
                       }}
                       className="text-destructive focus:text-destructive"
@@ -259,12 +271,6 @@ const LabCard: React.FC<LabCardProps> = ({
                 <Badge className={statusClasses[actualStatus]}>
                   {statusLabel}
                 </Badge>
-                <Link href={`/labs/${lab.id}`}>
-                  <Button size="sm" variant="outline" className="h-7 text-xs">
-                    <PlayCircle className="h-3 w-3" />
-                    {hasStarted ? "Resume Lab" : "Start Lab"}
-                  </Button>
-                </Link>
               </div>
             </div>
 

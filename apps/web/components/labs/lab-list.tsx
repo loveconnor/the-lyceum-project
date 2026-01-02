@@ -35,6 +35,7 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
   const {
     labs,
     updateLab,
+    resetLab,
     deleteLab,
     viewMode,
     setViewMode,
@@ -118,15 +119,13 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
     toggleStarred(id);
   };
 
-  const handleRestartLab = (id: string) => {
-    updateLab(id, { status: "pending" as TodoStatus });
-    // Reset all subtasks to incomplete
-    const lab = labs.find(t => t.id === id);
-    if (lab?.subTasks) {
-      const resetSubTasks = lab.subTasks.map(st => ({ ...st, completed: false }));
-      updateLab(id, { subTasks: resetSubTasks });
+  const handleRestartLab = async (id: string) => {
+    try {
+      await resetLab(id);
+      toast.success("Lab has been restarted");
+    } catch (error) {
+      toast.error("Failed to restart lab");
     }
-    toast.success("Lab has been restarted");
   };
 
   const handleDeleteLab = (id: string) => {
