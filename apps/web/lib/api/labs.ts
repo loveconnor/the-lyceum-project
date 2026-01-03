@@ -169,6 +169,7 @@ export async function deleteLabComment(labId: string, commentId: string): Promis
 export async function generateLab(payload: {
   learningGoal: string;
   context?: string;
+  path_id?: string;
   userProfile?: {
     level?: string;
     interests?: string[];

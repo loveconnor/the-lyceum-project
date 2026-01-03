@@ -13,13 +13,15 @@ import {
   Presentation,
   Headphones,
   Network,
-  PlayCircle
+  PlayCircle,
+  Lock
 } from "lucide-react";
 
 interface ModuleCardProps {
   module: Module;
   moduleNumber: number;
   pathId: string;
+  isLocked?: boolean;
 }
 
 // Helper function to determine module status
@@ -71,7 +73,7 @@ const statusConfig = {
   }
 };
 
-export default function ModuleCard({ module, moduleNumber, pathId }: ModuleCardProps) {
+export default function ModuleCard({ module, moduleNumber, pathId, isLocked = false }: ModuleCardProps) {
   const router = useRouter();
   const status = getModuleStatus(module);
   const config = statusConfig[status];
@@ -105,13 +107,17 @@ export default function ModuleCard({ module, moduleNumber, pathId }: ModuleCardP
 
   // Handle navigation to module view
   const handleClick = () => {
+    if (isLocked) return;
     router.push(`/paths/${pathId}/modules/${module.id}`);
   };
 
   return (
     <Card
       className={cn(
-        "group relative cursor-pointer transition-all hover:shadow-md",
+        "group relative transition-all",
+        isLocked
+          ? "cursor-not-allowed opacity-50"
+          : "cursor-pointer hover:shadow-md",
         status === "completed" && "bg-muted/30"
       )}
       onClick={handleClick}
@@ -125,10 +131,12 @@ export default function ModuleCard({ module, moduleNumber, pathId }: ModuleCardP
                 "flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold",
                 status === "completed"
                   ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                  : isLocked
+                  ? "bg-muted text-muted-foreground"
                   : "bg-primary/10 text-primary"
               )}
             >
-              {moduleNumber}
+              {isLocked ? <Lock className="h-4 w-4" /> : moduleNumber}
             </div>
           </div>
           <Badge variant={config.variant} className={cn("text-xs", config.className)}>

@@ -48,6 +48,7 @@ const tryParseJson = <T>(text: string): T | null => {
 export interface GenerateLabRequest {
   learningGoal: string;
   context?: string;
+  path_id?: string;
   userProfile?: {
     level?: string;
     interests?: string[];

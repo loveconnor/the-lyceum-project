@@ -2983,12 +2983,13 @@ export default function ModulePage() {
           if (needsRegeneration) {
             console.log("Starting lab regeneration...");
             setRegeneratingLab(true);
-            toast.info("Generating lab content...");
+            toast.loading("Generating lab content...");
             
             try {
               const regeneratedLab = await generateLab({
                 learningGoal: data.title || "Learn the concepts",
-                context: data.description || ""
+                context: data.description || "",
+                path_id: pathId
               });
               
               console.log("Lab regenerated successfully:", regeneratedLab);

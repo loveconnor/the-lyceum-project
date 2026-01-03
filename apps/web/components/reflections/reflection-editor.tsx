@@ -68,7 +68,7 @@ export function ReflectionSection({
       </div>
 
       {/* Editor */}
-      <Plate editor={editor}>
+      <Plate editor={editor} onChange={handleChange}>
         <EditorContainer
           className={cn(
             "min-h-[120px] rounded-md border border-input bg-background",
@@ -77,8 +77,8 @@ export function ReflectionSection({
           )}
         >
           <Editor
-            variant="default"
-            className="px-3 py-2 text-sm"
+            variant="none"
+            className="w-full px-3 py-2 text-sm"
           />
         </EditorContainer>
       </Plate>

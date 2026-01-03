@@ -33,9 +33,10 @@ interface CreateLabSheetProps {
   isOpen: boolean;
   onClose: () => void;
   editTodoId?: string | null;
+  pathId?: string;
 }
 
-const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTodoId }) => {
+const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTodoId, pathId }) => {
   console.log("🔵 [CREATE LAB SHEET] Component rendered, isOpen:", isOpen);
   const { addLab, updateLab, labs, generateLab, loading } = useLabStore();
   const [selectedRecommendation, setSelectedRecommendation] = React.useState<string | null>(null);
@@ -175,7 +176,7 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
       console.log("⏳ [CREATE LAB] Calling generateLab API...");
 
       // Generate lab using AI
-      const newLab = await generateLab(learningGoal, contextText || undefined, Boolean(selectedRecommendation));
+      const newLab = await generateLab(learningGoal, contextText || undefined, Boolean(selectedRecommendation), pathId);
       
       console.log("✨ [CREATE LAB] Lab generated successfully:", newLab);
       

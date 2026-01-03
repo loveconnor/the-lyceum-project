@@ -128,14 +128,24 @@ export default function ModulesView({ path }: ModulesViewProps) {
         
         {path.modules && path.modules.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {path.modules.map((module, index) => (
-              <ModuleCard
-                key={module.id}
-                module={module}
-                moduleNumber={index + 1}
-                pathId={path.id}
-              />
-            ))}
+            {path.modules.map((module, index) => {
+              // Find the first incomplete module
+              const firstIncompleteIndex = path.modules!.findIndex(
+                (m) => m.status !== 'completed' && !m.completed
+              );
+              // Lock all modules after the first incomplete one
+              const isLocked = firstIncompleteIndex !== -1 && index > firstIncompleteIndex;
+              
+              return (
+                <ModuleCard
+                  key={module.id}
+                  module={module}
+                  moduleNumber={index + 1}
+                  pathId={path.id}
+                  isLocked={isLocked}
+                />
+              );
+            })}
           </div>
         ) : (
           <div className="bg-muted/50 flex flex-col items-center justify-center rounded-lg border border-dashed py-16">

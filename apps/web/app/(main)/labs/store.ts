@@ -49,7 +49,7 @@ interface LabStore {
   // Actions
   fetchLabs: () => Promise<void>;
   addLab: (lab: CreateLabPayload) => Promise<void>;
-  generateLab: (learningGoal: string, context?: string, isRecommendation?: boolean) => Promise<Lab>;
+  generateLab: (learningGoal: string, context?: string, isRecommendation?: boolean, pathId?: string) => Promise<Lab>;
   updateLab: (id: string, updatedLab: Partial<Lab>) => Promise<void>;
   resetLab: (id: string) => Promise<void>;
   deleteLab: (id: string, onSuccess?: () => void) => Promise<void>;
@@ -114,10 +114,10 @@ export const useLabStore = create<LabStore>((set, get) => ({
     }
   },
 
-  generateLab: async (learningGoal, context, isRecommendation = false) => {
+  generateLab: async (learningGoal, context, isRecommendation = false, pathId) => {
     set({ loading: true, error: null });
     try {
-      const newLab = await apiGenerateLab({ learningGoal, context });
+      const newLab = await apiGenerateLab({ learningGoal, context, path_id: pathId });
       markLabTouched(newLab.id);
       markPrimaryFeature("lab");
       trackEvent("lab_started", {
