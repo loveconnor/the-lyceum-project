@@ -55,6 +55,8 @@ import { Lab } from "@/app/(main)/labs/types";
 import LabViewer from "@/components/labs/lab-viewer";
 import { toast } from "sonner";
 import { ShortAnswerWidget, MultipleChoiceWidget, MultiStepWidget } from "@/components/exercises";
+import { ReflectionModal } from "@/components/reflections";
+import { shouldTriggerReflection } from "@/types/reflections";
 
 // --- Types & Constants ---
 
@@ -2938,6 +2940,10 @@ export default function ModulePage() {
   const [activeVisual, setActiveVisual] = useState<"flow" | "relationship" | "states" | "structure">("flow");
   const [viewedVisuals, setViewedVisuals] = useState<Set<number>>(new Set());
   
+  // Reflection state
+  const [showReflection, setShowReflection] = useState(false);
+  const [hasShownReflection, setHasShownReflection] = useState(false);
+  
   // Load module data and progress
   useEffect(() => {
     const loadModule = async () => {
@@ -3099,6 +3105,24 @@ export default function ModulePage() {
 
   // Handle navigation to next module
   const handleContinueToNext = () => {
+    // Trigger reflection after module completion (primary reflection point)
+    if (!hasShownReflection) {
+      const shouldReflect = shouldTriggerReflection({
+        event: 'module_completed',
+      });
+
+      if (shouldReflect) {
+        setShowReflection(true);
+        setHasShownReflection(true);
+        return; // Don't navigate yet, wait for reflection
+      }
+    }
+
+    // Navigate to next module
+    navigateToNext();
+  };
+
+  const navigateToNext = () => {
     const currentIndex = allModules.findIndex((m: any) => m.id === moduleId);
     if (currentIndex !== -1 && currentIndex < allModules.length - 1) {
       const nextModule = allModules[currentIndex + 1];
@@ -3108,6 +3132,11 @@ export default function ModulePage() {
       router.push(`/paths/${pathId}`);
       toast.success("Path completed! Great work!");
     }
+  };
+
+  const handleReflectionComplete = () => {
+    // After reflection is saved or skipped, navigate to next module
+    navigateToNext();
   };
 
   if (loading) {
@@ -3338,6 +3367,16 @@ export default function ModulePage() {
           </TabsContent>
         </div>
       </Tabs>
+
+      {/* Reflection Modal - Shown after module completion */}
+      <ReflectionModal
+        open={showReflection}
+        onOpenChange={setShowReflection}
+        contextType="module"
+        contextId={moduleId}
+        contextTitle={module.title}
+        onComplete={handleReflectionComplete}
+      />
     </div>
   );
 }
