@@ -18,6 +18,7 @@ type Message = {
   role: "user" | "assistant" | "system";
   content: string;
   created_at?: string;
+  files?: File[];
 };
 
 const AI_CONTEXT = "free_chat" as const;
@@ -31,7 +32,7 @@ type AssistantContextValue = {
   error: string | null;
   refreshConversations: () => Promise<void>;
   selectConversation: (conversationId: string) => Promise<void>;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, files?: File[]) => Promise<void>;
   startNewConversation: (title?: string) => Promise<string | null>;
   renameConversation: (conversationId: string, title: string) => Promise<void>;
   deleteConversation: (conversationId: string) => Promise<void>;
@@ -221,7 +222,7 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
   );
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, files?: File[]) => {
       if (!content.trim()) return;
       setIsSending(true);
       try {
@@ -253,7 +254,33 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
         // Optimistic user message; assistant placeholder only when streaming text arrives
         const tempUserId = `temp-user-${Date.now()}`;
         const tempAssistantId = `temp-assistant-${Date.now()}`;
-        setMessages((prev) => [...prev, { id: tempUserId, role: "user", content: content }]);
+        setMessages((prev) => [...prev, { id: tempUserId, role: "user", content: content, files }]);
+
+        // Process files if present - read their content
+        let fileContents: Array<{ name: string; content: string; type: string }> = [];
+        if (files && files.length > 0) {
+          fileContents = await Promise.all(
+            files.map(async (file) => {
+              try {
+                const content = await file.text();
+                console.log(`Read file ${file.name}: ${content.length} characters`);
+                return {
+                  name: file.name,
+                  content: content.slice(0, 50000), // Limit file size
+                  type: file.type
+                };
+              } catch (error) {
+                console.error(`Error reading file ${file.name}:`, error);
+                return {
+                  name: file.name,
+                  content: `[Error: Could not read file content - ${error}]`,
+                  type: file.type
+                };
+              }
+            })
+          );
+          console.log('Sending files:', fileContents.map(f => ({ name: f.name, length: f.content.length })));
+        }
 
         const res = await fetch(`${backendUrl}/ai/assistant/chat?stream=true`, {
           method: "POST",
@@ -263,7 +290,8 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
           },
           body: JSON.stringify({
             conversationId,
-            message: content
+            message: content,
+            files: fileContents
           })
         });
 

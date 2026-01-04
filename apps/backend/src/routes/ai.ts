@@ -358,12 +358,14 @@ aiRouter.post('/assistant/chat', async (req, res) => {
     conversationId,
     context,
     systemPrompt,
+    files,
   } = req.body as {
     messages?: ChatMessage[];
     message?: string;
     conversationId?: string;
     context?: string;
     systemPrompt?: string;
+    files?: Array<{ name: string; content: string; type: string }>;
   };
   const stream = req.query.stream === 'true';
 
@@ -385,6 +387,18 @@ aiRouter.post('/assistant/chat', async (req, res) => {
     // Check if this is the first message (no history, or only the current message)
     const isFirstMessage = history.length === 0;
 
+    // Build file context if files are provided
+    let fileContext = '';
+    if (files && files.length > 0) {
+      console.log(`Received ${files.length} file(s):`, files.map(f => ({ name: f.name, type: f.type, contentLength: f.content?.length })));
+      fileContext = '=== UPLOADED FILES ===\n' +
+        'The user has uploaded the following file(s) for you to reference:\n\n' +
+        files.map((file) => 
+          `📎 File: ${file.name}\nType: ${file.type}\n\nContent:\n${file.content}\n${'='.repeat(80)}`
+        ).join('\n\n');
+      console.log(`Built file context: ${fileContext.length} characters`);
+    }
+
     const chatMessages: ChatMessage[] = [
       ...history.map((m) => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content })),
       ...(messages || []),
@@ -402,9 +416,14 @@ aiRouter.post('/assistant/chat', async (req, res) => {
 
       let full = '';
       try {
+        // Add file instruction to system prompt if files are present
+        const enhancedSystemPrompt = files && files.length > 0
+          ? `${systemPrompt || assistantSystemPrompt}\n\n⚠️ IMPORTANT: The user has uploaded file(s). These files contain content they want you to reference, analyze, teach, or explain. Always acknowledge and use the file content in your response when the user asks about it.`
+          : systemPrompt || assistantSystemPrompt;
+
         const generator = await runAssistantChatStream(chatMessages, {
-          context: [contextString, context].filter(Boolean).join('\n\n') || undefined,
-          systemPrompt: systemPrompt || assistantSystemPrompt,
+          context: [fileContext, contextString, context].filter(Boolean).join('\n\n') || undefined,
+          systemPrompt: enhancedSystemPrompt,
         });
 
         for await (const chunk of generator) {
@@ -438,9 +457,14 @@ aiRouter.post('/assistant/chat', async (req, res) => {
         res.end();
       }
     } else {
+      // Add file instruction to system prompt if files are present
+      const enhancedSystemPrompt = files && files.length > 0
+        ? `${systemPrompt || assistantSystemPrompt}\n\n⚠️ IMPORTANT: The user has uploaded file(s). These files contain content they want you to reference, analyze, teach, or explain. Always acknowledge and use the file content in your response when the user asks about it.`
+        : systemPrompt || assistantSystemPrompt;
+
       const result = await runAssistantChat(chatMessages, {
-        context: [contextString, context].filter(Boolean).join('\n\n') || undefined,
-        systemPrompt: systemPrompt || assistantSystemPrompt,
+        context: [fileContext, contextString, context].filter(Boolean).join('\n\n') || undefined,
+        systemPrompt: enhancedSystemPrompt,
       });
 
       await appendAssistantMessages(

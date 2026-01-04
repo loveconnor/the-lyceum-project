@@ -66,9 +66,10 @@ export default function AIChatInterface() {
   const handleSend = async () => {
     if (!prompt.trim()) return;
     const messageToSend = prompt;
+    const filesToSend = files.length > 0 ? [...files] : undefined;
     setPrompt("");
     setFiles([]);
-    await sendMessage(messageToSend);
+    await sendMessage(messageToSend, filesToSend);
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
