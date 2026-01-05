@@ -7,7 +7,7 @@ import { AccountTypeStep } from "./ready-step";
 import { useOnboardingStore } from "@/app/onboarding/store";
 import { trackEvent } from "@/lib/analytics";
 import { ANALYTICS_CONFIG } from "@/lib/analytics/config";
-
+import React from "react";
 const steps = [InterestsStep, WorkPreferencesStep, AccountTypeStep];
 
 export default function Onboarding() {

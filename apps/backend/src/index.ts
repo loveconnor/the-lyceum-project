@@ -9,6 +9,7 @@ import labsRouter from './routes/labs';
 import pathsRouter from './routes/paths';
 import notificationsRouter from './routes/notifications';
 import waitlistRouter from './routes/waitlist';
+import registryRouter from './routes/registry';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -32,6 +33,8 @@ app.use('/paths', requireAuth, pathsRouter);
 app.use('/notifications', requireAuth, notificationsRouter);
 // Waitlist (public)
 app.use('/waitlist', waitlistRouter);
+// Source Registry (no auth - service/admin only in production)
+app.use('/registry', registryRouter);
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);

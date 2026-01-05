@@ -1,0 +1,12 @@
+
+> landing@0.1.0 lint
+> next lint
+
+nextVitals is not iterable
+npm error Lifecycle script `lint` failed with error:
+npm error code 1
+npm error path C:\Users\Connor\projects\the-lyceum-project\apps\landing
+npm error workspace landing@0.1.0
+npm error location C:\Users\Connor\projects\the-lyceum-project\apps\landing
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c next lint
