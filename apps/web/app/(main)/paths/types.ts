@@ -52,6 +52,11 @@ export interface PathItem {
   status: 'not-started' | 'in-progress' | 'completed';
   completed_at?: string | null;
   content_data?: any;
+  content_mode?: 'ai_generated' | 'registry_backed';
+  source_asset_id?: string | null;
+  source_node_ids?: string[];
+  content_unavailable?: boolean;
+  last_resolved_at?: string | null;
   labs?: {
     id: string;
     title: string;

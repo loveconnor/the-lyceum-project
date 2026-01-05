@@ -224,3 +224,13 @@ export async function fetchPathItem(pathId: string, itemId: string): Promise<any
   });
   return handleResponse<any>(response);
 }
+
+// Render a registry-backed module on demand
+export async function renderRegistryModule(pathId: string, itemId: string): Promise<any> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_BASE_URL}/paths/${pathId}/items/${itemId}/render`, {
+    headers,
+    cache: "no-store"
+  });
+  return handleResponse<any>(response);
+}

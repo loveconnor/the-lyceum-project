@@ -49,7 +49,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import './reactflow.css';
 import Link from "next/link";
-import { fetchPathItem, updatePathItemProgress, fetchPathById } from "@/lib/api/paths";
+import { fetchPathItem, updatePathItemProgress, fetchPathById, renderRegistryModule } from "@/lib/api/paths";
 import { fetchLabById, generateLab } from "@/lib/api/labs";
 import { Lab } from "@/app/(main)/labs/types";
 import LabViewer from "@/components/labs/lab-viewer";
@@ -77,6 +77,13 @@ interface ModuleData {
   id: string;
   title: string;
   description: string;
+  content_mode?: 'ai_generated' | 'registry_backed';
+  source_asset_id?: string | null;
+  source_node_ids?: string[];
+  content_unavailable?: boolean;
+  last_resolved_at?: string | null;
+  citation_display?: string;
+  progress_data?: any;
   content_data: {
     overview: string;
     learning_objectives: string[];
@@ -169,6 +176,107 @@ const TABS: { key: ViewMode; label: string; icon: React.ElementType }[] = [
   { key: "examples", label: "Examples", icon: Lightbulb },
   { key: "visuals", label: "Visuals", icon: Eye },
 ];
+
+// --- Registry Content Helpers ---
+const estimateReadingDuration = (text: string): string => {
+  const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+  const minutes = Math.max(1, Math.round(words / 180));
+  const upper = Math.max(minutes + 1, minutes + Math.ceil(minutes * 0.25));
+  return `${minutes}-${upper} min`;
+};
+
+const buildConceptQuiz = (
+  concept: { concept?: string; explanation?: string },
+  distractors: string[]
+) => {
+  const options = [
+    { id: 'correct', text: concept.explanation || `This describes ${concept.concept || 'the topic'}.` },
+    ...distractors.slice(0, 3).map((text, idx) => ({ id: `d${idx + 1}`, text })),
+  ];
+
+  while (options.length < 4) {
+    options.push({
+      id: `f${options.length}`,
+      text: 'Not discussed in this section.',
+    });
+  }
+
+  return {
+    question: `Which statement best describes ${concept.concept || 'this section'}?`,
+    options,
+    correct: 'correct',
+    explanation: concept.explanation || 'This matches the source explanation.',
+  };
+};
+
+const buildSectionQuiz = (title: string) => ({
+  question: `What was the main idea of "${title}"?`,
+  options: [
+    { id: 'a', text: `It covered ${title}.` },
+    { id: 'b', text: 'It was unrelated to this module.' },
+  ],
+  correct: 'a',
+  explanation: `This section focused on ${title}.`,
+});
+
+const normalizeRegistryContent = (
+  moduleTitle: string,
+  rendered: any
+): ModuleData['content_data'] | null => {
+  if (!rendered) return null;
+
+  const chapters: Chapter[] = [];
+  const concepts = Array.isArray(rendered.key_concepts) ? rendered.key_concepts : [];
+
+  const addChapter = (title: string, content: string, quiz: Chapter['quizzes'][number]) => {
+    chapters.push({
+      id: chapters.length + 1,
+      title: title || `Section ${chapters.length + 1}`,
+      duration: estimateReadingDuration(content),
+      content: content || 'Content pending from source registry.',
+      quizzes: [quiz],
+    });
+  };
+
+  if (rendered.overview) {
+    const quiz = concepts.length > 0
+      ? buildConceptQuiz(concepts[0], concepts.slice(1).map(c => c.explanation || c.concept || ''))
+      : buildSectionQuiz(`Overview: ${moduleTitle}`);
+
+    addChapter(`Overview: ${moduleTitle}`, rendered.overview, quiz);
+  }
+
+  if (Array.isArray(rendered.sections)) {
+    rendered.sections.forEach((section: any, idx: number) => {
+      const concept = concepts[idx % (concepts.length || 1)] || { concept: section.title, explanation: section.content };
+      const otherConcepts = concepts.filter((_, cIdx) => cIdx !== idx).map(c => c.explanation || c.concept || '');
+      const quiz = concepts.length > 0
+        ? buildConceptQuiz(concept, otherConcepts)
+        : buildSectionQuiz(section.title || `Section ${idx + 1}`);
+
+      addChapter(section.title || `Section ${idx + 1}`, section.content || rendered.overview || '', quiz);
+    });
+  }
+
+  if (chapters.length === 0 && rendered.overview) {
+    addChapter(`Overview: ${moduleTitle}`, rendered.overview, buildSectionQuiz(`Overview: ${moduleTitle}`));
+  }
+
+  if (chapters.length === 0) {
+    addChapter(moduleTitle, 'No source content could be rendered for this module yet.', buildSectionQuiz(moduleTitle));
+  }
+
+  return {
+    overview: rendered.overview || '',
+    learning_objectives: rendered.learning_objectives || [],
+    chapters,
+    key_concepts: rendered.key_concepts || [],
+    practical_exercises: rendered.practical_exercises || [],
+    resources: rendered.resources || [],
+    assessment: rendered.assessment || { questions: [] },
+    visuals: rendered.visuals || [],
+  };
+};
 
 // --- Utility Functions ---
 
@@ -2917,6 +3025,51 @@ export default function ModulePage() {
   const [regeneratingLab, setRegeneratingLab] = useState(false);
   const [allModules, setAllModules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [renderingRegistryContent, setRenderingRegistryContent] = useState(false);
+  const [registryRenderError, setRegistryRenderError] = useState<string | null>(null);
+
+  const loadRegistryContent = useCallback(async (moduleMeta: ModuleData): Promise<ModuleData> => {
+    setRenderingRegistryContent(true);
+    setRegistryRenderError(null);
+
+    try {
+      const renderResult = await renderRegistryModule(pathId, moduleId);
+
+      if (renderResult?.content_unavailable) {
+        setRegistryRenderError(renderResult.unavailable_reason || 'Source content is unavailable for this module.');
+        return { ...moduleMeta, content_unavailable: true };
+      }
+
+      if (renderResult?.content) {
+        const normalized = normalizeRegistryContent(moduleMeta.title, renderResult.content);
+
+        if (normalized) {
+          return {
+            ...moduleMeta,
+            content_data: normalized,
+            content_mode: 'registry_backed',
+            citation_display: renderResult.citation_display,
+            last_resolved_at: renderResult.rendered_at || moduleMeta.last_resolved_at,
+          };
+        }
+      }
+
+      setRegistryRenderError('No content returned from the source registry.');
+      return moduleMeta;
+    } catch (error: any) {
+      console.error("Error rendering registry-backed module:", error);
+      setRegistryRenderError(error?.message || 'Failed to render module content.');
+      return moduleMeta;
+    } finally {
+      setRenderingRegistryContent(false);
+    }
+  }, [moduleId, pathId]);
+
+  const handleRetryRender = useCallback(async () => {
+    if (!module) return;
+    const updated = await loadRegistryContent(module);
+    setModule(updated);
+  }, [module, loadRegistryContent]);
   
   // Reading tab state
   const [isQuizPassed, setIsQuizPassed] = useState(false);
@@ -2949,20 +3102,35 @@ export default function ModulePage() {
     const loadModule = async () => {
       try {
         setLoading(true);
+        setRegistryRenderError(null);
+
         const data = await fetchPathItem(pathId, moduleId);
-        setModule(data);
+        const isRegistryModule = data.item_type === 'module' && (
+          data.content_mode === 'registry_backed' ||
+          (!!data.source_asset_id && (data.source_node_ids?.length || 0) > 0)
+        );
+
+        let moduleData: ModuleData = data;
+
+        const needsRegistryRender = isRegistryModule && (!moduleData.content_data || !moduleData.content_data.chapters?.length);
+
+        if (needsRegistryRender) {
+          moduleData = await loadRegistryContent(moduleData);
+        }
+
+        setModule(moduleData);
         
         // If this is a lab item, fetch or generate the lab data
-        if (data.item_type === 'lab') {
-          console.log("Lab item detected. lab_id:", data.lab_id);
+        if (moduleData.item_type === 'lab') {
+          console.log("Lab item detected. lab_id:", moduleData.lab_id);
           
           let needsRegeneration = false;
           let labData = null;
           
           // Try to fetch existing lab if lab_id exists
-          if (data.lab_id) {
+          if (moduleData.lab_id) {
             try {
-              labData = await fetchLabById(data.lab_id);
+              labData = await fetchLabById(moduleData.lab_id);
               console.log("Lab fetched:", labData);
               
               // Check if lab has content
@@ -2987,8 +3155,8 @@ export default function ModulePage() {
             
             try {
               const regeneratedLab = await generateLab({
-                learningGoal: data.title || "Learn the concepts",
-                context: data.description || "",
+                learningGoal: moduleData.title || "Learn the concepts",
+                context: moduleData.description || "",
                 path_id: pathId
               });
               
@@ -3008,7 +3176,7 @@ export default function ModulePage() {
         }
         
         // Load progress from database
-        const progress = data.progress_data || {};
+        const progress = moduleData.progress_data || {};
         
         // Load completion flags
         setIsQuizPassed(progress.reading_completed || false);
@@ -3205,13 +3373,31 @@ export default function ModulePage() {
   if (!module || !module.content_data || !module.content_data.chapters) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-4 max-w-md">
           <p className="text-muted-foreground">
-            Module content not available. The AI may still be generating the content.
+            {module?.content_mode === 'registry_backed'
+              ? renderingRegistryContent
+                ? "Rendering content from the source registry..."
+                : "Module content from the source registry is not available yet."
+              : "Module content not available. The AI may still be generating the content."}
           </p>
-          <Link href={`/paths/${pathId}`}>
-            <Button variant="outline">Back to Path</Button>
-          </Link>
+          {registryRenderError && (
+            <p className="text-sm text-red-500">{registryRenderError}</p>
+          )}
+          {module?.content_mode === 'registry_backed' && (
+            <Button 
+              variant="default" 
+              disabled={renderingRegistryContent} 
+              onClick={handleRetryRender}
+            >
+              {renderingRegistryContent ? "Rendering..." : "Retry rendering content"}
+            </Button>
+          )}
+          <div className="pt-2">
+            <Link href={`/paths/${pathId}`}>
+              <Button variant="outline">Back to Path</Button>
+            </Link>
+          </div>
         </div>
       </div>
     );
