@@ -57,10 +57,13 @@ export default function UserMenu() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
+          <Link href="/settings/account" passHref>
           <DropdownMenuItem>
             <BadgeCheck />
             Account
           </DropdownMenuItem>
+          </Link>
+          {/** 
           <DropdownMenuItem>
             <CreditCard />
             Billing
@@ -69,12 +72,14 @@ export default function UserMenu() {
             <Bell />
             Notifications
           </DropdownMenuItem>
+          */}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>
           <LogOut />
           Log out
         </DropdownMenuItem>
+        {/** 
         <div className="bg-muted mt-1.5 rounded-md border">
           <div className="space-y-3 p-3">
             <div className="flex items-center justify-between">
@@ -90,6 +95,7 @@ export default function UserMenu() {
             </div>
           </div>
         </div>
+        */}
       </DropdownMenuContent>
     </DropdownMenu>
   );
