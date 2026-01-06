@@ -60,9 +60,14 @@ const DEFAULT_STEPS: Step[] = [
 interface ReviseTemplateProps {
   data: ReviseLabData;
   labId?: string;
+  moduleContext?: {
+    pathId: string;
+    moduleId: string;
+    onComplete?: () => void;
+  };
 }
 
-export default function ReviseTemplate({ data, labId }: ReviseTemplateProps) {
+export default function ReviseTemplate({ data, labId, moduleContext }: ReviseTemplateProps) {
   const { labTitle, description, initialDraft, targetAudience, purpose: initialPurpose, rubricCriteria, improvementAreas, visuals } = data;
   
   // Initialize steps - use AI-generated steps if available, otherwise use defaults

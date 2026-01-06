@@ -56,9 +56,14 @@ interface Step {
 interface DeriveTemplateProps {
   data: DeriveLabData;
   labId?: string;
+  moduleContext?: {
+    pathId: string;
+    moduleId: string;
+    onComplete?: () => void;
+  };
 }
 
-export default function DeriveTemplate({ data, labId }: DeriveTemplateProps) {
+export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTemplateProps) {
   const { labTitle, description, problemStatement, availableRules, initialStep, steps: dataSteps, conceptCheck } = data;
   
   // Initialize steps from AI-generated data or fallback to defaults

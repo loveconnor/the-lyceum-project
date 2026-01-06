@@ -48,9 +48,14 @@ interface Step {
 interface ExplainTemplateProps {
   data: ExplainLabData;
   labId?: string;
+  moduleContext?: {
+    pathId: string;
+    moduleId: string;
+    onComplete?: () => void;
+  };
 }
 
-export default function ExplainTemplate({ data, labId }: ExplainTemplateProps) {
+export default function ExplainTemplate({ data, labId, moduleContext }: ExplainTemplateProps) {
   const { labTitle, description, artifact, steps: aiSteps } = data;
   const artifactCode = artifact?.code || "// No code provided";
   const language = artifact?.language || "javascript";

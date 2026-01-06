@@ -49,12 +49,12 @@ import {
 import '@xyflow/react/dist/style.css';
 import './reactflow.css';
 import Link from "next/link";
-import { fetchPathItem, updatePathItemProgress, fetchPathById, renderRegistryModule } from "@/lib/api/paths";
+import { fetchPathItem, updatePathItemProgress, fetchPathById, renderRegistryModule, updatePathItem } from "@/lib/api/paths";
 import { fetchLabById, generateLab } from "@/lib/api/labs";
 import { Lab } from "@/app/(main)/labs/types";
 import LabViewer from "@/components/labs/lab-viewer";
 import { toast } from "sonner";
-import { ShortAnswerWidget, MultipleChoiceWidget, MultiStepWidget } from "@/components/exercises";
+import { ShortAnswerWidget, MultipleChoiceWidget, MultiStepWidget, CodeEditorWidget } from "@/components/exercises";
 import { ReflectionModal } from "@/components/reflections";
 import { shouldTriggerReflection } from "@/types/reflections";
 
@@ -937,9 +937,56 @@ const ExercisesSubView = ({
   const isCompleted = completedExercises.has(currentIndex);
   
   // Determine widget type from exercise data (AI-selected) or fallback detection
-  const widgetType = currentExercise?.exercise_type || 
-    (currentExercise?.options && currentExercise.options.length > 0 ? 'multiple_choice' : 
-     currentExercise?.correct_answer ? 'short_answer' : 'multi_step');
+  const detectWidgetType = () => {
+    // If AI explicitly set the type, use it
+    if (currentExercise?.exercise_type) {
+      return currentExercise.exercise_type;
+    }
+    
+    // Check for coding exercises based on description keywords
+    const description = (currentExercise?.description || '').toLowerCase();
+    const title = (currentExercise?.title || '').toLowerCase();
+    const combinedText = `${title} ${description}`;
+    
+    const codingKeywords = [
+      'write a program',
+      'write a complete',
+      'implement',
+      'java program',
+      'python program',
+      'javascript program',
+      'write code',
+      'create a function',
+      'create a class',
+      'write a function',
+      'code that',
+      'program that',
+      'using a for loop',
+      'using a while loop',
+      'using recursion'
+    ];
+    
+    const isCodingExercise = codingKeywords.some(keyword => combinedText.includes(keyword));
+    
+    if (isCodingExercise) {
+      return 'code_editor';
+    }
+    
+    // Multiple choice detection
+    if (currentExercise?.options && currentExercise.options.length > 0) {
+      return 'multiple_choice';
+    }
+    
+    // Short answer detection
+    if (currentExercise?.correct_answer) {
+      return 'short_answer';
+    }
+    
+    // Default to multi-step for math/derivation problems
+    return 'multi_step';
+  };
+  
+  const widgetType = detectWidgetType();
   
   // Reset support states when changing exercises
   useEffect(() => {
@@ -1024,7 +1071,15 @@ const ExercisesSubView = ({
       )}
 
       {/* Widget-based Answer Input - AI selects the widget type */}
-      {widgetType === 'short_answer' && currentExercise.correct_answer ? (
+      {widgetType === 'code_editor' ? (
+        <CodeEditorWidget
+          language="java"
+          initialCode=""
+          isCompleted={isCompleted}
+          onComplete={() => setCompletedExercises(prev => new Set(prev).add(currentIndex))}
+          onAttempt={markAttempted}
+        />
+      ) : widgetType === 'short_answer' && currentExercise.correct_answer ? (
         <ShortAnswerWidget
           correctAnswer={currentExercise.correct_answer}
           isCompleted={isCompleted}
@@ -1266,23 +1321,13 @@ const ExamplesView = ({
     return () => clearTimeout(timer);
   }, [conceptIndex, activeTab, viewedConcepts, setViewedConcepts]);
 
-  // Mark exercise as viewed when user stays on it
-  useEffect(() => {
-    if (activeTab !== 'exercises') return;
-    
-    const timer = setTimeout(() => {
-      if (!viewedExercises.has(exerciseIndex)) {
-        setViewedExercises(prev => new Set(prev).add(exerciseIndex));
-      }
-    }, 2000);
+  // Note: Exercises are NOT marked as viewed automatically - only when completed correctly
+  // This is handled by the completedExercises state updated from the widgets
 
-    return () => clearTimeout(timer);
-  }, [exerciseIndex, activeTab, viewedExercises, setViewedExercises]);
-
-  // Mark examples complete when all concepts and exercises are viewed
+  // Mark examples complete when all concepts are viewed and exercises are completed correctly
   useEffect(() => {
     const conceptsComplete = viewedConcepts.size >= keyConcepts.length;
-    const exercisesComplete = viewedExercises.size >= practicalExercises.length;
+    const exercisesComplete = completedExercises.size >= practicalExercises.length;
     
     if (conceptsComplete && exercisesComplete && !isExamplesComplete) {
       setIsExamplesComplete(true);
@@ -3145,36 +3190,44 @@ export default function ModulePage() {
         
         // If this is a lab item, fetch or generate the lab data
         if (moduleData.item_type === 'lab') {
-          console.log("Lab item detected. lab_id:", moduleData.lab_id);
+          const labId = (moduleData as any).lab_id;
+          console.log("Lab item detected. lab_id:", labId);
+          
+          // Check if lab is already completed - don't regenerate if it is
+          const isLabCompleted = moduleData.status === 'completed';
+          console.log("Lab completed status:", isLabCompleted);
           
           let needsRegeneration = false;
           let labData = null;
           
           // Try to fetch existing lab if lab_id exists
-          if (moduleData.lab_id) {
+          if (labId) {
             try {
-              labData = await fetchLabById(moduleData.lab_id);
+              labData = await fetchLabById(labId);
               console.log("Lab fetched:", labData);
               
               // Check if lab has content
               if (!labData || !labData.template_data || !labData.template_type) {
                 console.log("Lab has no content");
-                needsRegeneration = true;
+                // Only regenerate if not already completed
+                needsRegeneration = !isLabCompleted;
               }
             } catch (labError: any) {
               console.error("Error loading lab:", labError);
-              needsRegeneration = true;
+              // Only regenerate if not already completed
+              needsRegeneration = !isLabCompleted;
             }
           } else {
             console.log("No lab_id, needs generation");
-            needsRegeneration = true;
+            // Only generate if not already completed
+            needsRegeneration = !isLabCompleted;
           }
           
           // Regenerate if needed
           if (needsRegeneration) {
             console.log("Starting lab regeneration...");
             setRegeneratingLab(true);
-            toast.loading("Generating lab content...");
+            const toastId = toast.loading("Generating lab content...");
             
             try {
               const regeneratedLab = await generateLab({
@@ -3184,12 +3237,27 @@ export default function ModulePage() {
               });
               
               console.log("Lab regenerated successfully:", regeneratedLab);
+              
+              // Save the lab_id back to the path item so it can be reused
+              // Also mark as in-progress since the lab has been generated and started
+              try {
+                await updatePathItem(pathId, moduleId, {
+                  lab_id: regeneratedLab.id,
+                  status: 'in-progress'
+                });
+                console.log("Lab ID saved to path item:", regeneratedLab.id);
+              } catch (updateError) {
+                console.error("Error saving lab_id to path item:", updateError);
+              }
+              
               setLab(regeneratedLab);
               setRegeneratingLab(false);
+              toast.dismiss(toastId);
               toast.success("Lab generated successfully!");
             } catch (genError) {
               console.error("Error regenerating lab:", genError);
               setRegeneratingLab(false);
+              toast.dismiss(toastId);
               toast.error("Failed to generate lab content");
             }
           } else if (labData) {
@@ -3296,7 +3364,18 @@ export default function ModulePage() {
   ]);
 
   // Handle navigation to next module
-  const handleContinueToNext = () => {
+  const handleContinueToNext = async () => {
+    // Mark current item as complete before navigating
+    if (module?.item_type === 'lab') {
+      try {
+        await updatePathItem(pathId, moduleId, {
+          status: 'completed'
+        });
+      } catch (error) {
+        console.error('Error marking lab as complete:', error);
+      }
+    }
+    
     // Trigger reflection after module completion (primary reflection point)
     if (!hasShownReflection) {
       const shouldReflect = shouldTriggerReflection({
@@ -3386,7 +3465,14 @@ export default function ModulePage() {
           </div>
         </div>
         <div className="flex-1 overflow-hidden">
-          <LabViewer lab={lab} />
+          <LabViewer 
+            lab={lab}
+            moduleContext={{
+              pathId,
+              moduleId,
+              onComplete: handleContinueToNext
+            }}
+          />
         </div>
       </div>
     );

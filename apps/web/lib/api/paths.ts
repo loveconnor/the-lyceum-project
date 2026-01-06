@@ -187,6 +187,21 @@ export async function updatePathItemProgress(
   return handleResponse<any>(response);
 }
 
+// Update path item (general - can update lab_id, status, etc.)
+export async function updatePathItem(
+  pathId: string,
+  itemId: string,
+  updates: Partial<UpdatePathItemPayload> & { lab_id?: string }
+): Promise<any> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_BASE_URL}/paths/${pathId}/items/${itemId}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(updates),
+  });
+  return handleResponse<any>(response);
+}
+
 // Add an item to a learning path
 export async function addPathItem(
   pathId: string, 

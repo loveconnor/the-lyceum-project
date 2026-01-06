@@ -117,8 +117,30 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
       );
     }
 
-    const language = match ? match[1] : "plaintext";
+    // Detect language if not specified
+    let language = match ? match[1] : null;
     const code = String(children ?? "").replace(/\n$/, "");
+    
+    // If no language specified, try to detect it from the code content
+    if (!language) {
+      const codeStr = code.toLowerCase();
+      
+      // Simple heuristics to detect common languages
+      if (codeStr.includes('def ') || codeStr.includes('import ') && codeStr.includes('from ')) {
+        language = "python";
+      } else if (codeStr.includes('function ') || codeStr.includes('const ') || codeStr.includes('let ') || codeStr.includes('=>')) {
+        language = "javascript";
+      } else if (codeStr.includes('class ') && (codeStr.includes('public ') || codeStr.includes('private ') || codeStr.includes('static '))) {
+        language = "java";
+      } else if (codeStr.includes('#include') || codeStr.includes('std::')) {
+        language = "cpp";
+      } else if (codeStr.includes('package ') || codeStr.includes('func ')) {
+        language = "go";
+      } else {
+        // Default to java as it's commonly used in educational content
+        language = "java";
+      }
+    }
 
     // Return the CodeBlock directly without wrapper to avoid nesting issues
     return (

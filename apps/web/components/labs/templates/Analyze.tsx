@@ -69,9 +69,14 @@ import { AnalyzeLabData } from "@/types/lab-templates";
 interface AnalyzeTemplateProps {
   data: AnalyzeLabData;
   labId?: string;
+  moduleContext?: {
+    pathId: string;
+    moduleId: string;
+    onComplete?: () => void;
+  };
 }
 
-export default function AnalyzeTemplate({ data, labId }: AnalyzeTemplateProps) {
+export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeTemplateProps) {
   const { labTitle, description, dataset, availableVariables, guidingQuestions } = data;
   const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS);
   const [analysis, setAnalysis] = useState({

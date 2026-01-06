@@ -35,9 +35,14 @@ interface Insight {
 interface ExploreTemplateProps {
   data: ExploreLabData;
   labId?: string;
+  moduleContext?: {
+    pathId: string;
+    moduleId: string;
+    onComplete?: () => void;
+  };
 }
 
-export default function ExploreTemplate({ data, labId }: ExploreTemplateProps) {
+export default function ExploreTemplate({ data, labId, moduleContext }: ExploreTemplateProps) {
   const { labTitle, description, parameters: paramConfig, guidingQuestions } = data;
   
   // Initialize parameters state from config

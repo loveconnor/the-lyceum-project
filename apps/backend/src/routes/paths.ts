@@ -1849,10 +1849,10 @@ router.patch("/:pathId/items/:itemId", async (req: Request, res: Response) => {
     }
 
     const { pathId, itemId } = req.params;
-    const { status, progress_data } = req.body;
+    const { status, progress_data, lab_id } = req.body;
 
-    if (!status && !progress_data) {
-      return res.status(400).json({ error: "Status or progress_data is required" });
+    if (!status && !progress_data && !lab_id) {
+      return res.status(400).json({ error: "Status, progress_data, or lab_id is required" });
     }
 
     // Verify the path belongs to the user
@@ -1879,6 +1879,10 @@ router.patch("/:pathId/items/:itemId", async (req: Request, res: Response) => {
     
     if (progress_data) {
       updateData.progress_data = progress_data;
+    }
+    
+    if (lab_id) {
+      updateData.lab_id = lab_id;
     }
 
     const { data: updatedItem, error } = await supabase

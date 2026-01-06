@@ -136,9 +136,14 @@ const INITIAL_STEPS = (stepPrompts?: BuildLabData['stepPrompts'], aiSteps?: Buil
 interface BuildTemplateProps {
   data: BuildLabData;
   labId?: string;
+  moduleContext?: {
+    pathId: string;
+    moduleId: string;
+    onComplete?: () => void;
+  };
 }
 
-export default function BuildTemplate({ data, labId }: BuildTemplateProps) {
+export default function BuildTemplate({ data, labId, moduleContext }: BuildTemplateProps) {
   const { labTitle, description, initialCode, language, testCases, hints, stepPrompts, steps: aiSteps } = data;
   
   // Ensure language is valid, fallback to detecting from code or default to java
@@ -1199,10 +1204,17 @@ Approve if they show reasonable understanding or selected the correct option. If
           </DialogHeader>
           <DialogFooter className="flex-col gap-2 sm:flex-col">
             <Button 
-              onClick={() => window.location.href = "/labs"}
+              onClick={() => {
+                setShowCompletionModal(false);
+                if (moduleContext?.onComplete) {
+                  moduleContext.onComplete();
+                } else {
+                  window.location.href = "/labs";
+                }
+              }}
               className="w-full"
             >
-              Back to Labs
+              {moduleContext ? "Continue to Next Module" : "Back to Labs"}
             </Button>
             <Button 
               variant="outline"
