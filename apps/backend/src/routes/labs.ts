@@ -30,6 +30,13 @@ router.get("/", async (req: Request, res: Response) => {
           id,
           text,
           created_at
+        ),
+        learning_path_items!learning_path_items_lab_id_fkey (
+          path_id,
+          learning_paths (
+            id,
+            title
+          )
         )
       `)
       .eq("user_id", userId)
@@ -40,7 +47,19 @@ router.get("/", async (req: Request, res: Response) => {
       return res.status(500).json({ error: "Failed to fetch labs" });
     }
 
-    return res.json(labs);
+    // Transform the data to include path_id and path_title at the lab level
+    const transformedLabs = labs?.map(lab => {
+      const pathItem = lab.learning_path_items?.[0];
+      const pathInfo = pathItem?.learning_paths;
+      return {
+        ...lab,
+        path_id: pathInfo?.id || null,
+        path_title: pathInfo?.title || null,
+        learning_path_items: undefined // Remove the nested structure
+      };
+    }) || [];
+
+    return res.json(transformedLabs);
   } catch (error) {
     console.error("Error in GET /labs:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -61,7 +80,16 @@ router.get("/:id", async (req: Request, res: Response) => {
 
     const { data: lab, error } = await supabase
       .from("labs")
-      .select("*")
+      .select(`
+        *,
+        learning_path_items!learning_path_items_lab_id_fkey (
+          path_id,
+          learning_paths (
+            id,
+            title
+          )
+        )
+      `)
       .eq("id", id)
       .eq("user_id", userId)
       .single();
@@ -70,6 +98,16 @@ router.get("/:id", async (req: Request, res: Response) => {
       console.error("Error fetching lab:", error);
       return res.status(404).json({ error: "Lab not found" });
     }
+
+    // Transform to include path info at lab level
+    const pathItem = (lab as any).learning_path_items?.[0];
+    const pathInfo = pathItem?.learning_paths;
+    const transformedLab = {
+      ...lab,
+      path_id: pathInfo?.id || null,
+      path_title: pathInfo?.title || null,
+      learning_path_items: undefined
+    };
 
     // Fetch progress
     const { data: progress } = await supabase
@@ -86,7 +124,7 @@ router.get("/:id", async (req: Request, res: Response) => {
       .order("created_at", { ascending: true });
 
     return res.json({
-      ...lab,
+      ...transformedLab,
       lab_progress: progress || [],
       lab_comments: comments || []
     });

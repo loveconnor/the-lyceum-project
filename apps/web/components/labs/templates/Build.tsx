@@ -44,10 +44,17 @@ import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { useLabAI } from "@/hooks/use-lab-ai";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
 import { EditorWidget, createEditorValue, extractPlainText } from "@/components/widgets";
 import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widget";
 import { CodeEditorWidget } from "@/components/widgets/code-editor-widget";
+
+// Helper function to convert literal \n to actual newlines
+const convertNewlines = (text: string | undefined) => {
+  if (!text) return "";
+  return text.replace(/\\n/g, "\n");
+};
 
 // Helper to extract JSON from AI responses
 function extractJSON<T>(text: string): T {
@@ -144,6 +151,7 @@ interface BuildTemplateProps {
 }
 
 export default function BuildTemplate({ data, labId, moduleContext }: BuildTemplateProps) {
+  const { theme } = useTheme();
   const { labTitle, description, initialCode, language, testCases, hints, stepPrompts, steps: aiSteps } = data;
   
   // Ensure language is valid, fallback to detecting from code or default to java
@@ -165,6 +173,7 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
   const { getAssistance, loading: aiLoading } = labId ? useLabAI(labId) : { getAssistance: null, loading: false };
   const currentStepRef = React.useRef<HTMLButtonElement>(null);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [hasShownCompletionModal, setHasShownCompletionModal] = useState(false);
   
   // Get file extension based on language
   const getFileExtension = () => {
@@ -324,13 +333,14 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
     }
   }, [steps]);
 
-  // Check if all steps are completed and show modal
+  // Check if all steps are completed and show modal (only once)
   React.useEffect(() => {
     const allCompleted = steps.length > 0 && steps.every(s => s.status === "completed");
-    if (allCompleted && !showCompletionModal) {
+    if (allCompleted && !hasShownCompletionModal) {
       setShowCompletionModal(true);
+      setHasShownCompletionModal(true);
     }
-  }, [steps, showCompletionModal]);
+  }, [steps, hasShownCompletionModal]);
 
   // Mark current step as accessed
   React.useEffect(() => {
@@ -812,7 +822,7 @@ Approve if they show reasonable understanding or selected the correct option. If
                     {data.problemStatement && data.problemStatement !== "No problem statement provided." && (
                       <div className="space-y-3">
                         <div className="text-lg font-serif leading-relaxed">
-                          <Markdown>{data.problemStatement}</Markdown>
+                          <Markdown>{convertNewlines(data.problemStatement)}</Markdown>
                         </div>
                       </div>
                     )}
@@ -975,26 +985,32 @@ Approve if they show reasonable understanding or selected the correct option. If
 
               {/* Console Section */}
               <ResizablePanel defaultSize={25} minSize={10}>
-                <div className="flex flex-col h-full border-t bg-[#0d1117]">
-                  <div className="flex items-center justify-between px-4 py-2 border-b border-white/5 bg-white/5">
+                <div className={cn(
+                  "flex flex-col h-full border-t",
+                  theme === "light" ? "bg-zinc-50" : "bg-[#0d1117]"
+                )}>
+                  <div className={cn(
+                    "flex items-center justify-between px-4 py-2 border-b",
+                    theme === "light" ? "border-border bg-zinc-100/50" : "border-white/5 bg-white/5"
+                  )}>
                     <div className="flex items-center gap-2">
-                      <Terminal className="w-3.5 h-3.5 text-white/40" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Console Output</span>
+                      <Terminal className="w-3.5 h-3.5 text-muted-foreground/40" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Console Output</span>
                     </div>
-                    <span className="text-[10px] text-white/20 font-mono">Type 'help' for commands</span>
+                    <span className="text-[10px] text-muted-foreground/20 font-mono">Type 'help' for commands</span>
                   </div>
                   <ScrollArea className="flex-1 h-0">
                     <div className="p-4 font-mono text-xs space-y-1.5">
                       {output.length === 0 ? (
-                        <p className="text-white/20 italic">Click "Run Tests" or type 'test' in the console...</p>
+                        <p className="text-muted-foreground/40 italic">Click "Run Tests" or type 'test' in the console...</p>
                       ) : (
                         output.map((line, i) => (
                           <div key={i} className={cn(
                             "py-0.5 break-all",
-                            line.startsWith(">") ? "text-blue-400 font-bold" :
-                            line.startsWith("[") ? "text-white/40" : 
-                            line.includes("✗") ? "text-red-400" : 
-                            line.includes("✓") ? "text-emerald-400" : "text-gray-300"
+                            line.startsWith(">") ? "text-blue-500 font-bold" :
+                            line.startsWith("[") ? "text-muted-foreground/60" : 
+                            line.includes("✗") ? "text-red-500" : 
+                            line.includes("✓") ? "text-emerald-500" : "text-foreground/80"
                           )}>
                             {line}
                           </div>
@@ -1002,15 +1018,21 @@ Approve if they show reasonable understanding or selected the correct option. If
                       )}
                     </div>
                   </ScrollArea>
-                  <form onSubmit={handleCommandSubmit} className="p-2 border-t border-white/5 bg-black/20">
-                    <div className="flex items-center gap-2 px-2 py-1 bg-black/40 rounded border border-white/10 focus-within:border-primary/50 transition-colors">
+                  <form onSubmit={handleCommandSubmit} className={cn(
+                    "p-2 border-t",
+                    theme === "light" ? "border-border bg-zinc-100/30" : "border-white/5 bg-black/20"
+                  )}>
+                    <div className={cn(
+                      "flex items-center gap-2 px-2 py-1 rounded border focus-within:border-primary/50 transition-colors",
+                      theme === "light" ? "bg-background border-border" : "bg-black/40 border-white/10"
+                    )}>
                       <span className="text-primary font-bold text-xs select-none">$</span>
                       <input 
                         type="text"
                         value={commandInput}
                         onChange={(e) => setCommandInput(e.target.value)}
                         placeholder="Enter command..."
-                        className="flex-1 bg-transparent border-none outline-none text-xs font-mono text-gray-300 placeholder:text-white/10"
+                        className="flex-1 bg-transparent border-none outline-none text-xs font-mono text-foreground/80 placeholder:text-muted-foreground/40"
                       />
                     </div>
                   </form>
@@ -1029,7 +1051,7 @@ Approve if they show reasonable understanding or selected the correct option. If
                     Problem Statement
                   </Badge>
                   <div className="text-xl font-serif leading-relaxed">
-                    <Markdown>{data.problemStatement || description || "No problem statement provided."}</Markdown>
+                    <Markdown>{convertNewlines(data.problemStatement || description || "No problem statement provided.")}</Markdown>
                   </div>
                 </div>
 
@@ -1045,7 +1067,7 @@ Approve if they show reasonable understanding or selected the correct option. If
                       <Editor
                         height="100%"
                         language={detectedLanguage}
-                        theme="vs-dark"
+                        theme={theme === "light" ? "light" : "vs-dark"}
                         value={code}
                         options={{
                           minimap: { enabled: false },
@@ -1190,7 +1212,13 @@ Approve if they show reasonable understanding or selected the correct option. If
       </ResizablePanelGroup>
 
       {/* Completion Modal */}
-      <Dialog open={showCompletionModal} onOpenChange={setShowCompletionModal}>
+      <Dialog open={showCompletionModal} onOpenChange={(open) => {
+        setShowCompletionModal(open);
+        // If closing and there's no module context, don't navigate
+        if (!open && !moduleContext) {
+          // Just close the modal, user can review
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">

@@ -34,7 +34,14 @@ import { cn, extractJSON } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import { useLabAI } from "@/hooks/use-lab-ai";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
+
+// Helper function to convert literal \n to actual newlines
+const convertNewlines = (text: string | undefined) => {
+  if (!text) return "";
+  return text.replace(/\\n/g, "\n");
+};
 
 interface Step {
   id: string;
@@ -56,6 +63,7 @@ interface ExplainTemplateProps {
 }
 
 export default function ExplainTemplate({ data, labId, moduleContext }: ExplainTemplateProps) {
+  const { theme } = useTheme();
   const { labTitle, description, artifact, steps: aiSteps } = data;
   const artifactCode = artifact?.code || "// No code provided";
   const language = artifact?.language || "javascript";
@@ -303,7 +311,7 @@ Approve if they show reasonable understanding. If not approved, explain what's m
               <Editor
                 height="100%"
                 defaultLanguage={language}
-                theme="vs-dark"
+                theme={theme === "light" ? "light" : "vs-dark"}
                 value={artifactCode}
                 options={{
                   minimap: { enabled: false },
@@ -340,7 +348,7 @@ Approve if they show reasonable understanding. If not approved, explain what's m
                       {currentStepIndex + 1}. {currentStep.title}
                     </label>
                     <Markdown className="text-sm text-muted-foreground">
-                      {currentStep.instruction || "Complete this step by analyzing the code."}
+                      {convertNewlines(currentStep.instruction || "Complete this step by analyzing the code.")}
                     </Markdown>
                     
                     {currentStep.keyQuestions && currentStep.keyQuestions.length > 0 && (

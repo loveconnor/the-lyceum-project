@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface StatusTabsProps<T extends string> {
@@ -16,6 +18,16 @@ function StatusTabs<T extends string>({
   statusNamed,
   allLabel
 }: StatusTabsProps<T>) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return null;
+  }
+
   return (
     <Tabs
       defaultValue={activeTab}

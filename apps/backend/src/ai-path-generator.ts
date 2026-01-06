@@ -505,6 +505,11 @@ Exercises MUST be actual problems with correct answers that can be verified.
 
 EXERCISE TYPES - Choose the right type for each problem:
 
+CRITICAL RULE FOR PROGRAMMING EXERCISES:
+- If the exercise asks the learner to WRITE ANY CODE (methods, functions, classes, programs), use "code_editor" type
+- "multi_step" is ONLY for mathematical/logical problems, NOT for programming
+- Examples that require "code_editor": "Write a method...", "Implement a function...", "Create a program...", "Write code that..."
+
 1. "short_answer" - Simple problems with a single answer
    Examples:
    - "Fill in the blank: 4, 5, _, 7, 8" → correct_answer: "6"
@@ -520,20 +525,27 @@ EXERCISE TYPES - Choose the right type for each problem:
    Use when: Testing recognition, or when there are natural distractor options
    MUST include "options" array with 3-4 choices
 
-3. "multi_step" - Complex problems requiring multiple steps
+3. "multi_step" - Complex NON-CODING problems requiring multiple mathematical/logical steps
    Examples:
    - "Factor completely: $x^2 + 7x + 12$" → correct_answer: "(x + 3)(x + 4)"
    - "Find the derivative of $f(x) = 3x^4 - 2x^2 + 5$"
-   Use when: Derivations, proofs, or problems requiring work shown
-   Include detailed worked_example
+   - "Prove that the sum of two even numbers is even"
+   Use when: Mathematical derivations, proofs, or logical reasoning requiring work shown
+   DO NOT use for programming/coding exercises
+   Include detailed worked_example showing all steps
 
-4. "code_editor" - Programming exercises requiring code to be written
+4. "code_editor" - ANY exercise requiring writing/implementing CODE (THIS IS THE PRIMARY TYPE FOR PROGRAMMING)
    Examples:
    - "Write a Java method that returns the sum of two integers"
    - "Implement a Python function to reverse a string"
    - "Create a JavaScript function that checks if a number is prime"
-   Use when: Learning programming, algorithms, or software development
-   Include starter_code (optional), test_cases (optional), and worked_example with complete solution
+   - "Write a program that prints numbers 1 to 10"
+   - "Implement a method called isEven that takes an int and returns true if even"
+   - "Create a function to find the maximum value in an array"
+   CRITICAL: Use "code_editor" for ANY exercise where the learner needs to WRITE CODE in a programming language
+   This includes: methods, functions, classes, complete programs, implementing algorithms
+   Include starter_code (optional), test_cases (optional), and worked_example with complete working code solution
+   Language can be: Java, Python, JavaScript, TypeScript, C++, or any programming language
 
 For ALL exercise types, you MUST include:
 - title: Short descriptive name
@@ -546,7 +558,12 @@ For ALL exercise types, you MUST include:
 ✗ WRONG exercise description examples (DO NOT DO THIS):
   - "Students will practice solving equations" (no specific problem)
   - "Using manipulatives, learners will explore..." (activity, not problem)
+  - "Identify the most appropriate primitive type for each scenario" (references scenarios but doesn't provide them)
+  - "Choose the correct answer for each case" (vague, no actual problem stated)
   - Missing correct_answer field
+  
+CRITICAL: The description must be SELF-CONTAINED and include ALL information needed to solve the problem. 
+Do NOT reference external content like "each scenario", "the cases above", or "the following situations" unless you actually include that content in the description.
 
 ADAPTIVE EXAMPLES STRATEGY (CRITICAL):
 - Examples should be adaptive and intentional based on what best helps learners understand each specific concept

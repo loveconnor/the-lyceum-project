@@ -7,6 +7,13 @@ import { cn } from '@/lib/utils';
 import { EditorKit } from '@/components/widgets/editor/editor-kit';
 import { Editor, EditorContainer } from '@/components/ui/editor';
 import { Card, CardContent } from '@/components/ui/card';
+import { Markdown } from '@/components/ui/custom/prompt/markdown';
+
+// Helper function to convert literal \n to actual newlines
+const convertNewlines = (text: string | undefined) => {
+  if (!text) return "";
+  return text.replace(/\\n/g, "\n");
+};
 
 /**
  * EditorWidget Interface
@@ -121,9 +128,9 @@ export function EditorWidget({
             </label>
           )}
           {description && (
-            <p className="text-xs text-muted-foreground italic">
-              {description}
-            </p>
+            <div className="text-xs text-muted-foreground italic">
+              <Markdown>{convertNewlines(description)}</Markdown>
+            </div>
           )}
         </div>
       )}

@@ -28,6 +28,7 @@ import {
   ChevronDown,
   ArrowDown,
 } from "lucide-react";
+import { ReactFlowWidget, ReactFlowWidgetData } from "@/components/widgets/react-flow-widget";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "motion/react";
 import { useTheme } from "next-themes";
@@ -1928,251 +1929,38 @@ const VisualsView = ({
   viewedVisuals,
   setViewedVisuals
 }: { 
-  visuals: Array<{
-    title: string;
-    description?: string;
-    nodes: Array<{
-      id: string;
-      position: { x: number; y: number };
-      data: { label: string };
-      type?: 'default' | 'input' | 'output';
-      style?: Record<string, unknown>;
-    }>;
-    edges: Array<{
-      id: string;
-      source: string;
-      target: string;
-      label?: string;
-      type?: string;
-      animated?: boolean;
-      style?: Record<string, unknown>;
-      labelStyle?: Record<string, unknown>;
-      markerEnd?: {
-        type: 'arrow' | 'arrowclosed';
-        color?: string;
-      };
-    }>;
-  }>;
+  visuals: any[];
   isVisualsComplete: boolean; 
   setIsVisualsComplete: (v: boolean) => void;
   viewedVisuals: Set<number>;
   setViewedVisuals: React.Dispatch<React.SetStateAction<Set<number>>>;
 }) => {
-  const { theme } = useTheme();
-  const [currentVisualIndex, setCurrentVisualIndex] = useState(0);
+  
+  const handleVisualViewed = useCallback((index: number) => {
+    setViewedVisuals(prev => {
+        const next = new Set(prev);
+        next.add(index);
+        return next;
+    });
+  }, [setViewedVisuals]);
 
-  // Mark visual as viewed after a delay
+  // Ensure completion if all viewed
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!viewedVisuals.has(currentVisualIndex)) {
-        setViewedVisuals(prev => {
-          const newViewed = new Set(prev);
-          newViewed.add(currentVisualIndex);
-          return newViewed;
-        });
-      }
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [currentVisualIndex, viewedVisuals]);
-
-  // Check if all visuals have been viewed
-  useEffect(() => {
-    if (viewedVisuals.size >= visuals.length && !isVisualsComplete) {
+    if (viewedVisuals.size >= visuals.length && !isVisualsComplete && visuals.length > 0) {
       setIsVisualsComplete(true);
     }
   }, [viewedVisuals.size, visuals.length, isVisualsComplete, setIsVisualsComplete]);
 
-  if (!visuals || visuals.length === 0) {
-    return (
-      <div className="flex items-center justify-center min-h-[600px]">
-        <Card className="max-w-2xl border-2 border-dashed">
-          <CardContent className="p-12 text-center space-y-4">
-            <Eye className="w-16 h-16 mx-auto text-muted-foreground opacity-20" />
-            <h3 className="text-2xl font-display text-foreground">No Visuals Available</h3>
-            <p className="text-muted-foreground leading-relaxed">
-              The AI hasn't generated visual diagrams for this module yet.
-              <br />
-              Visual diagrams help illustrate concepts like processes, hierarchies, and relationships.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const currentVisual = visuals[currentVisualIndex];
-  
-  // Convert AI-generated nodes to ReactFlow format with fallback positioning
-  const nodes: Node[] = currentVisual.nodes.map((node, index) => ({
-    id: node.id,
-    type: node.type || 'default',
-    position: node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number'
-      ? node.position
-      : { x: 300, y: index * 120 }, // Fallback: vertical stack layout
-    data: {
-      label: (
-        <Markdown 
-          className="text-black dark:text-black prose-p:text-black dark:prose-p:text-black" 
-          components={{ p: ({ children }) => <>{children}</> }}
-        >
-          {node.data?.label || node.id}
-        </Markdown>
-      )
-    },
-    style: {
-      background: 'hsl(var(--primary) / 0.1)',
-      border: '1px solid hsl(var(--primary) / 0.2)',
-      borderRadius: '8px',
-      padding: '12px 20px',
-      fontSize: '14px',
-      fontWeight: 500,
-      color: '#000000', // Force pure black text for maximum contrast
-      ...(node.style as React.CSSProperties),
-    },
-  }));
-
-  // Convert AI-generated edges to ReactFlow format with proper markerEnd
-  const edges: Edge[] = currentVisual.edges.map((edge) => ({
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    label: edge.label,
-    type: edge.type || 'smoothstep',
-    animated: edge.animated || false,
-    style: edge.style as React.CSSProperties || {
-      stroke: 'hsl(var(--primary) / 0.3)',
-      strokeWidth: 2,
-    },
-    labelStyle: edge.labelStyle as React.CSSProperties,
-    markerEnd: edge.markerEnd ? {
-      type: edge.markerEnd.type === 'arrowclosed' ? MarkerType.ArrowClosed : MarkerType.Arrow,
-      color: edge.markerEnd.color || 'hsl(var(--primary) / 0.5)',
-    } : {
-      type: MarkerType.ArrowClosed,
-      color: 'hsl(var(--primary) / 0.5)',
-    },
-  }));
-
   return (
-    <div className="flex gap-6 h-full">
-      {/* Left sidebar - Visual navigation */}
-      <div className="w-80 flex-shrink-0 min-w-0">
-        <div className="sticky top-[calc(var(--header-height)+6rem)]">
-          <Card className="py-0">
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between px-2 py-2 mb-1">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Diagrams</h3>
-                <Badge variant="outline" className="text-xs h-5">
-                  {visuals.length}
-                </Badge>
-              </div>
-              <nav className="flex flex-col space-y-0.5">
-                {visuals.map((visual, i) => {
-                  const isViewed = viewedVisuals.has(i);
-                  const isActive = currentVisualIndex === i;
-
-                  return (
-                    <Button
-                      key={i}
-                      variant="ghost"
-                      onClick={() => setCurrentVisualIndex(i)}
-                      className={cn(
-                        "w-full text-left px-3 py-2 h-auto flex-col items-start gap-1 overflow-hidden",
-                        isActive && "bg-muted hover:bg-muted"
-                      )}
-                    >
-                      <div className="flex items-center justify-between w-full mb-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Network className="w-3 h-3" />
-                          <span className="font-medium text-sm truncate">{visual.title}</span>
-                        </div>
-                        {isViewed && (
-                          <CheckCircle2 className="w-3 h-3 ml-2 text-green-600 dark:text-green-400 flex-shrink-0" />
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground line-clamp-1 w-full overflow-hidden">
-                        {visual.description || `${visual.nodes.length} nodes`}
-                      </div>
-                    </Button>
-                  );
-                })}
-              </nav>
-
-              {/* Progress indicator */}
-              {isVisualsComplete && (
-                <Card className="border shadow-none bg-green-500/5 border-green-500/20 mt-2">
-                  <CardContent className="p-2">
-                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span className="text-xs font-medium">All visuals viewed!</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Main content - ReactFlow diagram */}
-      <div className="flex-1 space-y-6">
-        <div>
-          <Badge variant="outline" className="mb-3">
-            Diagram
-          </Badge>
-          <h2 className="text-2xl font-semibold mb-2">{currentVisual.title}</h2>
-          {currentVisual.description && (
-            <p className="text-muted-foreground">{currentVisual.description}</p>
-          )}
-        </div>
-
-        <div className="overflow-hidden rounded-xl">
-          <div className="p-0">
-            <div style={{ height: '500px', width: '100%' }}>
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                colorMode={theme === 'dark' ? 'dark' : 'light'}
-                fitView
-                fitViewOptions={{ padding: 0.3 }}
-                nodesDraggable={true}
-                nodesConnectable={false}
-                elementsSelectable={true}
-                zoomOnScroll={true}
-                panOnScroll={true}
-                proOptions={{ hideAttribution: true }}
-              >
-                <Background gap={16} size={1} color="hsl(var(--muted-foreground))" style={{ opacity: 0.2 }} />
-                <Controls />
-              </ReactFlow>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation buttons */}
-        <div className="flex items-center justify-between">
-          <Button
-            variant="outline"
-            onClick={() => setCurrentVisualIndex(Math.max(0, currentVisualIndex - 1))}
-            disabled={currentVisualIndex === 0}
-          >
-            <ChevronLeft className="w-4 h-4 mr-1" />
-            Previous
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {currentVisualIndex + 1} of {visuals.length}
-          </span>
-          <Button
-            variant="outline"
-            onClick={() => setCurrentVisualIndex(Math.min(visuals.length - 1, currentVisualIndex + 1))}
-            disabled={currentVisualIndex === visuals.length - 1}
-          >
-            Next
-            <ChevronRight className="w-4 h-4 ml-1" />
-          </Button>
-        </div>
-      </div>
+    <div className="h-full min-h-[500px]">
+      <ReactFlowWidget 
+        visuals={visuals as any} 
+        viewedVisuals={viewedVisuals}
+        onVisualViewed={handleVisualViewed}
+        onViewComplete={() => setIsVisualsComplete(true)}
+        height="100%"
+        showSidebar={true} 
+      />
     </div>
   );
 };

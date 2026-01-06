@@ -33,6 +33,12 @@ import { EditorWidget, createEditorValue, extractPlainText } from "@/components/
 import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widget";
 import { DerivationStepsWidget, DerivationStep } from "@/components/widgets/derivation-steps-widget";
 
+// Helper function to convert literal \n to actual newlines
+const convertNewlines = (text: string | undefined) => {
+  if (!text) return "";
+  return text.replace(/\\n/g, "\n");
+};
+
 // Helper to extract JSON from AI responses
 function extractJSON<T>(text: string): T {
   let cleaned = text.trim();
@@ -458,7 +464,7 @@ Approve if they show reasonable understanding and correct approach. If not appro
                     Problem Statement
                   </Badge>
                   <div className="text-xl font-serif leading-relaxed">
-                    <Markdown>{problemStatement}</Markdown>
+                    <Markdown>{convertNewlines(problemStatement)}</Markdown>
                   </div>
                 </div>
 

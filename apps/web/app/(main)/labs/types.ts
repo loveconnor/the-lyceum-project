@@ -38,4 +38,6 @@ export interface Lab {
   completed_at?: string | null;
   lab_comments?: Comment[];
   lab_progress?: LabProgress[];
+  path_id?: string | null; // If part of a learning path
+  path_title?: string | null; // Title of the learning path
 }

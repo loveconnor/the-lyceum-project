@@ -1,108 +1,46 @@
-/* Ensure ReactFlow edges are HIGHLY visible */
+/* Enhanced ReactFlow Styling */
+
+/* Elegant Edge Styling - Ensure visibility */
 .react-flow__edge-path {
-  stroke: hsl(var(--primary)) !important;
-  stroke-width: 3 !important;
-  opacity: 0.8;
+  stroke: var(--foreground) !important;
+  stroke-width: 2px !important;
+  stroke-opacity: 0.8 !important;
+  transition: opacity 0.3s;
 }
 
-.react-flow__edge.animated path {
-  stroke-dasharray: 8 4;
-  animation: dashdraw 0.8s linear infinite;
-  stroke-width: 3 !important;
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 3px !important;
+  stroke-opacity: 1 !important;
 }
 
-@keyframes dashdraw {
-  to {
-    stroke-dashoffset: -12;
-  }
-}
-
-/* Make arrow markers more visible */
-.react-flow__edge .react-flow__arrowhead,
-.react-flow__edge .react-flow__edge-textwrapper {
-  display: block !important;
-}
-
+/* Markers */
 .react-flow__edge marker path {
-  fill: hsl(var(--primary)) !important;
-  stroke: hsl(var(--primary)) !important;
+  fill: var(--foreground) !important;
+  stroke: var(--foreground) !important;
 }
 
-/* Make sure edge labels are visible and styled */
+/* Elegant Labels - Fix black rectangle issue */
 .react-flow__edge-text {
-  font-size: 13px;
-  font-weight: 600;
-  fill: hsl(var(--foreground));
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  fill: var(--foreground) !important;
 }
 
+/* Remove the black rectangle background or style it neutrally */
 .react-flow__edge-textbg {
-  fill: hsl(var(--background));
-  opacity: 0.9;
+  fill: var(--card) !important; 
+  opacity: 1 !important;
+  rx: 4;
+  ry: 4;
 }
 
-/* Improve node visibility */
+/* Default Node reset - Let React Components handle styling */
 .react-flow__node {
-  border-width: 2px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
   width: auto !important;
   height: auto !important;
 }
-
-.react-flow__node-default,
-.react-flow__node-input,
-.react-flow__node-output {
-  padding: 0 !important;
-  width: auto !important;
-  height: auto !important;
-}
-
-.react-flow__node .react-flow__handle {
-  background: hsl(var(--primary));
-  width: 10px;
-  height: 10px;
-  border: 2px solid hsl(var(--background));
-}
-
-.react-flow__node:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-}
-
-/* Ensure controls are visible and accessible */
-.react-flow__controls {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.react-flow__controls-button {
-  background: hsl(var(--card));
-  border-bottom: 1px solid hsl(var(--border));
-  color: hsl(var(--foreground));
-  width: 32px;
-  height: 32px;
-}
-
-.react-flow__controls-button:hover {
-  background: hsl(var(--muted));
-}
-
-.react-flow__controls-button svg {
-  width: 16px;
-  height: 16px;
-}
-
-/* Background pattern visibility */
-.react-flow__background {
-  opacity: 0.3;
-}
-
-/* Selection styling */
-.react-flow__node.selected {
-  box-shadow: 0 0 0 2px hsl(var(--primary));
-}
-
-.react-flow__edge.selected .react-flow__edge-path {
-  stroke: hsl(var(--primary)) !important;
-  stroke-width: 4 !important;
-}
-

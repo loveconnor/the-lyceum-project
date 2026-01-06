@@ -5,7 +5,11 @@ import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
 import { Textarea } from "@/components/ui/textarea";
-
+// Helper function to convert literal \n to actual newlines
+const convertNewlines = (text: string | undefined) => {
+  if (!text) return "";
+  return text.replace(/\\n/g, "\n");
+};
 // Helper to wrap math notation in LaTeX delimiters
 const wrapMath = (text: string): string => {
   if (!text) return text;
@@ -80,7 +84,7 @@ export function MultipleChoiceWidget({
       </label>
       {description && (
         <div className="text-xs text-muted-foreground italic">
-          <Markdown>{wrapMath(description)}</Markdown>
+          <Markdown>{wrapMath(convertNewlines(description))}</Markdown>
         </div>
       )}
       
