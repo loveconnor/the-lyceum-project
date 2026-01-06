@@ -586,7 +586,7 @@ router.post("/generate", async (req: Request, res: Response) => {
           if (stream) {
             res.write(`data: ${JSON.stringify({ 
               type: 'status', 
-              message: `📚 Generating path from "${asset.title}" (${tocSummaries.length} sections)`
+              message: `Generating path from "${asset.title}" (${tocSummaries.length} sections)`
             })}\n\n`);
           }
 

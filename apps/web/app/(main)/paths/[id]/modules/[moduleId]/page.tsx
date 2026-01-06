@@ -483,15 +483,15 @@ const ImmersiveTextView = ({
       {/* Left Chapter Outline Sidebar */}
       <div className="w-64 flex-shrink-0 hidden xl:block">
         <div className="sticky top-[calc(var(--header-height)+6rem)]">
-          <Card className="py-0 overflow-hidden">
-            <CardContent className="p-2">
-              <div className="flex items-center justify-between px-2 py-1.5 mb-0.5">
-                <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Chapter Outline</h3>
+          <Card className="overflow-hidden">
+            <CardContent className="p-0">
+              <div className="flex items-center justify-between px-4 py-2 border-b ">
+                <h3 className="text-[10px] font-medium text-muted-foreground uppercase">Chapter Outline</h3>
                 <Badge variant="outline" className="text-[10px] h-4 px-1.5">
                   {chapters.length}
                 </Badge>
               </div>
-              <nav className="flex flex-col space-y-0">
+              <nav className="flex flex-col p-2 space-y-0.5">
                 {chapters.map((chapter, i) => {
                   const isLocked = i > 0 && !completedChapters.has(i - 1);
                   const isActive = currentChapter === i;
@@ -514,30 +514,30 @@ const ImmersiveTextView = ({
                       }}
                       disabled={isLocked}
                       className={cn(
-                        "w-full justify-start h-auto py-1.5 px-2 flex-col items-start gap-0.5",
+                        "w-full justify-start h-auto py-1 px-2.5 flex-col items-start gap-0.5 rounded-lg",
                         isActive && "bg-muted hover:bg-muted"
                       )}
                     >
                       <div className="flex items-center gap-2.5 w-full">
                         {isDone ? (
-                          <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-green-600 dark:text-green-400" />
+                          <CheckCircle2 className="w-[18px] h-[18px] flex-shrink-0 text-green-600 dark:text-green-400" />
                         ) : (
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-semibold transition-colors bg-muted text-muted-foreground">
-                            <span>{i + 1}</span>
-                          </div>
+                          <span className="text-sm font-semibold text-muted-foreground flex-shrink-0 w-5">
+                            {i + 1}
+                          </span>
                         )}
-                        <span className="text-sm font-semibold text-left flex-1 line-clamp-2 break-words prose prose-sm prose-stone dark:prose-invert max-w-none [&>p]:m-0 [&>p]:inline [&_code]:text-[1em] [&_code]:font-semibold [&_code]:before:content-none [&_code]:after:content-none [&_code]:px-0 [&_code]:py-0 [&_code]:bg-transparent">
+                        <span className="text-sm font-semibold text-left flex-1 line-clamp-2 break-words leading-[1.2] prose prose-sm prose-stone dark:prose-invert max-w-none [&>p]:m-0 [&>p]:inline [&>p]:leading-[1.2] [&_code]:text-[1em] [&_code]:font-semibold [&_code]:before:content-none [&_code]:after:content-none [&_code]:px-0 [&_code]:py-0 [&_code]:bg-transparent">
                           <Markdown>{chapter.title}</Markdown>
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 ml-7 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {chapter.duration}
+                      <div className="flex items-center gap-2.5 ml-[30px] text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-0.5">
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>{chapter.duration}</span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <HelpCircle className="w-3 h-3" />
-                          {chapter.quizzes.length} questions
+                        <div className="flex items-center gap-0.5">
+                          <HelpCircle className="w-2.5 h-2.5" />
+                          <span>{chapter.quizzes.length} questions</span>
                         </div>
                       </div>
                     </Button>
@@ -558,19 +558,6 @@ const ImmersiveTextView = ({
           transition={{ duration: 0.5 }}
           className="pb-32"
         >
-          {/* Chapter Title */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <Badge variant="outline" className="text-xs">
-                Chapter {currentChapter + 1}
-              </Badge>
-              <span className="text-xs text-muted-foreground">{chapters[currentChapter].duration}</span>
-            </div>
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight prose prose-stone dark:prose-invert max-w-none [&>p]:m-0 [&>p]:inline [&_code]:text-[1em] [&_code]:font-bold [&_code]:before:content-none [&_code]:after:content-none [&_.katex]:text-[1em]">
-              <Markdown>{chapters[currentChapter].title}</Markdown>
-            </h1>
-          </div>
-
           <div className="prose prose-stone dark:prose-invert max-w-none mb-16">
             <Markdown>{chapters[currentChapter].content}</Markdown>
           </div>
@@ -825,13 +812,13 @@ const ConceptsSubView = ({
                     <Card key={itemIdx} className="border shadow-none">
                       <CardContent className="p-4">
                         <div className="flex items-start gap-3">
-                          <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-1">
                             <span className="text-xs font-medium text-muted-foreground">
                               {itemIdx + 1}
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="prose prose-sm prose-stone dark:prose-invert max-w-none break-words overflow-hidden">
+                            <div className="prose prose-sm prose-stone dark:prose-invert max-w-none break-words overflow-hidden [&>*:first-child]:mt-0">
                               <Markdown>{item}</Markdown>
                             </div>
                           </div>
@@ -855,11 +842,11 @@ const ConceptsSubView = ({
               <Card key={i} className="border shadow-none">
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-1">
                       <span className="text-xs font-medium text-muted-foreground">{i + 1}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="prose prose-sm prose-stone dark:prose-invert max-w-none break-words overflow-hidden">
+                      <div className="prose prose-sm prose-stone dark:prose-invert max-w-none break-words overflow-hidden [&>*:first-child]:mt-0">
                         <Markdown>{example}</Markdown>
                       </div>
                     </div>
@@ -1209,7 +1196,7 @@ const ExercisesSubView = ({
                 >
                   <Card className="border shadow-none bg-muted/30">
                     <CardContent className="p-4">
-                      <div className="prose prose-sm prose-stone dark:prose-invert max-w-none break-words overflow-hidden">
+                      <div className="prose prose-sm prose-stone dark:prose-invert max-w-none break-words overflow-hidden [&>*:first-child]:mt-0">
                         <Markdown>{currentExercise.worked_example}</Markdown>
                       </div>
                     </CardContent>
@@ -3095,6 +3082,9 @@ export default function ModulePage() {
   const [loading, setLoading] = useState(true);
   const [renderingRegistryContent, setRenderingRegistryContent] = useState(false);
   const [registryRenderError, setRegistryRenderError] = useState<string | null>(null);
+  
+  // Ref to track if lab generation is already in progress to prevent duplicates
+  const labGenerationInProgress = useRef(false);
 
   const loadRegistryContent = useCallback(async (moduleMeta: ModuleData): Promise<ModuleData> => {
     setRenderingRegistryContent(true);
@@ -3224,8 +3214,9 @@ export default function ModulePage() {
           }
           
           // Regenerate if needed
-          if (needsRegeneration) {
+          if (needsRegeneration && !labGenerationInProgress.current) {
             console.log("Starting lab regeneration...");
+            labGenerationInProgress.current = true;
             setRegeneratingLab(true);
             const toastId = toast.loading("Generating lab content...");
             
@@ -3252,14 +3243,18 @@ export default function ModulePage() {
               
               setLab(regeneratedLab);
               setRegeneratingLab(false);
+              labGenerationInProgress.current = false;
               toast.dismiss(toastId);
               toast.success("Lab generated successfully!");
             } catch (genError) {
               console.error("Error regenerating lab:", genError);
               setRegeneratingLab(false);
+              labGenerationInProgress.current = false;
               toast.dismiss(toastId);
               toast.error("Failed to generate lab content");
             }
+          } else if (needsRegeneration && labGenerationInProgress.current) {
+            console.log("Lab generation already in progress, skipping duplicate request");
           } else if (labData) {
             console.log("Using existing lab data");
             setLab(labData);
@@ -3312,7 +3307,15 @@ export default function ModulePage() {
       }
     };
 
+    // Reset lab generation flag when module changes
+    labGenerationInProgress.current = false;
+    
     loadModule();
+    
+    // Cleanup: reset flag on unmount
+    return () => {
+      labGenerationInProgress.current = false;
+    };
   }, [pathId, moduleId]);
 
   // Save progress whenever it changes

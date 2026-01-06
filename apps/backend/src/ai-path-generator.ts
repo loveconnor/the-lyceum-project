@@ -324,7 +324,7 @@ Respond with JSON only in this structure:
       {
         "title": "Short descriptive title for the problem",
         "description": "The actual problem to solve (e.g., 'Solve: $2x + 5 = 13$' or 'Fill in the blank: 4, 5, _, 7, 8')",
-        "exercise_type": "short_answer" | "multiple_choice" | "multi_step",
+        "exercise_type": "short_answer" | "multiple_choice" | "multi_step" | "code_editor",
         "difficulty": "beginner" | "intermediate" | "advanced",
         "estimated_time": "5-15 min",
         "correct_answer": "The correct answer (e.g., '4' or 'x = 7')",
@@ -409,6 +409,77 @@ Guidelines:
 - Make content specific, actionable, and pedagogically sound
 - Write in an engaging, conversational but professional tone
 
+CHAPTER WRITING GUIDELINES (CRITICAL):
+========================================
+Write chapters that are THOROUGH, CLEAR, and EASY TO UNDERSTAND:
+
+1. LENGTH & DEPTH:
+   - Each chapter should be 800-1200 words (approximately 5-10 paragraphs)
+   - Never write chapters shorter than 600 words
+   - Explain concepts thoroughly - don't rush or skip details
+   - Break complex ideas into smaller, digestible pieces
+
+2. STRUCTURE & FLOW:
+   - Use a clear, logical progression from simple to complex
+   - Each paragraph should flow naturally to the next
+   - Use transition phrases: "Building on this...", "Now that we understand...", "Let's explore..."
+   - Don't jump between topics - finish explaining one concept before moving to the next
+   - Include smooth transitions between sections
+
+3. LANGUAGE & CLARITY:
+   - Use simple, conversational language - write like you're explaining to a friend
+   - Define technical terms when first introduced
+   - Avoid jargon; when necessary, explain it immediately
+   - Use concrete examples to illustrate abstract concepts
+   - Break down complex sentences into shorter ones
+   - Use active voice ("we calculate" not "it is calculated")
+
+4. EXPLANATION STYLE:
+   - Start with the "why" before the "how" - motivation matters
+   - Use analogies and metaphors to relate to familiar concepts
+   - Show multiple perspectives on the same concept when helpful
+   - Address common confusions proactively
+   - Explain the reasoning behind formulas, methods, and approaches
+   - Don't assume prior knowledge - build up systematically
+
+5. FORMATTING FOR READABILITY:
+   - Use headers (##, ###) to organize sections within the chapter
+   - Use bullet points for lists of related items
+   - Use numbered lists for sequential steps or procedures
+   - Use **bold** for key terms and important points
+   - Use > blockquotes for important notes or warnings
+   - Add blank lines between paragraphs for visual breathing room
+
+6. EXAMPLES & ILLUSTRATIONS:
+   - Include concrete examples within the chapter text
+   - Walk through examples step-by-step with explanations
+   - Use realistic scenarios that learners can relate to
+   - For math: show the work AND explain the reasoning for each step
+
+7. PEDAGOGICAL APPROACH:
+   - Begin each chapter with what the learner will understand by the end
+   - Build incrementally - each new concept should build on previous ones
+   - Revisit and reinforce key ideas throughout the chapter
+   - End chapters with a brief summary of what was covered
+   - Anticipate and address common questions or misconceptions
+
+EXAMPLE OF GOOD CHAPTER STRUCTURE:
+-----------------------------------
+## Introduction to the Concept
+[2-3 paragraphs: What is it? Why does it matter? Where is it used?]
+
+## Understanding the Fundamentals
+[3-4 paragraphs: Core principles explained simply with examples]
+
+## How It Works in Practice
+[2-3 paragraphs: Concrete examples showing the concept in action]
+
+## Key Insights and Connections
+[2 paragraphs: Tie it together, connect to bigger picture]
+
+## Summary
+[1 paragraph: Brief recap of main points]
+
 CHAPTER CONTENT SEPARATION (CRITICAL):
 ======================================
 The chapter "content" field is for READING ONLY. The UI renders this as readable text.
@@ -456,11 +527,19 @@ EXERCISE TYPES - Choose the right type for each problem:
    Use when: Derivations, proofs, or problems requiring work shown
    Include detailed worked_example
 
+4. "code_editor" - Programming exercises requiring code to be written
+   Examples:
+   - "Write a Java method that returns the sum of two integers"
+   - "Implement a Python function to reverse a string"
+   - "Create a JavaScript function that checks if a number is prime"
+   Use when: Learning programming, algorithms, or software development
+   Include starter_code (optional), test_cases (optional), and worked_example with complete solution
+
 For ALL exercise types, you MUST include:
 - title: Short descriptive name
 - description: The ACTUAL PROBLEM with specific numbers/expressions
-- exercise_type: One of "short_answer", "multiple_choice", or "multi_step"
-- correct_answer: The exact correct answer for validation
+- exercise_type: One of "short_answer", "multiple_choice", "multi_step", or "code_editor"
+- correct_answer: The exact correct answer for validation (for code_editor, include complete working code)
 - hints: 1-2 hints that guide without giving the answer
 - worked_example: Step-by-step solution
 
@@ -692,7 +771,7 @@ Learning Path Context: ${pathContext}
 Difficulty Level: ${difficulty}
 Module Position: ${orderIndex + 1}
 
-Create comprehensive learning content with chapters, quizzes, concepts, exercises, and assessments.`;
+Create comprehensive, thorough learning content. Each chapter should be detailed and well-explained (800-1200 words), with clear progression and smooth flow. Use simple language and explain everything clearly. Don't rush through concepts - take the time to explain them properly with examples.`;
 
       const completion = await client.chat.completions.create({
         model,
@@ -701,7 +780,7 @@ Create comprehensive learning content with chapters, quizzes, concepts, exercise
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.7,
-        max_tokens: 12000,
+        max_tokens: 16000,
         response_format: { type: 'json_object' },
       });
 
@@ -788,12 +867,15 @@ Learning Path Context: ${pathContext}
 Difficulty Level: ${difficulty}
 
 IMPORTANT: The content below has been extracted from an authoritative educational source. Your job is to:
-1. Break it into 3-5 digestible chapters (each 5-15 min of reading)
-2. Create quiz questions for each chapter to test understanding
-3. Enhance the key concepts with detailed examples
-4. Create practical exercises based on the material
-5. Generate visual diagrams to illustrate the concepts
-6. Add a comprehensive assessment at the end
+1. Break it into 3-5 digestible chapters (each should be thorough and detailed: 800-1200 words)
+2. Explain concepts clearly using simple language with smooth, logical flow - don't jump around
+3. Create quiz questions for each chapter to test understanding
+4. Enhance the key concepts with detailed examples and step-by-step explanations
+5. Create practical exercises based on the material
+6. Generate visual diagrams to illustrate the concepts
+7. Add a comprehensive assessment at the end
+
+Remember: Write chapters that are thorough, well-explained, and easy to understand. Use clear transitions between ideas and build concepts incrementally.
 
 ${sourceMaterial}
 
@@ -806,7 +888,7 @@ Create a complete, structured learning module that makes this content engaging a
       { role: 'user', content: userPrompt }
     ],
     temperature: 0.6,
-    max_tokens: 12000,
+    max_tokens: 16000,
     response_format: { type: 'json_object' },
   });
 
