@@ -189,22 +189,28 @@ const buildConceptQuiz = (
   concept: { concept?: string; explanation?: string },
   distractors: string[]
 ) => {
-  const options = [
-    { id: 'correct', text: concept.explanation || `This describes ${concept.concept || 'the topic'}.` },
-    ...distractors.slice(0, 3).map((text, idx) => ({ id: `d${idx + 1}`, text })),
-  ];
+  const correctOption = { id: 'A', text: concept.explanation || `This describes ${concept.concept || 'the topic'}.` };
+  const incorrectOptions = distractors.slice(0, 3).map((text, idx) => ({ 
+    id: String.fromCharCode(66 + idx), // B, C, D
+    text 
+  }));
+
+  const options = [correctOption, ...incorrectOptions];
 
   while (options.length < 4) {
     options.push({
-      id: `f${options.length}`,
+      id: String.fromCharCode(65 + options.length), // Continue with E, F if needed
       text: 'Not discussed in this section.',
     });
   }
 
+  // Shuffle options so correct answer isn't always first
+  const shuffled = [...options].sort(() => Math.random() - 0.5);
+
   return {
     question: `Which statement best describes ${concept.concept || 'this section'}?`,
-    options,
-    correct: 'correct',
+    options: shuffled,
+    correct: 'A', // Keep track of original correct option ID
     explanation: concept.explanation || 'This matches the source explanation.',
   };
 };
@@ -212,10 +218,12 @@ const buildConceptQuiz = (
 const buildSectionQuiz = (title: string) => ({
   question: `What was the main idea of "${title}"?`,
   options: [
-    { id: 'a', text: `It covered ${title}.` },
-    { id: 'b', text: 'It was unrelated to this module.' },
+    { id: 'A', text: `It covered ${title}.` },
+    { id: 'B', text: 'It was unrelated to this module.' },
+    { id: 'C', text: 'It focused on different topics.' },
+    { id: 'D', text: 'It provided background context only.' },
   ],
-  correct: 'a',
+  correct: 'A',
   explanation: `This section focused on ${title}.`,
 });
 
@@ -225,6 +233,21 @@ const normalizeRegistryContent = (
 ): ModuleData['content_data'] | null => {
   if (!rendered) return null;
 
+  // If backend provided full chapters with quizzes, use those
+  if (Array.isArray(rendered.chapters) && rendered.chapters.length > 0) {
+    return {
+      overview: rendered.overview || '',
+      learning_objectives: rendered.learning_objectives || [],
+      chapters: rendered.chapters,
+      key_concepts: rendered.key_concepts || [],
+      practical_exercises: rendered.practical_exercises || [],
+      assessment: rendered.assessment || { questions: [] },
+      visuals: rendered.visuals || [],
+      resources: [],
+    };
+  }
+
+  // Otherwise build chapters from sections (legacy fallback)
   const chapters: Chapter[] = [];
   const concepts = Array.isArray(rendered.key_concepts) ? rendered.key_concepts : [];
 

@@ -1,13 +1,13 @@
 import { Router, Request, Response } from "express";
 import { getSupabaseAdmin } from "../supabaseAdmin";
 import { updateDashboardActivity } from "../dashboardService";
-import { generatePathOutline, generateModuleContent } from "../ai-path-generator";
+import { generatePathOutline, generateModuleContent, generateModuleFromSourceContent } from "../ai-path-generator";
 import { generateRegistryBackedPath } from "../ai-path-generator-registry";
 import { 
   createModuleCompletionNotification, 
   createPathCompletionNotification 
 } from "../notificationService";
-import { ModuleGroundingService, DynamicSourceFetcher, WebDocsSearcher, logger } from "../source-registry";
+import { ModuleGroundingService, DynamicSourceFetcher, MitOcwFetcher, WebDocsSearcher, logger } from "../source-registry";
 
 const router = Router();
 
@@ -485,44 +485,95 @@ router.post("/generate", async (req: Request, res: Response) => {
             console.log(`[Generate] ⚠️ No good OpenStax match. Best: "${bestTitle}" (score: ${bestScore}, need: ${MIN_MATCH_SCORE})`);
             
             // ============================================
-            // FALLBACK: Try web documentation sources
+            // TRY MIT OCW NEXT
             // ============================================
-            console.log(`[Generate] 🌐 Searching web documentation sources...`);
+            console.log(`[Generate] 🎓 Searching MIT OpenCourseWare...`);
             
             if (stream) {
               res.write(`data: ${JSON.stringify({ 
                 type: 'status', 
-                message: '🌐 Searching web documentation (MDN, official docs, tutorials)...'
+                message: '🎓 Searching MIT OpenCourseWare for relevant courses...'
               })}\n\n`);
             }
 
-            const webDocsSearcher = new WebDocsSearcher(supabase);
-            const webDocsResult = await webDocsSearcher.discoverDocsForTopic(searchQuery);
-
-            if (webDocsResult) {
-              asset = webDocsResult.asset;
-              tocSummaries = webDocsResult.tocSummaries;
-              
-              console.log(`[Generate] ✅ Found web docs: "${webDocsResult.source.name}" (${tocSummaries.length} sections)`);
+            const mitOcwFetcher = new MitOcwFetcher(supabase);
+            const mitSearchResults = await mitOcwFetcher.searchCoursesByTopic(searchQuery);
+            
+            const MIT_MIN_MATCH_SCORE = 10;
+            
+            if (mitSearchResults.length > 0 && mitSearchResults[0].score >= MIT_MIN_MATCH_SCORE) {
+              const bestMitMatch = mitSearchResults[0];
+              console.log(`[Generate] ✅ Found MIT OCW course: "${bestMitMatch.course.title}" (score: ${bestMitMatch.score})`);
+              console.log(`[Generate] Matched terms: ${bestMitMatch.matchedTerms.join(', ')}`);
               
               if (stream) {
                 res.write(`data: ${JSON.stringify({ 
                   type: 'status', 
-                  message: `✅ Found documentation: "${webDocsResult.source.name}"`
+                  message: `✅ Found MIT course: "${bestMitMatch.course.title}" (matched: ${bestMitMatch.matchedTerms.join(', ')})`
                 })}\n\n`);
+                res.write(`data: ${JSON.stringify({ type: 'status', message: '💾 Loading MIT OCW into registry...' })}\n\n`);
+              }
+              
+              asset = await mitOcwFetcher.getOrCreateAsset(bestMitMatch.course);
+              
+              if (stream) {
+                res.write(`data: ${JSON.stringify({ type: 'status', message: '📖 Fetching course structure...' })}\n\n`);
+              }
+              
+              tocSummaries = await mitOcwFetcher.getTocSummaries(asset);
+              console.log(`[Generate] MIT OCW TOC loaded: ${tocSummaries.length} nodes`);
+              
+              if (stream) {
                 res.write(`data: ${JSON.stringify({ 
                   type: 'source_discovered', 
-                  source: { id: asset.id, title: asset.title, type: 'web_docs' }
+                  source: { id: asset.id, title: asset.title, type: 'mit_ocw' }
                 })}\n\n`);
               }
             } else {
-              console.log(`[Generate] ⚠️ No web documentation found either`);
+              const mitBestScore = mitSearchResults[0]?.score || 0;
+              const mitBestTitle = mitSearchResults[0]?.course?.title || 'none';
+              console.log(`[Generate] ⚠️ No good MIT OCW match. Best: "${mitBestTitle}" (score: ${mitBestScore}, need: ${MIT_MIN_MATCH_SCORE})`);
+              
+              // ============================================
+              // FALLBACK: Try web documentation sources
+              // ============================================
+              console.log(`[Generate] 🌐 Searching web documentation sources...`);
               
               if (stream) {
                 res.write(`data: ${JSON.stringify({ 
                   type: 'status', 
-                  message: 'ℹ️ No matching documentation found. Using AI-generated content...'
+                  message: '🌐 Searching web documentation (MDN, official docs, tutorials)...'
                 })}\n\n`);
+              }
+
+              const webDocsSearcher = new WebDocsSearcher(supabase);
+              const webDocsResult = await webDocsSearcher.discoverDocsForTopic(searchQuery);
+
+              if (webDocsResult) {
+                asset = webDocsResult.asset;
+                tocSummaries = webDocsResult.tocSummaries;
+                
+                console.log(`[Generate] ✅ Found web docs: "${webDocsResult.source.name}" (${tocSummaries.length} sections)`);
+                
+                if (stream) {
+                  res.write(`data: ${JSON.stringify({ 
+                    type: 'status', 
+                    message: `✅ Found documentation: "${webDocsResult.source.name}"`
+                  })}\n\n`);
+                  res.write(`data: ${JSON.stringify({ 
+                    type: 'source_discovered', 
+                    source: { id: asset.id, title: asset.title, type: 'web_docs' }
+                  })}\n\n`);
+                }
+              } else {
+                console.log(`[Generate] ⚠️ No web documentation found either`);
+                
+                if (stream) {
+                  res.write(`data: ${JSON.stringify({ 
+                    type: 'status', 
+                    message: 'ℹ️ No matching documentation found. Using AI-generated content...'
+                  })}\n\n`);
+                }
               }
             }
           }
@@ -620,6 +671,7 @@ router.post("/generate", async (req: Request, res: Response) => {
           // Create registry-backed modules
           const allPathItems: any[] = [];
           let currentOrderIndex = 0;
+          const groundingService = new ModuleGroundingService(supabase);
 
           for (const moduleOutline of outline.modules) {
             const nodeIds = moduleNodeMappings.get(moduleOutline.order_index) || [];
@@ -636,6 +688,76 @@ router.post("/generate", async (req: Request, res: Response) => {
               })}\n\n`);
             }
 
+            // Generate module content now if we have source nodes
+            let moduleContent = null;
+            if (!contentUnavailable) {
+              try {
+                if (stream) {
+                  res.write(`data: ${JSON.stringify({ 
+                    type: 'module_start', 
+                    title: moduleOutline.title,
+                    message: `🎨 Generating "${moduleOutline.title}" from source material...`
+                  })}\n\n`);
+                }
+
+                console.log(`[Generate] Generating content for "${moduleOutline.title}"...`);
+                
+                // Step 1: Synthesize from source
+                const renderedContent = await groundingService.renderModuleContent(
+                  '', // No item ID yet
+                  moduleOutline.title,
+                  moduleOutline.description,
+                  asset.id,
+                  nodeIds,
+                  outline.difficulty || 'intermediate'
+                );
+
+                console.log(`[Generate] Synthesized ${renderedContent.sections.length} sections`);
+
+                // Check if source content is unavailable or insufficient
+                if (renderedContent.unavailable_reason) {
+                  console.log(`[Generate] ⚠️ Source content unavailable: ${renderedContent.unavailable_reason}`);
+                  console.log(`[Generate] Falling back to AI-only generation for "${moduleOutline.title}"`);
+                  
+                  // Fall back to AI-only generation
+                  moduleContent = await generateModuleContent(
+                    moduleOutline.title,
+                    moduleOutline.description,
+                    `${outline.title}: ${outline.description}`,
+                    outline.difficulty || 'intermediate',
+                    moduleOutline.order_index
+                  );
+                } else {
+                  // Step 2: Generate full structured module from source
+                  moduleContent = await generateModuleFromSourceContent(
+                    moduleOutline.title,
+                    moduleOutline.description,
+                    `${outline.title}: ${outline.description}`,
+                    outline.difficulty || 'intermediate',
+                    {
+                      overview: renderedContent.overview,
+                      learning_objectives: renderedContent.learning_objectives,
+                      sections: renderedContent.sections,
+                      key_concepts: renderedContent.key_concepts
+                    }
+                  );
+                }
+
+                console.log(`[Generate] ✓ Generated module with ${moduleContent.chapters?.length || 0} chapters`);
+                
+                if (stream) {
+                  res.write(`data: ${JSON.stringify({ 
+                    type: 'module_complete', 
+                    title: moduleOutline.title,
+                    chaptersCount: moduleContent.chapters?.length || 0
+                  })}\n\n`);
+                }
+              } catch (error) {
+                console.error(`[Generate] Failed to generate "${moduleOutline.title}":`, error);
+                moduleContent = null;
+              }
+            }
+
             allPathItems.push({
               path_id: newPath.id,
               lab_id: null,
@@ -649,7 +771,7 @@ router.post("/generate", async (req: Request, res: Response) => {
               source_node_ids: nodeIds,
               content_unavailable: contentUnavailable,
               last_resolved_at: new Date().toISOString(),
-              content_data: null
+              content_data: moduleContent
             });
 
             // Add lab suggestion
@@ -1198,7 +1320,76 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
         })}\n\n`);
       }
 
-      // Create registry-backed module (content_data is null - rendered on demand)
+      // Generate module content now if we have source nodes
+      let moduleContent = null;
+      if (!contentUnavailable) {
+        try {
+          if (stream) {
+            res.write(`data: ${JSON.stringify({ 
+              type: 'status', 
+              message: `🎨 Generating "${moduleOutline.title}" from source material...`
+            })}\n\n`);
+          }
+
+          console.log(`[Registry] Generating content for "${moduleOutline.title}"...`);
+          
+          // Step 1: Synthesize from source
+          const renderedContent = await groundingService.renderModuleContent(
+            '', // No item ID yet
+            moduleOutline.title,
+            moduleOutline.description,
+            actualAssetId,
+            nodeIds,
+            outline.difficulty || 'intermediate'
+          );
+
+          console.log(`[Registry] Synthesized ${renderedContent.sections.length} sections`);
+
+          // Check if source content is unavailable or insufficient
+          if (renderedContent.unavailable_reason) {
+            console.log(`[Registry] ⚠️ Source content unavailable: ${renderedContent.unavailable_reason}`);
+            console.log(`[Registry] Falling back to AI-only generation for "${moduleOutline.title}"`);
+            
+            // Fall back to AI-only generation
+            moduleContent = await generateModuleContent(
+              moduleOutline.title,
+              moduleOutline.description,
+              `${outline.title}: ${outline.description}`,
+              outline.difficulty || 'intermediate',
+              moduleOutline.order_index
+            );
+          } else {
+            // Step 2: Generate full structured module from source
+            moduleContent = await generateModuleFromSourceContent(
+              moduleOutline.title,
+              moduleOutline.description,
+              `${outline.title}: ${outline.description}`,
+              outline.difficulty || 'intermediate',
+              {
+                overview: renderedContent.overview,
+                learning_objectives: renderedContent.learning_objectives,
+                sections: renderedContent.sections,
+                key_concepts: renderedContent.key_concepts
+              }
+            );
+          }
+
+          console.log(`[Registry] ✓ Generated module with ${moduleContent.chapters?.length || 0} chapters`);
+          
+          if (stream) {
+            res.write(`data: ${JSON.stringify({ 
+              type: 'module_complete', 
+              title: moduleOutline.title,
+              chaptersCount: moduleContent.chapters?.length || 0
+            })}\n\n`);
+          }
+        } catch (error) {
+          console.error(`[Registry] Failed to generate "${moduleOutline.title}":`, error);
+          moduleContent = null;
+        }
+      }
+
+      // Create registry-backed module with content
       allPathItems.push({
         path_id: newPath.id,
         lab_id: null,
@@ -1212,7 +1403,7 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
         source_node_ids: nodeIds,
         content_unavailable: contentUnavailable,
         last_resolved_at: new Date().toISOString(),
-        content_data: null // Content rendered on-demand
+        content_data: moduleContent
       });
 
       // Add lab suggestion after each module (except the last)
@@ -1268,7 +1459,7 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
         return res.status(500).json({ error: "Failed to create path items" });
       }
 
-      console.log(`[Registry] Successfully saved ${insertedItems?.length || 0} items to database`);
+      console.log(`[Registry] Successfully saved ${insertedItems?.length || 0} path items to database`);
       logger.info('paths', `Created ${insertedItems?.length || 0} path items`);
       
       if (stream) {

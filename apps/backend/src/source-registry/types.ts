@@ -3,7 +3,7 @@
  * Types for the source discovery and validation service
  */
 
-export type SourceType = 'openstax' | 'sphinx_docs' | 'generic_html' | 'custom';
+export type SourceType = 'openstax' | 'mit_ocw' | 'sphinx_docs' | 'generic_html' | 'custom';
 export type RobotsStatus = 'allowed' | 'disallowed' | 'partial' | 'unknown' | 'needs_review';
 export type ScanStatus = 'idle' | 'scanning' | 'completed' | 'failed';
 export type NodeType = 'root' | 'part' | 'chapter' | 'section' | 'subsection' | 'page' | 'other';

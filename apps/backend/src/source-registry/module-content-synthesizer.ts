@@ -38,7 +38,7 @@ const ensureClient = () => {
 
 const SYNTHESIS_SYSTEM_PROMPT = `You are an expert educational content synthesizer for Lyceum, a learning platform.
 
-Your job is to create clear, structured explanations for learning modules based EXCLUSIVELY on the source material provided.
+Your job is to create clear, structured learning content based EXCLUSIVELY on the source material provided.
 
 CRITICAL RULES - YOU MUST FOLLOW THESE:
 1. You may ONLY explain concepts explicitly present in the provided source text
@@ -48,6 +48,8 @@ CRITICAL RULES - YOU MUST FOLLOW THESE:
 5. When in doubt, be explicit that information is limited to what's in the source
 6. Preserve mathematical notation and formulas exactly as they appear in the source
 7. Reference figures from the source when they exist and are relevant
+8. Create quiz questions based on key facts from the source (do NOT include correct answer in response)
+9. Generate visual diagrams to illustrate concepts, processes, or relationships from the source
 
 OUTPUT FORMAT - Respond with JSON only:
 {
@@ -56,18 +58,95 @@ OUTPUT FORMAT - Respond with JSON only:
     "Objective 1 derived from source content",
     "Objective 2 derived from source content"
   ],
-  "sections": [
+  "chapters": [
     {
-      "title": "Section title",
-      "content": "Rich markdown content ONLY from source material. Include headings, bullet points, math notation if present.",
-      "source_node_id": "node_id if directly from one source"
+      "id": 0,
+      "title": "Chapter title from source",
+      "duration": "10-15 min",
+      "content": "Rich markdown READING content ONLY from source material. Include headings, bullet points, math notation if present. Do NOT include quiz questions here.",
+      "quizzes": [
+        {
+          "question": "Question testing understanding of source content",
+          "options": [
+            { "id": "A", "text": "Option A" },
+            { "id": "B", "text": "Option B" },
+            { "id": "C", "text": "Option C" },
+            { "id": "D", "text": "Option D" }
+          ],
+          "correct": "B",
+          "explanation": "Why this is correct based on the source"
+        }
+      ]
     }
   ],
   "key_concepts": [
     {
       "concept": "Concept name from source",
-      "explanation": "Explanation ONLY using source text. If incomplete, say so.",
-      "source_node_id": "node_id if applicable"
+      "explanation": "Explanation ONLY using source text",
+      "example_sections": [
+        {
+          "type": "code" | "conceptual" | "pattern",
+          "title": "Example title",
+          "items": ["Example from source with detailed explanation"]
+        }
+      ]
+    }
+  ],
+  "practical_exercises": [
+    {
+      "title": "Exercise title",
+      "description": "Problem based on source material",
+      "exercise_type": "short_answer",
+      "difficulty": "beginner" | "intermediate" | "advanced",
+      "estimated_time": "5-15 min",
+      "correct_answer": "The answer",
+      "hints": ["Hint 1", "Hint 2"],
+      "worked_example": "Step-by-step solution"
+    }
+  ],
+  "assessment": {
+    "questions": [
+      {
+        "question": "Assessment question",
+        "type": "multiple-choice",
+        "options": ["A", "B", "C", "D"],
+        "correct_answer": "B",
+        "explanation": "Why this is correct"
+      }
+    ]
+  },
+  "visuals": [
+    {
+      "title": "Diagram title",
+      "description": "What this diagram illustrates from the source",
+      "nodes": [
+        {
+          "id": "node1",
+          "position": { "x": 250, "y": 0 },
+          "data": { "label": "Concept from source" },
+          "type": "default",
+          "style": {
+            "background": "hsl(var(--primary) / 0.1)",
+            "border": "1px solid hsl(var(--primary) / 0.2)",
+            "borderRadius": "8px",
+            "padding": "16px 24px",
+            "width": 200,
+            "color": "#000000"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge1",
+          "source": "node1",
+          "target": "node2",
+          "label": "relationship",
+          "type": "smoothstep",
+          "animated": false,
+          "style": { "stroke": "hsl(var(--primary) / 0.3)", "strokeWidth": 2 },
+          "markerEnd": { "type": "arrowclosed", "color": "hsl(var(--primary) / 0.5)" }
+        }
+      ]
     }
   ],
   "figures_referenced": ["figure_index_0", "figure_index_1"]
@@ -77,8 +156,11 @@ If the source material is insufficient to create meaningful content:
 {
   "overview": "The provided source material does not contain sufficient information to fully explain this topic.",
   "learning_objectives": [],
-  "sections": [],
+  "chapters": [],
   "key_concepts": [],
+  "practical_exercises": [],
+  "assessment": { "questions": [] },
+  "visuals": [],
   "figures_referenced": [],
   "content_unavailable_reason": "Explanation of what's missing"
 }`;
@@ -196,8 +278,12 @@ Remember: ONLY use information present in the source material above. Do NOT add 
     let parsed: {
       overview: string;
       learning_objectives: string[];
-      sections: { title: string; content: string; source_node_id?: string }[];
-      key_concepts: { concept: string; explanation: string; source_node_id?: string }[];
+      chapters?: { id: number; title: string; duration: string; content: string; quizzes?: any[] }[];
+      sections?: { title: string; content: string; source_node_id?: string }[];
+      key_concepts: { concept: string; explanation: string; example_sections?: any[]; source_node_id?: string }[];
+      practical_exercises?: any[];
+      assessment?: { questions: any[] };
+      visuals?: any[];
       figures_referenced?: string[];
       content_unavailable_reason?: string;
     };
@@ -246,9 +332,19 @@ Remember: ONLY use information present in the source material above. Do NOT add 
       });
     }
 
+    // Use chapters if provided, otherwise convert sections to chapters
+    const chapters = parsed.chapters || (parsed.sections || []).map((s, idx) => ({
+      id: idx,
+      title: s.title,
+      duration: '10-15 min',
+      content: s.content,
+      quizzes: []
+    }));
+
     return {
       overview: parsed.overview || '',
       learning_objectives: parsed.learning_objectives || [],
+      chapters,
       sections: (parsed.sections || []).map(s => ({
         title: s.title,
         content: s.content,
@@ -257,8 +353,12 @@ Remember: ONLY use information present in the source material above. Do NOT add 
       key_concepts: (parsed.key_concepts || []).map(c => ({
         concept: c.concept,
         explanation: c.explanation,
+        example_sections: c.example_sections,
         source_node_id: c.source_node_id,
       })),
+      practical_exercises: parsed.practical_exercises || [],
+      assessment: parsed.assessment || { questions: [] },
+      visuals: parsed.visuals || [],
       citations,
       figures: referencedFigures,
       rendered_at: new Date().toISOString(),

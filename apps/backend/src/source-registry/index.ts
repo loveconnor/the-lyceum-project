@@ -29,6 +29,7 @@ export {
   renderModuleOnDemand 
 } from './module-content-synthesizer';
 export { DynamicSourceFetcher } from './dynamic-source-fetcher';
+export { MitOcwFetcher } from './mit-ocw-fetcher';
 export { WebDocsSearcher, KNOWN_DOC_SOURCES } from './web-docs-searcher';
 export type { DocSource, WebSearchResult, DocMatchResult } from './web-docs-searcher';
 
@@ -38,6 +39,8 @@ export {
   BaseAdapter,
   OpenStaxAdapter,
   openStaxAdapter,
+  MitOcwAdapter,
+  mitOcwAdapter,
   SphinxDocsAdapter,
   sphinxDocsAdapter,
   GenericHtmlTocAdapter,

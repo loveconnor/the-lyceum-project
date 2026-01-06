@@ -44,6 +44,11 @@ const stripCodeFences = (text: string): string => {
 const repairJson = (text: string): string => {
   let repaired = text;
   
+  // Fix backticks inside JSON strings (backticks are not valid in JSON)
+  // Replace backticks with single quotes when they appear inside strings
+  repaired = repaired.replace(/: `([^`"]*)`/g, ': "$1"');
+  repaired = repaired.replace(/:\s*`([^`"]*)`/g, ': "$1"');
+  
   // Fix unescaped backslashes in LaTeX (common issue)
   // Match patterns like \frac, \int, \sum, etc. that should be \\frac, \\int, \\sum
   repaired = repaired.replace(/(?<!\\)\\([a-zA-Z]+)/g, '\\\\$1');
@@ -266,6 +271,8 @@ Guidelines:
 - Ensure proper scaffolding between modules`;
 
 const MODULE_CONTENT_PROMPT = `You are an expert curriculum designer for Lyceum. Generate detailed content for a single learning module.
+
+CRITICAL: Your response must be VALID JSON. DO NOT use backticks (\`) anywhere in your response. Use double quotes (") for all strings. All content should be properly escaped for JSON.
 
 Respond with JSON only in this structure:
 {
@@ -728,4 +735,96 @@ Create comprehensive learning content with chapters, quizzes, concepts, exercise
   }
   
   throw lastError;
+}
+
+/**
+ * Generate structured module content from synthesized source material
+ * Takes content from the source registry and creates a full learning module
+ */
+export async function generateModuleFromSourceContent(
+  moduleTitle: string,
+  moduleDescription: string,
+  pathContext: string,
+  difficulty: string,
+  synthesizedContent: {
+    overview: string;
+    learning_objectives: string[];
+    sections: Array<{ title: string; content: string }>;
+    key_concepts: Array<{ concept: string; explanation: string; example_sections?: any[] }>;
+  }
+): Promise<GeneratedModule['content']> {
+  const client = ensureClient();
+  const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+
+  // Format the synthesized content for the AI
+  const sourceMaterial = `
+SYNTHESIZED CONTENT FROM SOURCE MATERIAL:
+
+Overview:
+${synthesizedContent.overview}
+
+Learning Objectives:
+${synthesizedContent.learning_objectives.map((obj, i) => `${i + 1}. ${obj}`).join('\n')}
+
+Sections:
+${synthesizedContent.sections.map((sec, i) => `
+Section ${i + 1}: ${sec.title}
+${sec.content}
+`).join('\n---\n')}
+
+Key Concepts:
+${synthesizedContent.key_concepts.map(kc => `
+Concept: ${kc.concept}
+Explanation: ${kc.explanation}
+${kc.example_sections ? `Examples: ${JSON.stringify(kc.example_sections)}` : ''}
+`).join('\n---\n')}
+`;
+
+  const userPrompt = `You are transforming educational content from a textbook into an engaging, structured learning module.
+
+Module Title: ${moduleTitle}
+Module Description: ${moduleDescription}
+Learning Path Context: ${pathContext}
+Difficulty Level: ${difficulty}
+
+IMPORTANT: The content below has been extracted from an authoritative educational source. Your job is to:
+1. Break it into 3-5 digestible chapters (each 5-15 min of reading)
+2. Create quiz questions for each chapter to test understanding
+3. Enhance the key concepts with detailed examples
+4. Create practical exercises based on the material
+5. Generate visual diagrams to illustrate the concepts
+6. Add a comprehensive assessment at the end
+
+${sourceMaterial}
+
+Create a complete, structured learning module that makes this content engaging and easy to learn. Use the source material as your foundation - don't add external information, but DO structure it pedagogically with chapters, quizzes, examples, exercises, and visuals.`;
+
+  const completion = await client.chat.completions.create({
+    model,
+    messages: [
+      { role: 'system', content: MODULE_CONTENT_PROMPT },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.6,
+    max_tokens: 12000,
+    response_format: { type: 'json_object' },
+  });
+
+  const rawResponse = completion.choices[0]?.message?.content || '{}';
+  const finishReason = completion.choices[0]?.finish_reason;
+  
+  console.log(`Registry-backed module "${moduleTitle}" structured (${rawResponse.length} chars, finish_reason: ${finishReason})`);
+  
+  if (finishReason === 'length') {
+    console.error('WARNING: Response was truncated due to max_tokens limit!');
+  }
+  
+  const parsed = tryParseJson<{ content: GeneratedModule['content'] }>(rawResponse);
+
+  if (!parsed || !parsed.content) {
+    console.error('Failed to parse module content. Raw response:', rawResponse.substring(0, 500));
+    throw new Error('Failed to parse AI response for registry-backed module content');
+  }
+
+  return fixLiteralNewlines(parsed.content) as GeneratedModule['content'];
 }

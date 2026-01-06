@@ -22,6 +22,17 @@ export const SEED_SOURCES: SeedConfig[] = [
     },
   },
   {
+    name: 'MIT OpenCourseWare',
+    type: 'mit_ocw',
+    baseUrl: 'https://ocw.mit.edu',
+    seedUrl: 'https://ocw.mit.edu/search',
+    description: 'Free and open educational resources from MIT courses',
+    rateLimitPerMinute: 30,
+    config: {
+      apiUrl: 'https://ocw.mit.edu/api/v0/search',
+    },
+  },
+  {
     name: 'Python Documentation',
     type: 'sphinx_docs',
     baseUrl: 'https://docs.python.org',
@@ -43,6 +54,8 @@ export const SEED_SOURCES: SeedConfig[] = [
 export const ALLOWED_DOMAINS = [
   'openstax.org',
   'cnx.org', // OpenStax CNX (legacy)
+  'ocw.mit.edu', // MIT OpenCourseWare
+  'mit.edu', // MIT domains
   'docs.python.org',
   'python.org',
 ];

@@ -60,6 +60,19 @@ Your task is to:
 3. Create module titles that reflect what can actually be taught from the source
 4. If the source doesn't cover certain aspects, note that in the module description
 
+CRITICAL - EXCLUDE THESE FROM MODULES:
+- Setup, installation, or environment configuration content
+- Course overview, syllabus, or administrative information
+- Prerequisites, requirements, or logistics
+- Resources, downloads, or software installation
+- "Getting Started" or "How to Use" sections
+
+ONLY CREATE MODULES FOR ACTUAL LEARNING CONTENT:
+- Concepts, theories, and explanations
+- Skills, techniques, and methods
+- Applications, examples, and practice
+- Advanced topics and specializations
+
 Respond with JSON only in this structure:
 {
   "path": {
@@ -71,7 +84,7 @@ Respond with JSON only in this structure:
   },
   "modules": [
     {
-      "title": "Module title matching available source content",
+      "title": "Module title matching available source content (NO setup/admin content)",
       "description": "What this module covers, aligned with source sections",
       "order_index": 0,
       "suggested_toc_sections": ["Section title 1", "Section title 2"]
@@ -82,6 +95,8 @@ Respond with JSON only in this structure:
 Guidelines:
 - Create 4-8 modules based on available source material
 - Module titles should be clear and match source terminology
+- SKIP any setup, installation, overview, or administrative sections
+- Focus ONLY on learning content modules
 - If the user wants something not well-covered in the source, say so in description
 - suggested_toc_sections helps with later node mapping (use exact titles from TOC)`;
 
@@ -252,6 +267,38 @@ export async function generateRegistryBackedPath(
     tocSummaries,
     assetTitle
   );
+
+  // Filter out any setup/admin modules that slipped through
+  const setupPatterns = [
+    /setup/i,
+    /install/i,
+    /environment/i,
+    /configuration/i,
+    /getting\s*started/i,
+    /prerequisites/i,
+    /requirements/i,
+    /overview.*setup/i,
+    /overview.*environment/i,
+    /syllabus/i,
+    /course\s*info/i,
+  ];
+
+  const filteredModules = outline.modules.filter(module => {
+    const shouldExclude = setupPatterns.some(pattern => pattern.test(module.title));
+    if (shouldExclude) {
+      logger.info('registry-path-gen', `Filtering out setup module from outline: "${module.title}"`);
+    }
+    return !shouldExclude;
+  });
+
+  // Reassign order indices after filtering
+  filteredModules.forEach((module, index) => {
+    module.order_index = index;
+  });
+
+  outline.modules = filteredModules;
+
+  logger.info('registry-path-gen', `Path outline: ${outline.modules.length} learning modules (setup content filtered)`);
 
   // Pre-map suggested sections to node IDs
   const moduleNodeMappings = new Map<number, string[]>();

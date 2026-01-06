@@ -54,6 +54,62 @@ function toTocSummaries(nodes: TocNode[]): TocNodeSummary[] {
   }));
 }
 
+/**
+ * Filter out setup/administrative/logistics sections from TOC
+ * These sections should never become learning modules
+ */
+export function filterNonLearningContent(summaries: TocNodeSummary[]): TocNodeSummary[] {
+  const excludePatterns = [
+    // Setup and installation (including combined patterns)
+    /setup/i,
+    /install/i,
+    /environment/i,
+    /development\s*environment/i,
+    /configuration/i,
+    /getting\s*started/i,
+    /prerequisites/i,
+    /requirements/i,
+    
+    // Administrative (including combined patterns)
+    /syllabus/i,
+    /course\s*info/i,
+    /course\s*overview/i,
+    /overview.*setup/i,
+    /overview.*environment/i,
+    /overview.*installation/i,
+    /grading/i,
+    /policy/i,
+    /policies/i,
+    /schedule/i,
+    /calendar/i,
+    /logistics/i,
+    
+    // Resources/Downloads
+    /resources/i,
+    /downloads/i,
+    /materials/i,
+    /software/i,
+    /^tools$/i,
+    
+    // Preface/Introduction sections (often not learning content)
+    /^preface$/i,
+    /^about\s*this/i,
+    /^how\s*to\s*use/i,
+    /^introduction$/i,
+  ];
+
+  return summaries.filter(summary => {
+    const title = summary.title.toLowerCase().trim();
+    const shouldExclude = excludePatterns.some(pattern => pattern.test(title));
+    
+    if (shouldExclude) {
+      logger.info('node-resolver', `Filtering out non-learning content: "${summary.title}"`);  
+    }
+    
+    return !shouldExclude;
+  });
+}
+
 const NODE_SELECTION_PROMPT = `You are helping to ground educational module content in authoritative source material.
 
 Given a module title and a table of contents from a trusted educational source, select the MOST APPROPRIATE sections that should be used to create the module content.
@@ -64,6 +120,8 @@ IMPORTANT RULES:
 3. Select 1-5 nodes maximum - be selective
 4. If the module topic is clearly not covered in the TOC, return an empty array
 5. Consider the logical order and depth - prefer sections at similar depths
+6. **EXCLUDE setup, installation, environment, prerequisites, and administrative sections** - only select learning content
+7. Skip sections about: "Getting Started", "Setup", "Installation", "Environment", "Prerequisites", "Course Info", "Syllabus", "Requirements", "Resources", "Downloads"
 
 Respond with JSON ONLY in this exact structure:
 {
@@ -93,9 +151,20 @@ export async function selectNodesForModule(
   });
 
   const summaries = toTocSummaries(tocNodes);
+  const filteredSummaries = filterNonLearningContent(summaries);
+  
+  if (filteredSummaries.length === 0) {
+    logger.warn('node-resolver', 'No learning content nodes available after filtering');
+    return {
+      selected_node_ids: [],
+      reasoning: 'All available nodes were setup/administrative content',
+    };
+  }
+  
+  logger.info('node-resolver', `Filtered ${summaries.length - filteredSummaries.length} non-learning nodes`);
   
   // Format TOC for AI readability
-  const tocFormatted = summaries.map(s => {
+  const tocFormatted = filteredSummaries.map(s => {
     const indent = '  '.repeat(s.depth);
     return `${indent}[${s.node_id}] ${s.title} (${s.node_type}, order: ${s.order})`;
   }).join('\n');
@@ -139,12 +208,12 @@ Select the most appropriate sections for this module.`;
       };
     }
 
-    // Validate that selected node IDs actually exist
-    const validNodeIds = new Set(summaries.map(s => s.node_id));
+    // Validate that selected node IDs actually exist in filtered summaries
+    const validNodeIds = new Set(filteredSummaries.map(s => s.node_id));
     const validatedIds = (result.selected_node_ids || []).filter(id => validNodeIds.has(id));
 
     if (validatedIds.length !== result.selected_node_ids?.length) {
-      logger.warn('node-resolver', 'Some selected node IDs were invalid', {
+      logger.warn('node-resolver', 'Some selected node IDs were invalid or filtered out', {
         details: {
           requested: result.selected_node_ids,
           valid: validatedIds,

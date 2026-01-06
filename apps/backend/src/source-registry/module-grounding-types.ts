@@ -87,8 +87,12 @@ export interface RenderModuleRequest {
 export interface RenderedModuleContent {
   overview: string;
   learning_objectives: string[];
+  chapters?: any[];
   sections: RenderedSection[];
   key_concepts: RenderedConcept[];
+  practical_exercises?: any[];
+  assessment?: { questions: any[] };
+  visuals?: any[];
   citations: Citation[];
   figures: ExtractedFigure[];
   rendered_at: string;
@@ -111,6 +115,7 @@ export interface RenderedSection {
 export interface RenderedConcept {
   concept: string;
   explanation: string;
+  example_sections?: any[];
   source_node_id?: string;
 }
 

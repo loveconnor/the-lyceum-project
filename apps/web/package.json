@@ -148,7 +148,6 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
-    "@lyceum/typescript-config": "*",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
