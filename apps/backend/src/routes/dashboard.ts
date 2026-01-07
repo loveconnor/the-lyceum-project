@@ -50,21 +50,25 @@ const normalizeTopics = (
     padToSix = true,
   }: { forceConfidence?: string; progress?: number; padToSix?: boolean } = {},
 ): DashboardTopic[] => {
-  const normalized = topics.slice(0, 6).map((t) => ({
-    name: (t as any).name || (t as any).title || 'Topic',
-    category:
-      (t as any).category ||
+  const normalized = topics.slice(0, 6).map((t) => {
+    const name = (t as any).name || (t as any).title || 'Topic';
+    const category = (t as any).category ||
       (t as any).difficulty ||
       ((t as any).suggested_formats?.[0] as string | undefined) ||
-      'General',
-    confidence:
-      forceConfidence ||
-      (t as any).confidence ||
-      (typeof (t as any).estimated_hours === 'number'
-        ? `~${(t as any).estimated_hours} hrs`
-        : (t as any).rationale || 'Suggested'),
-    progress: typeof progress === 'number' ? progress : (t as any).progress ?? 0,
-  }));
+      'General';
+    return {
+      name,
+      category,
+      confidence:
+        forceConfidence ||
+        (t as any).confidence ||
+        (typeof (t as any).estimated_hours === 'number'
+          ? `~${(t as any).estimated_hours} hrs`
+          : (t as any).rationale || 'Suggested'),
+      progress: typeof progress === 'number' ? progress : (t as any).progress ?? 0,
+      description: (t as any).summary || (t as any).description || `Learn ${name} fundamentals and core concepts at ${category.toLowerCase()} level.`,
+    };
+  });
 
   if (padToSix) {
     while (normalized.length < 6) {
@@ -73,6 +77,7 @@ const normalizeTopics = (
         category: 'General',
         confidence: forceConfidence || 'Complete an activity',
         progress: typeof progress === 'number' ? progress : 0,
+        description: 'Complete an activity to get personalized recommendations based on your learning goals.',
       });
     }
   }
@@ -113,11 +118,17 @@ const fallbackTopicsFromInterests = (
 
   const uniqueInterests = [...new Set(interests)].filter(Boolean);
   const expanded: TopicRecommendation[] = uniqueInterests.flatMap((interest) => [
-    { name: interest, category: 'Interest', confidence: forceConfidence || 'Based on interests' },
+    { 
+      name: interest, 
+      category: 'Interest', 
+      confidence: forceConfidence || 'Based on interests',
+      description: `Explore ${interest} and develop practical skills in this area of interest.`,
+    },
     {
       name: `${interest} fundamentals`,
       category: 'Interest',
       confidence: forceConfidence || 'Based on interests',
+      description: `Master the core fundamentals and essential concepts of ${interest}.`,
     },
   ]);
 
@@ -248,12 +259,12 @@ const ensureRecommendations = async (
     console.log('[ENSURE_RECS] Using final safety net');
     recommendedTopics = normalizeTopics(
       [
-        { name: 'Learning Skills', category: 'General', confidence: forceConfidence || 'Suggested' },
-        { name: 'Study Habits', category: 'General', confidence: forceConfidence || 'Suggested' },
-        { name: 'Problem Solving', category: 'General', confidence: forceConfidence || 'Suggested' },
-        { name: 'Critical Thinking', category: 'General', confidence: forceConfidence || 'Suggested' },
-        { name: 'Communication', category: 'General', confidence: forceConfidence || 'Suggested' },
-        { name: 'Project Execution', category: 'General', confidence: forceConfidence || 'Suggested' },
+        { name: 'Learning Skills', category: 'General', confidence: forceConfidence || 'Suggested', description: 'Develop effective learning strategies and techniques to accelerate your educational journey.' },
+        { name: 'Study Habits', category: 'General', confidence: forceConfidence || 'Suggested', description: 'Build consistent and productive study routines that maximize retention and understanding.' },
+        { name: 'Problem Solving', category: 'General', confidence: forceConfidence || 'Suggested', description: 'Master systematic approaches to analyzing and solving complex problems across domains.' },
+        { name: 'Critical Thinking', category: 'General', confidence: forceConfidence || 'Suggested', description: 'Enhance your ability to evaluate information, analyze arguments, and make sound decisions.' },
+        { name: 'Communication', category: 'General', confidence: forceConfidence || 'Suggested', description: 'Improve your written and verbal communication skills for professional and academic success.' },
+        { name: 'Project Execution', category: 'General', confidence: forceConfidence || 'Suggested', description: 'Learn to plan, organize, and deliver projects effectively from conception to completion.' },
       ],
       { forceConfidence, progress: 0, padToSix: false },
     );
@@ -452,9 +463,42 @@ router.get('/', async (req, res) => {
     // Sort by timestamp
     activities.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     
+    // Fetch user's learning paths with item counts
+    const { data: learningPaths } = await supabase
+      .from('learning_paths')
+      .select(`
+        id,
+        title,
+        status,
+        learning_path_items (
+          id,
+          status
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    
+    // Calculate progress for each path
+    const learningPathData = (learningPaths || []).map((path: any) => {
+      const items = path.learning_path_items || [];
+      const total = items.length;
+      const completed = items.filter((item: any) => item.status === 'completed').length;
+      const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+      
+      return {
+        id: path.id,
+        title: path.title,
+        progress,
+        completed,
+        total,
+        status: path.status,
+      };
+    });
+    
     console.log('[DASHBOARD_GET] Calling ensureRecommendations with forceRefresh=false');
     const withRecs = await ensureRecommendations(state);
-    res.json({ ...withRecs, activities });
+    res.json({ ...withRecs, activities, learning_path: learningPathData });
   } catch (error: any) {
     console.error('Dashboard fetch error', error);
     res.status(500).json({ error: 'Failed to fetch dashboard state', details: error?.message });

@@ -39,7 +39,7 @@ export function CourseProgressByMonth({
   activities?: ActivityEntry[];
 }) {
   const today = new Date();
-  const defaultFrom = startOfDay(subDays(today, 27)); // Last 28 days
+  const defaultFrom = startOfDay(subDays(today, 13)); // Last 14 days
   const defaultTo = endOfDay(today);
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -55,8 +55,8 @@ export function CourseProgressByMonth({
     const daysDiff = differenceInDays(to, from);
     
     // Determine aggregation period based on date range
-    // <= 7 days: daily, <= 60 days: weekly, > 60 days: monthly
-    const aggregationType = daysDiff <= 7 ? 'daily' : daysDiff <= 60 ? 'weekly' : 'monthly';
+    // <= 35 days: daily, <= 90 days: weekly, > 90 days: monthly
+    const aggregationType = daysDiff <= 35 ? 'daily' : daysDiff <= 90 ? 'weekly' : 'monthly';
     
     let intervals: { start: Date; end: Date; key: string; label: string }[];
     let getKey: (date: Date) => string;
@@ -142,13 +142,13 @@ export function CourseProgressByMonth({
   const periodLabel = useMemo(() => {
     if (!dateRange?.from || !dateRange?.to) return 'periods';
     const daysDiff = differenceInDays(dateRange.to, dateRange.from);
-    if (daysDiff <= 7) return 'days';
-    if (daysDiff <= 60) return 'weeks';
+    if (daysDiff <= 35) return 'days';
+    if (daysDiff <= 90) return 'weeks';
     return 'months';
   }, [dateRange]);
   
   return (
-    <Card className="pb-0">
+    <Card className="pb-0 h-full flex flex-col">
       <CardHeader>
         <CardTitle>Activity Over Time</CardTitle>
         <CardDescription className="flex items-center gap-2">

@@ -11,6 +11,8 @@ interface ShortAnswerWidgetProps {
   isCompleted: boolean;
   onComplete: () => void;
   onAttempt: () => void;
+  initialAnswer?: string;
+  onAnswerChange?: (answer: string) => void;
 }
 
 // Normalize answer for comparison
@@ -23,9 +25,19 @@ export const ShortAnswerWidget = ({
   isCompleted,
   onComplete,
   onAttempt,
+  initialAnswer = '',
+  onAnswerChange,
 }: ShortAnswerWidgetProps) => {
-  const [userAnswer, setUserAnswer] = useState('');
+  const [userAnswer, setUserAnswer] = useState(initialAnswer);
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
+  
+  const handleAnswerChange = (value: string) => {
+    setUserAnswer(value);
+    if (onAnswerChange) {
+      onAnswerChange(value);
+    }
+    if (feedback) setFeedback(null);
+  };
 
   const checkAnswer = useCallback(() => {
     const correctNormalized = normalizeAnswer(correctAnswer);
@@ -77,10 +89,7 @@ export const ShortAnswerWidget = ({
       <div className="flex gap-3">
         <Input
           value={userAnswer}
-          onChange={(e) => {
-            setUserAnswer(e.target.value);
-            if (feedback) setFeedback(null);
-          }}
+          onChange={(e) => handleAnswerChange(e.target.value)}
           placeholder="Type your answer..."
           className={cn(
             "flex-1 text-lg",

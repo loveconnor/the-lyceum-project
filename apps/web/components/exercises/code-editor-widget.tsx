@@ -15,6 +15,7 @@ interface CodeEditorWidgetProps {
   isCompleted: boolean;
   onComplete: () => void;
   onAttempt: () => void;
+  onCodeChange?: (code: string) => void;
 }
 
 export function CodeEditorWidget({
@@ -23,10 +24,19 @@ export function CodeEditorWidget({
   isCompleted,
   onComplete,
   onAttempt,
+  onCodeChange,
 }: CodeEditorWidgetProps) {
   const { theme } = useTheme();
   const [code, setCode] = useState(initialCode);
   const [hasRun, setHasRun] = useState(false);
+  
+  const handleCodeChange = (value: string | undefined) => {
+    const newCode = value || "";
+    setCode(newCode);
+    if (onCodeChange) {
+      onCodeChange(newCode);
+    }
+  };
 
   const handleRun = () => {
     onAttempt();
@@ -79,7 +89,7 @@ export function CodeEditorWidget({
             height="400px"
             language={language}
             value={code}
-            onChange={(value) => setCode(value || "")}
+            onChange={handleCodeChange}
             theme={theme === "light" ? "light" : "vs-dark"}
             options={{
               minimap: { enabled: false },

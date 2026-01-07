@@ -14,6 +14,7 @@ import {
 import { usePathStore } from "@/app/(main)/paths/store";
 import { statusClasses, pathStatusNamed } from "@/app/(main)/paths/enum";
 import { toast } from "sonner";
+import { fetchPathById } from "@/lib/api/paths";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +35,7 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
 }) => {
   const {
     paths,
+    setPaths,
     addComment,
     deleteComment,
     addFile,
@@ -41,6 +43,25 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
   } = usePathStore();
 
   const [newReflection, setNewReflection] = React.useState("");
+  const [isLoadingPath, setIsLoadingPath] = React.useState(false);
+
+  // Fetch fresh path data when sheet opens
+  React.useEffect(() => {
+    if (isOpen && pathId) {
+      setIsLoadingPath(true);
+      fetchPathById(pathId)
+        .then((freshPath) => {
+          // Update the path in the store with fresh data
+          setPaths(paths.map(p => p.id === pathId ? freshPath : p));
+        })
+        .catch((error) => {
+          console.error("Error fetching fresh path data:", error);
+        })
+        .finally(() => {
+          setIsLoadingPath(false);
+        });
+    }
+  }, [isOpen, pathId]);
 
   const path = paths.find((p) => p.id === pathId);
 

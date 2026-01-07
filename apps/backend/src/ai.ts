@@ -61,6 +61,7 @@ export interface TopicRecommendation {
   name: string;
   category: string;
   confidence: string;
+  description: string;
   progress?: number;
 }
 
@@ -253,11 +254,12 @@ export const generateTopicRecommendations = async (
   onboardingData: unknown,
 ): Promise<TopicRecommendation[]> => {
   const prompt = [
-    'You are a topic recommender for Lyceum. Provide 6 concise topics with categories and confidence notes.',
+    'You are a topic recommender for Lyceum. Provide 6 concise topics with categories, confidence notes, and descriptions.',
     'Based on the onboarding data, return 6 recommended topics.',
     'Respond with JSON only, shape:',
-    '{ "topics": [ { "name": string, "category": string, "confidence": string } ] }',
-    'Avoid markdown. Keep names <= 60 chars.',
+    '{ "topics": [ { "name": string, "category": string, "confidence": string, "description": string } ] }',
+    'Each description should be 1-2 sentences explaining what the learner will gain from this topic.',
+    'Avoid markdown. Keep names <= 60 chars. Make descriptions specific and actionable.',
     '',
     'Onboarding data:',
     JSON.stringify(onboardingData, null, 2),

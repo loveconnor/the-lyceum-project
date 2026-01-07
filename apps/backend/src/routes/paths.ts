@@ -11,6 +11,29 @@ import { ModuleGroundingService, DynamicSourceFetcher, MitOcwFetcher, WebDocsSea
 
 const router = Router();
 
+// Helper function to calculate path status based on items
+function calculatePathStatus(items: any[]): string {
+  if (!items || items.length === 0) {
+    return 'not-started';
+  }
+  
+  const completedCount = items.filter(item => item.status === 'completed').length;
+  const inProgressCount = items.filter(item => item.status === 'in-progress').length;
+  
+  // If all items are completed, path is completed
+  if (completedCount === items.length) {
+    return 'completed';
+  }
+  
+  // If any item is in-progress or completed, path is in-progress
+  if (inProgressCount > 0 || completedCount > 0) {
+    return 'in-progress';
+  }
+  
+  // Otherwise, path is not started
+  return 'not-started';
+}
+
 // Get available source registry assets for path generation
 router.get("/registry-assets", async (req: Request, res: Response) => {
   try {
@@ -203,7 +226,27 @@ router.get("/", async (req: Request, res: Response) => {
       return res.status(500).json({ error: "Failed to fetch learning paths" });
     }
 
-    return res.json(paths);
+    // Update path statuses based on items
+    const updatedPaths = await Promise.all((paths || []).map(async (path: any) => {
+      const items = path.learning_path_items || [];
+      const calculatedStatus = calculatePathStatus(items);
+      
+      // Update in database if status has changed
+      if (calculatedStatus !== path.status) {
+        const { error: updateError } = await supabase
+          .from("learning_paths")
+          .update({ status: calculatedStatus })
+          .eq("id", path.id);
+        
+        if (!updateError) {
+          path.status = calculatedStatus;
+        }
+      }
+      
+      return path;
+    }));
+
+    return res.json(updatedPaths);
   } catch (error) {
     console.error("Error in GET /paths:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -252,6 +295,22 @@ router.get("/:id", async (req: Request, res: Response) => {
     if (error) {
       console.error("Error fetching learning path:", error);
       return res.status(404).json({ error: "Learning path not found" });
+    }
+
+    // Update path status based on items
+    const items = path.learning_path_items || [];
+    const calculatedStatus = calculatePathStatus(items);
+    
+    // Update in database if status has changed
+    if (calculatedStatus !== path.status) {
+      const { error: updateError } = await supabase
+        .from("learning_paths")
+        .update({ status: calculatedStatus })
+        .eq("id", path.id);
+      
+      if (!updateError) {
+        path.status = calculatedStatus;
+      }
     }
 
     return res.json(path);
@@ -435,7 +494,7 @@ router.post("/generate", async (req: Request, res: Response) => {
           console.log(`[Generate] Search query: "${searchQuery}"`);
           
           if (stream) {
-            res.write(`data: ${JSON.stringify({ type: 'status', message: '📚 Fetching OpenStax textbook catalog...' })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: 'status', message: 'Fetching OpenStax textbook catalog...' })}\n\n`);
           }
           
           const books = await dynamicFetcher.getOpenStaxBooks();
@@ -511,13 +570,13 @@ router.post("/generate", async (req: Request, res: Response) => {
                   type: 'status', 
                   message: `✅ Found MIT course: "${bestMitMatch.course.title}" (matched: ${bestMitMatch.matchedTerms.join(', ')})`
                 })}\n\n`);
-                res.write(`data: ${JSON.stringify({ type: 'status', message: '💾 Loading MIT OCW into registry...' })}\n\n`);
+                res.write(`data: ${JSON.stringify({ type: 'status', message: 'Loading MIT OCW into registry...' })}\n\n`);
               }
               
               asset = await mitOcwFetcher.getOrCreateAsset(bestMitMatch.course);
               
               if (stream) {
-                res.write(`data: ${JSON.stringify({ type: 'status', message: '📖 Fetching course structure...' })}\n\n`);
+                res.write(`data: ${JSON.stringify({ type: 'status', message: 'Fetching course structure...' })}\n\n`);
               }
               
               tocSummaries = await mitOcwFetcher.getTocSummaries(asset);
@@ -1096,7 +1155,7 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
       logger.info('paths', `Auto-discovering content for topic: "${description}"`);
       
       if (stream) {
-        res.write(`data: ${JSON.stringify({ type: 'status', message: '🔍 Searching OpenStax catalog for relevant textbooks...' })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'status', message: 'Searching OpenStax catalog for relevant textbooks...' })}\n\n`);
       }
 
       // Build search query from description and topics
@@ -1105,7 +1164,7 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
       
       // First, fetch the OpenStax catalog
       if (stream) {
-        res.write(`data: ${JSON.stringify({ type: 'status', message: '📚 Fetching OpenStax book catalog from API...' })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'status', message: 'Fetching OpenStax book catalog from API...' })}\n\n`);
       }
       
       const books = await dynamicFetcher.getOpenStaxBooks();

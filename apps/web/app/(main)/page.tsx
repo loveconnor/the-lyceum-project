@@ -40,7 +40,7 @@ type DashboardState = {
   most_active_month: string | null;
   progress: number;
   top_topics: DashboardTopic[];
-  learning_path: Array<{ title?: string; progress?: number; completed?: number; total?: number }>;
+  learning_path: Array<{ id?: string; title?: string; progress?: number; completed?: number; total?: number; status?: string }>;
   recommended_topics: DashboardTopic[];
   stats: {
     activity_counts?: Record<string, number>;

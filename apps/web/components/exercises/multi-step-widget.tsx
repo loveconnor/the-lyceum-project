@@ -42,6 +42,8 @@ interface MultiStepWidgetProps {
   onAttempt: () => void;
   onShowWorkedExample?: () => void;
   hasWorkedExample?: boolean;
+  steps?: SolutionStep[];
+  onStepsChange?: (steps: SolutionStep[]) => void;
 }
 
 // Auto-format math expressions for rendering
@@ -234,11 +236,24 @@ export const MultiStepWidget = ({
   onAttempt,
   onShowWorkedExample,
   hasWorkedExample = false,
+  steps: initialSteps,
+  onStepsChange,
 }: MultiStepWidgetProps) => {
-  const [steps, setSteps] = useState<SolutionStep[]>([
-    { id: crypto.randomUUID(), content: '', label: '' }
-  ]);
+  const [steps, setSteps] = useState<SolutionStep[]>(
+    initialSteps || [{ id: crypto.randomUUID(), content: '', label: '' }]
+  );
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  
+  // Update parent when steps change
+  const updateSteps = useCallback((newSteps: SolutionStep[] | ((prev: SolutionStep[]) => SolutionStep[])) => {
+    setSteps(prevSteps => {
+      const updated = typeof newSteps === 'function' ? newSteps(prevSteps) : newSteps;
+      if (onStepsChange) {
+        onStepsChange(updated);
+      }
+      return updated;
+    });
+  }, [onStepsChange]);
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -252,39 +267,39 @@ export const MultiStepWidget = ({
   );
 
   const updateStep = useCallback((id: string, content: string) => {
-    setSteps(prev => prev.map(s => s.id === id ? { ...s, content } : s));
+    updateSteps(prev => prev.map(s => s.id === id ? { ...s, content } : s));
     if (content.trim().length > 0) {
       onAttempt();
     }
-  }, [onAttempt]);
+  }, [onAttempt, updateSteps]);
 
   const updateStepLabel = useCallback((id: string, label: string) => {
-    setSteps(prev => prev.map(s => s.id === id ? { ...s, label } : s));
-  }, []);
+    updateSteps(prev => prev.map(s => s.id === id ? { ...s, label } : s));
+  }, [updateSteps]);
 
   const addStep = useCallback(() => {
-    setSteps(prev => [...prev, { id: crypto.randomUUID(), content: '', label: '' }]);
+    updateSteps(prev => [...prev, { id: crypto.randomUUID(), content: '', label: '' }]);
     onAttempt();
-  }, [onAttempt]);
+  }, [onAttempt, updateSteps]);
 
   const removeStep = useCallback((id: string) => {
-    setSteps(prev => {
+    updateSteps(prev => {
       if (prev.length <= 1) return prev;
       return prev.filter(s => s.id !== id);
     });
-  }, []);
+  }, [updateSteps]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     
     if (over && active.id !== over.id) {
-      setSteps((items) => {
+      updateSteps((items) => {
         const oldIndex = items.findIndex((i) => i.id === active.id);
         const newIndex = items.findIndex((i) => i.id === over.id);
         return arrayMove(items, oldIndex, newIndex);
       });
     }
-  }, []);
+  }, [updateSteps]);
 
   const filledSteps = steps.filter(s => s.content.trim()).length;
 

@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { usePathStore } from "@/app/(main)/paths/store";
 import { EnumPathStatus } from "@/app/(main)/paths/enum";
 import { toast } from "sonner";
+import { createClient } from "@/utils/supabase/client";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,14 @@ interface CreatePathSheetProps {
   editPathId?: string | null;
 }
 
+type RecommendedTopic = {
+  name: string;
+  category: string;
+  confidence: string;
+  progress?: number;
+  description: string;
+};
+
 const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, editPathId }) => {
   const { addPath, updatePath, generatePathWithAI, paths, generationStatus } = usePathStore();
   const [selectedRecommendation, setSelectedRecommendation] = React.useState<string | null>(null);
@@ -24,37 +33,66 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [recommendedTopics, setRecommendedTopics] = React.useState<RecommendedTopic[]>([]);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = React.useState(true);
 
-  // Placeholder for AI-generated recommendations based on user's learning context
-  const recommendedPaths = [
-    {
-      id: "rec-1",
-      title: "Advanced React Patterns",
-      reason: "Builds on React Fundamentals",
-      description: "Master advanced React patterns including compound components, render props, HOCs, and custom hooks for building scalable applications.",
-      difficulty: "advanced",
-      estimatedDuration: "6-8 weeks",
-      moduleCount: 7
-    },
-    {
-      id: "rec-2",
-      title: "System Design Fundamentals",
-      reason: "Essential for backend development",
-      description: "Learn to design scalable systems including microservices, caching strategies, load balancing, and distributed systems.",
-      difficulty: "advanced",
-      estimatedDuration: "10-12 weeks",
-      moduleCount: 9
-    },
-    {
-      id: "rec-3",
-      title: "GraphQL API Development",
-      reason: "Modern alternative to REST",
-      description: "Build type-safe APIs with GraphQL, including schema design, resolvers, subscriptions, and Apollo integration.",
-      difficulty: "intermediate",
-      estimatedDuration: "4-6 weeks",
-      moduleCount: 5
+  // Fetch user's recommended topics from dashboard
+  React.useEffect(() => {
+    if (isOpen) {
+      fetchRecommendations();
     }
-  ];
+  }, [isOpen]);
+
+  const fetchRecommendations = async () => {
+    setIsLoadingRecommendations(true);
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        setIsLoadingRecommendations(false);
+        return;
+      }
+
+      const baseUrl =
+        process.env.NEXT_PUBLIC_BACKEND_URL ||
+        process.env.BACKEND_URL ||
+        "http://localhost:3001";
+
+      const res = await fetch(`${baseUrl}/dashboard`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        cache: "no-store"
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const topics = data.recommended_topics || [];
+        // Filter out only generic placeholder topics like "Topic 1", "Topic 2" etc.
+        const realTopics = topics.filter((t: RecommendedTopic) => 
+          !t.name.toLowerCase().match(/^topic \d+$/)
+        );
+        setRecommendedTopics(realTopics.slice(0, 3)); // Show top 3
+      }
+    } catch (error) {
+      console.error("Error fetching recommendations:", error);
+    } finally {
+      setIsLoadingRecommendations(false);
+    }
+  };
+
+  // Convert recommended topics to path format
+  const recommendedPaths = recommendedTopics.map((topic, idx) => ({
+    id: `rec-${idx}`,
+    title: topic.name,
+    reason: topic.category,
+    description: topic.description,
+    difficulty: "intermediate",
+    estimatedDuration: "4-6 weeks",
+    moduleCount: 5
+  }));
 
   // If editPathId is provided, load that path data
   React.useEffect(() => {
@@ -169,17 +207,30 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
 
           <form onSubmit={onSubmit} className="space-y-6 p-4 pt-0">
             {/* Recommended Paths Section */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-sm font-medium">Recommended for You</h3>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Based on your current progress and learning goals
-              </p>
-              
-              <div className="space-y-2">
-                {recommendedPaths.map((rec) => (
+            {(isLoadingRecommendations || recommendedPaths.length > 0) && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-sm font-medium">Recommended for You</h3>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Based on your current progress and learning goals
+                </p>
+                
+                {isLoadingRecommendations ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="rounded-lg border p-3 animate-pulse">
+                        <div className="space-y-2">
+                          <div className="h-4 bg-muted rounded w-3/4"></div>
+                          <div className="h-3 bg-muted rounded w-1/2"></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {recommendedPaths.map((rec) => (
                     <button
                       key={rec.id}
                       type="button"
@@ -197,26 +248,25 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 space-y-1">
                             <h4 className="text-sm font-medium leading-tight">{rec.title}</h4>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Target className="h-3 w-3" />
-                              <span>{rec.reason}</span>
-                            </div>
+                            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                              {rec.description}
+                            </p>
                           </div>
                           <ChevronRight className={cn(
-                            "h-4 w-4 text-muted-foreground transition-transform",
+                            "h-4 w-4 text-muted-foreground transition-transform shrink-0 mt-0.5",
                             selectedRecommendation === rec.id && "rotate-90"
                           )} />
                         </div>
                         
                         {selectedRecommendation === rec.id && (
                           <div className="space-y-2 pt-2 border-t">
-                            <p className="text-xs text-muted-foreground leading-relaxed">
-                              {rec.description}
-                            </p>
                             <div className="flex items-center gap-3 text-xs">
-                              <span className="text-muted-foreground">{rec.estimatedDuration}</span>
+                              <div className="flex items-center gap-1.5">
+                                <Target className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-muted-foreground">{rec.reason}</span>
+                              </div>
                               <span className="text-muted-foreground">•</span>
-                              <span className="capitalize text-muted-foreground">{rec.difficulty}</span>
+                              <span className="text-muted-foreground">{rec.estimatedDuration}</span>
                               <span className="text-muted-foreground">•</span>
                               <span className="text-muted-foreground">{rec.moduleCount} modules</span>
                             </div>
@@ -226,7 +276,9 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                     </button>
                   ))}
                 </div>
-              </div>
+              )}
+            </div>
+          )}
 
               {/* Divider */}
               <div className="relative">

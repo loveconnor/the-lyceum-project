@@ -373,7 +373,7 @@ export function RecommendedCoursesTable({
   });
 
   return (
-    <Card>
+    <Card className="h-full flex flex-col">
       <CardHeader>
         <CardTitle>Recommended Courses</CardTitle>
         <CardAction className="col-start-auto row-start-auto mt-2 flex items-center gap-2 justify-self-start lg:col-start-2 lg:row-start-1 lg:mt-0 lg:justify-self-end">
@@ -402,7 +402,7 @@ export function RecommendedCoursesTable({
           />
         </CardAction>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex-1 flex flex-col">
         {(isRegenerating || isGeneratingPath) && (
           <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
             <Loader2 className="size-4 animate-spin" />

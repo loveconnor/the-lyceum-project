@@ -82,9 +82,9 @@ export default function ModulesView({ path }: ModulesViewProps) {
       <header className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">{path.title}</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-center">{path.title}</h1>
             {path.description && (
-              <p className="text-muted-foreground text-lg leading-relaxed max-w-3xl">
+              <p className="text-muted-foreground text-lg leading-relaxed max-w-3xl mx-auto text-center">
                 {path.description}
               </p>
             )}

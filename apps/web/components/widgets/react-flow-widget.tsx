@@ -203,7 +203,7 @@ export function ReactFlowWidget({
   const currentVisual = visuals[currentVisualIndex];
 
   const diagramContent = (
-    <div className="flex flex-col h-full space-y-4">
+    <div className="flex flex-col space-y-4">
        {/* Header */}
        <div className="flex items-start justify-between px-1">
           <div>
@@ -243,7 +243,7 @@ export function ReactFlowWidget({
           )}
        </div>
 
-      <div className="flex-1 min-h-0 relative rounded-xl border bg-muted/30 overflow-hidden shadow-inner" style={{ minHeight: height }}>
+      <div className="relative rounded-xl border bg-muted/30 overflow-hidden shadow-inner" style={{ height: height }}>
          <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -252,8 +252,8 @@ export function ReactFlowWidget({
             onEdgesChange={onEdgesChange}
             colorMode={theme === 'dark' ? 'dark' : 'light'}
             fitView
-            fitViewOptions={{ padding: 0.2, minZoom: 0.5, maxZoom: 1.5 }}
-            minZoom={0.2}
+            fitViewOptions={{ padding: 0.1, minZoom: 0.8, maxZoom: 1.5 }}
+            minZoom={0.5}
             maxZoom={2}
             className="bg-muted/10 react-flow-widget-container"
          >
@@ -269,9 +269,9 @@ export function ReactFlowWidget({
   }
 
   return (
-    <div className="flex gap-6 h-full">
+    <div className="flex gap-6">
       {/* Left sidebar - Visual navigation */}
-      <div className="w-80 flex-shrink-0 min-w-0 md:block hidden">
+      <div className="w-80 flex-shrink-0 min-w-0 md:block hidden" style={{ height: height }}>
         <Card className="py-0 h-full">
           <CardContent className="p-2 h-full flex flex-col">
             <div className="flex items-center justify-between px-2 py-2 mb-1">
@@ -328,7 +328,7 @@ export function ReactFlowWidget({
       </div>
 
       {/* Main content */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col">
         {diagramContent}
       </div>
     </div>

@@ -83,6 +83,32 @@ export default async function PathModulesPage({ params }: { params: Promise<{ id
       notFound();
     }
     
+    // Calculate path status based on items
+    const items = learningPath.learning_path_items || [];
+    let calculatedStatus = 'not-started';
+    
+    if (items.length > 0) {
+      const completedCount = items.filter((item: any) => item.status === 'completed').length;
+      const inProgressCount = items.filter((item: any) => item.status === 'in-progress').length;
+      
+      if (completedCount === items.length) {
+        calculatedStatus = 'completed';
+      } else if (inProgressCount > 0 || completedCount > 0) {
+        calculatedStatus = 'in-progress';
+      }
+    }
+    
+    // Update path status in database if it has changed
+    if (calculatedStatus !== learningPath.status) {
+      await supabase
+        .from("learning_paths")
+        .update({ status: calculatedStatus })
+        .eq("id", pathId)
+        .eq("user_id", user.id);
+      
+      learningPath.status = calculatedStatus;
+    }
+    
     // Map learning_path_items to modules format
     const modules = (learningPath.learning_path_items || [])
       .sort((a: any, b: any) => a.order_index - b.order_index)

@@ -12,6 +12,8 @@ interface MultipleChoiceWidgetProps {
   isCompleted: boolean;
   onComplete: () => void;
   onAttempt: () => void;
+  selectedOption?: string | null;
+  onOptionChange?: (option: string | null) => void;
 }
 
 // Auto-format math expressions for rendering
@@ -45,9 +47,19 @@ export const MultipleChoiceWidget = ({
   isCompleted,
   onComplete,
   onAttempt,
+  selectedOption: initialSelectedOption,
+  onOptionChange,
 }: MultipleChoiceWidgetProps) => {
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [selectedOption, setSelectedOption] = useState<string | null>(initialSelectedOption || null);
   const [hasChecked, setHasChecked] = useState(false);
+  
+  const handleOptionChange = (option: string) => {
+    setSelectedOption(option);
+    setHasChecked(false);
+    if (onOptionChange) {
+      onOptionChange(option);
+    }
+  };
 
   const checkAnswer = useCallback(() => {
     if (!selectedOption) return;
@@ -76,8 +88,7 @@ export const MultipleChoiceWidget = ({
               key={i}
               onClick={() => {
                 if (!isCompleted) {
-                  setSelectedOption(option);
-                  setHasChecked(false);
+                  handleOptionChange(option);
                 }
               }}
               disabled={isCompleted}

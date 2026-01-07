@@ -54,6 +54,9 @@ interface UpdatePathItemPayload {
       viewed_examples?: number[];
       viewed_concepts?: number[];
       viewed_exercises?: number[];
+      attempted_exercises?: number[];
+      completed_exercises?: number[];
+      exercise_answers?: Record<number, any>;
     };
     visuals?: {
       active_visual?: string;

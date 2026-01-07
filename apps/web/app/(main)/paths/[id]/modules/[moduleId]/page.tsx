@@ -894,6 +894,8 @@ const ExercisesSubView = ({
   setAttemptedExercises,
   completedExercises,
   setCompletedExercises,
+  exerciseAnswers,
+  setExerciseAnswers,
 }: {
   practicalExercises: Array<{
     title: string;
@@ -913,6 +915,8 @@ const ExercisesSubView = ({
   setAttemptedExercises: React.Dispatch<React.SetStateAction<Set<number>>>;
   completedExercises: Set<number>;
   setCompletedExercises: React.Dispatch<React.SetStateAction<Set<number>>>;
+  exerciseAnswers: Record<number, any>;
+  setExerciseAnswers: React.Dispatch<React.SetStateAction<Record<number, any>>>;
 }) => {
   // Support section state
   const [showHints, setShowHints] = useState(false);
@@ -923,6 +927,17 @@ const ExercisesSubView = ({
   const currentExercise = practicalExercises[currentIndex];
   const hasAttempted = attemptedExercises.has(currentIndex);
   const isCompleted = completedExercises.has(currentIndex);
+  
+  // Get current exercise's saved answer
+  const currentAnswer = exerciseAnswers[currentIndex];
+  
+  // Helper to update answer for current exercise
+  const updateAnswer = useCallback((answer: any) => {
+    setExerciseAnswers(prev => ({
+      ...prev,
+      [currentIndex]: answer
+    }));
+  }, [currentIndex, setExerciseAnswers]);
   
   // Determine widget type from exercise data (AI-selected) or fallback detection
   const detectWidgetType = () => {
@@ -1062,10 +1077,11 @@ const ExercisesSubView = ({
       {widgetType === 'code_editor' ? (
         <CodeEditorWidget
           language="java"
-          initialCode=""
+          initialCode={currentAnswer?.code || ""}
           isCompleted={isCompleted}
           onComplete={() => setCompletedExercises(prev => new Set(prev).add(currentIndex))}
           onAttempt={markAttempted}
+          onCodeChange={(code) => updateAnswer({ code })}
         />
       ) : widgetType === 'short_answer' && currentExercise.correct_answer ? (
         <ShortAnswerWidget
@@ -1073,6 +1089,8 @@ const ExercisesSubView = ({
           isCompleted={isCompleted}
           onComplete={() => setCompletedExercises(prev => new Set(prev).add(currentIndex))}
           onAttempt={markAttempted}
+          initialAnswer={currentAnswer?.answer || ""}
+          onAnswerChange={(answer) => updateAnswer({ answer })}
         />
       ) : widgetType === 'multiple_choice' && currentExercise.options && currentExercise.correct_answer ? (
         <MultipleChoiceWidget
@@ -1081,12 +1099,16 @@ const ExercisesSubView = ({
           isCompleted={isCompleted}
           onComplete={() => setCompletedExercises(prev => new Set(prev).add(currentIndex))}
           onAttempt={markAttempted}
+          selectedOption={currentAnswer?.selected || null}
+          onOptionChange={(selected) => updateAnswer({ selected })}
         />
       ) : (
         <MultiStepWidget
           onAttempt={markAttempted}
           hasWorkedExample={hasWorkedExample}
           onShowWorkedExample={() => setShowWorkedExample(true)}
+          steps={currentAnswer?.steps || [{ id: crypto.randomUUID(), content: '', label: '' }]}
+          onStepsChange={(steps) => updateAnswer({ steps })}
         />
       )}
 
@@ -1244,7 +1266,13 @@ const ExamplesView = ({
   viewedConcepts,
   setViewedConcepts,
   viewedExercises,
-  setViewedExercises
+  setViewedExercises,
+  attemptedExercises,
+  setAttemptedExercises,
+  completedExercises,
+  setCompletedExercises,
+  exerciseAnswers,
+  setExerciseAnswers
 }: { 
   keyConcepts: Array<{
     concept: string;
@@ -1271,12 +1299,16 @@ const ExamplesView = ({
   setViewedConcepts: React.Dispatch<React.SetStateAction<Set<number>>>;
   viewedExercises: Set<number>;
   setViewedExercises: React.Dispatch<React.SetStateAction<Set<number>>>;
+  attemptedExercises: Set<number>;
+  setAttemptedExercises: React.Dispatch<React.SetStateAction<Set<number>>>;
+  completedExercises: Set<number>;
+  setCompletedExercises: React.Dispatch<React.SetStateAction<Set<number>>>;
+  exerciseAnswers: Record<number, any>;
+  setExerciseAnswers: React.Dispatch<React.SetStateAction<Record<number, any>>>;
 }) => {
   const [conceptIndex, setConceptIndex] = useState(0);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<'concepts' | 'exercises'>('concepts');
-  const [attemptedExercises, setAttemptedExercises] = useState<Set<number>>(new Set());
-  const [completedExercises, setCompletedExercises] = useState<Set<number>>(new Set());
 
   // Helper to strip markdown syntax for preview text
   const stripMarkdown = (text: string): string => {
@@ -1479,6 +1511,8 @@ const ExamplesView = ({
               setAttemptedExercises={setAttemptedExercises}
               completedExercises={completedExercises}
               setCompletedExercises={setCompletedExercises}
+              exerciseAnswers={exerciseAnswers}
+              setExerciseAnswers={setExerciseAnswers}
             />
           )}
         </AnimatePresence>
@@ -1952,13 +1986,13 @@ const VisualsView = ({
   }, [viewedVisuals.size, visuals.length, isVisualsComplete, setIsVisualsComplete]);
 
   return (
-    <div className="h-full min-h-[500px]">
+    <div>
       <ReactFlowWidget 
         visuals={visuals as any} 
         viewedVisuals={viewedVisuals}
         onVisualViewed={handleVisualViewed}
         onViewComplete={() => setIsVisualsComplete(true)}
-        height="100%"
+        height="800px"
         showSidebar={true} 
       />
     </div>
@@ -2933,11 +2967,19 @@ export default function ModulePage() {
   const [viewedExamples, setViewedExamples] = useState<Set<number>>(new Set());
   const [viewedConcepts, setViewedConcepts] = useState<Set<number>>(new Set());
   const [viewedExercises, setViewedExercises] = useState<Set<number>>(new Set());
+  const [attemptedExercises, setAttemptedExercises] = useState<Set<number>>(new Set());
+  const [completedExercises, setCompletedExercises] = useState<Set<number>>(new Set());
+  
+  // Exercise answer content state - stores user's written work for each exercise
+  const [exerciseAnswers, setExerciseAnswers] = useState<Record<number, any>>({});
   
   // Visuals tab state
   const [isVisualsComplete, setIsVisualsComplete] = useState(false);
   const [activeVisual, setActiveVisual] = useState<"flow" | "relationship" | "states" | "structure">("flow");
   const [viewedVisuals, setViewedVisuals] = useState<Set<number>>(new Set());
+  
+  // Module completion state - track if user has dismissed the completion notice
+  const [showCompletionNotice, setShowCompletionNotice] = useState(true);
   
   // Reflection state
   const [showReflection, setShowReflection] = useState(false);
@@ -3074,6 +3116,9 @@ export default function ModulePage() {
           setViewedExamples(new Set(progress.examples.viewed_examples || []));
           setViewedConcepts(new Set(progress.examples.viewed_concepts || []));
           setViewedExercises(new Set(progress.examples.viewed_exercises || []));
+          setAttemptedExercises(new Set(progress.examples.attempted_exercises || []));
+          setCompletedExercises(new Set(progress.examples.completed_exercises || []));
+          setExerciseAnswers(progress.examples.exercise_answers || {});
         }
         
         // Load visuals progress
@@ -3130,6 +3175,9 @@ export default function ModulePage() {
             viewed_examples: Array.from(viewedExamples),
             viewed_concepts: Array.from(viewedConcepts),
             viewed_exercises: Array.from(viewedExercises),
+            attempted_exercises: Array.from(attemptedExercises),
+            completed_exercises: Array.from(completedExercises),
+            exercise_answers: exerciseAnswers,
           },
           visuals: {
             active_visual: activeVisual,
@@ -3151,6 +3199,7 @@ export default function ModulePage() {
     currentChapter, currentQuestionIndex, selectedOption, isCorrect,
     completedChapters, completedQuestions,
     currentExample, expandedSteps, viewedExamples, viewedConcepts, viewedExercises,
+    attemptedExercises, completedExercises, exerciseAnswers,
     activeVisual, viewedVisuals
   ]);
 
@@ -3311,7 +3360,7 @@ export default function ModulePage() {
   return (
     <div className="space-y-8">
       {/* Module Completion Banner */}
-      {isModuleComplete && (
+      {isModuleComplete && showCompletionNotice && (
         <div className="fixed bottom-8 left-0 right-0 z-50 px-4 flex justify-center pointer-events-none">
           <motion.div
             initial={{ opacity: 0, y: 100 }}
@@ -3330,9 +3379,19 @@ export default function ModulePage() {
                   You've completed the reading and explored {isExamplesComplete && isVisualsComplete ? 'both examples and visuals' : isExamplesComplete ? 'the examples' : 'the visuals'}.
                 </p>
               </div>
-              <Button className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap" onClick={handleContinueToNext}>
-                Continue <ArrowRight className="ml-2 w-4 h-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowCompletionNotice(false)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+                <Button className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap" onClick={handleContinueToNext}>
+                  Continue <ArrowRight className="ml-2 w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -3431,6 +3490,12 @@ export default function ModulePage() {
               setViewedConcepts={setViewedConcepts}
               viewedExercises={viewedExercises}
               setViewedExercises={setViewedExercises}
+              attemptedExercises={attemptedExercises}
+              setAttemptedExercises={setAttemptedExercises}
+              completedExercises={completedExercises}
+              setCompletedExercises={setCompletedExercises}
+              exerciseAnswers={exerciseAnswers}
+              setExerciseAnswers={setExerciseAnswers}
             />
           </TabsContent>
           
