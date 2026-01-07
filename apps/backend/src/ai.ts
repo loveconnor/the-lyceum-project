@@ -413,44 +413,46 @@ export const runAssistantChatStream = async (
   return generator();
 };
 
-export const generateChatTitle = async (userMessage: string, assistantReply: string): Promise<string> => {
+export const generateChatTitle = async (userMessage: string, assistantReply: string): Promise<string | null> => {
   const client = ensureClient();
   
-  const systemPrompt = 
-    'You are a concise title generator. Generate a brief, descriptive title (3-5 words max) for a conversation based on the user\'s first question and the assistant\'s response. ' +
-    'The title should be a conceptual summary, not just a repetition of the user\'s question. ' +
-    'Return ONLY the title text, nothing else. No quotes, no punctuation at the end, no extra formatting.';
-
-  const userPrompt = 
-    `User's question: ${userMessage}\n\n` +
-    `Assistant's response: ${assistantReply.slice(0, 1000)}\n\n` +
-    `Generate a short, descriptive title for this conversation:`;
+  if (!userMessage && !assistantReply) return null;
 
   try {
     const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+    
+    // Simpler, more robust prompt structure
+    const systemPrompt = 'You are a title generator. Create a concise, topic-based title (2-5 words) for the conversation. Avoid copying the user prompt exactly. Use noun phrases like "Java Maps" or "Understanding Stacks". Do not use quotes.';
+    const userPrompt = `Generate a title for:\nUSER: ${userMessage || 'Start conversation'}\n\nASSISTANT: ${(assistantReply || '').slice(0, 300)}`;
+
     const completion = await client.chat.completions.create({
       model,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.5,
-      max_tokens: 20,
+      max_tokens: 60,
+      temperature: 0.5, 
     });
 
-    const title = completion.choices[0]?.message?.content?.trim();
-    if (!title || title.length === 0) return 'New chat';
+    let title = completion.choices[0]?.message?.content?.trim();
+    if (!title) return null;
     
-    // Clean up the title: remove quotes, trailing punctuation, and "Title: " prefix
-    const cleanedTitle = title
-      .replace(/^(Title|Topic|Conversation):\s*/i, '')
-      .replace(/^["']|["']$/g, '')
-      .replace(/[.!?]$/, '')
+    // Clean up
+    title = title
+      .replace(/^title:\s*/i, '')
+      .replace(/^topic:\s*/i, '')
+      .replace(/['"]+/g, '')
+      .replace(/[.]+$/, '')
       .trim();
 
-    return cleanedTitle.length > 0 ? cleanedTitle.slice(0, 60) : 'New chat';
+    if (title.length > 60) {
+      return title.slice(0, 60).trim();
+    }
+
+    return title || null;
   } catch (error) {
     console.error('Error generating chat title:', error);
-    return 'New chat';
+    return null;
   }
 };

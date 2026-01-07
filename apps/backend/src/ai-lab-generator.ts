@@ -107,6 +107,8 @@ const TEMPLATE_GENERATORS: Record<string, string> = {
       {
         "id": "step1",
         "title": "Step title",
+        "instruction": "Clear markdown explanation of what the learner should analyze in this step",
+        "keyQuestions": ["Key question 1?", "Key question 2?"],
         "description": "What to do",
         "hints": ["hint1", "hint2"],
         "widgets": [
@@ -155,7 +157,7 @@ Available chart types: bar, line, scatter, area, pie, histogram, heatmap.`,
   "topics": string[],
   "data": {
     "problemStatement": "Detailed description of the coding challenge (use LaTeX for math: $x^2$)",
-    "initialCode": "// Starting code template with function signature and comments",
+    "initialCode": "// Starting code template with class/function signatures and comments",
     "language": "javascript" | "typescript" | "python" | "java" | "cpp",
     "testCases": [
       {
@@ -170,6 +172,9 @@ Available chart types: bar, line, scatter, area, pie, histogram, heatmap.`,
       {
         "id": "unique-id",
         "title": "Step title",
+        "instruction": "Clear markdown explanation of what the learner should do in this step and why",
+        "keyQuestions": ["Key question 1?", "Key question 2?"],
+        "skeletonCode": "// Skeleton code for THIS STEP ONLY (method signature + TODO comment)",
         "widgets": [
           {
             "type": "text-input",
@@ -215,9 +220,11 @@ Instead, create 3-7 steps with titles that are SPECIFIC to the learning goal. Ex
 
 Each step should:
 1. Have a SPECIFIC, action-oriented title related to THIS problem (not generic titles)
-2. Focus on ONE small concept or coding task
-3. Use widgets appropriate for that specific task
-4. Build progressively toward the complete solution
+2. Include a clear "instruction" field with markdown text explaining what to do and why
+3. Include 2-4 "keyQuestions" to guide the learner's thinking
+4. Focus on ONE small concept or coding task
+5. Use widgets appropriate for that specific task
+6. Build progressively toward the complete solution
 
 The number of steps should match the complexity of the topic - simple topics need fewer steps (3-4), complex topics need more (5-7).
 
@@ -287,7 +294,32 @@ Provide realistic starter code (5-15 lines) with function signature and helpful 
 
 CRITICAL - TEST CASES:
 Every step that includes a "code-editor" widget MUST have at least one corresponding test case in the "testCases" array.
-The "stepId" field in the test case MUST match the "id" of the step where the code is written.`,
+The "stepId" field in the test case MUST match the "id" of the step where the code is written.
+
+CRITICAL - SKELETON CODE PER STEP:
+For each step that involves coding, include a "skeletonCode" field with ONLY the code skeleton for that specific step.
+- Step 1 skeleton: Only the method/function signature for step 1 with a TODO comment
+- Step 2 skeleton: Only the method/function signature for step 2 with a TODO comment
+- And so on...
+
+Example for Java (4 steps - sign, parity, range, describe):
+Step 1 skeletonCode:
+  public static String sign(int n) {
+    // TODO: implement\n    return "";\n  }
+
+Step 2 skeletonCode:
+  public static String parity(int n) {
+    // TODO: implement\n    return "";\n  }
+
+Step 3 skeletonCode:
+  public static String rangeCategory(int n) {
+    // TODO: implement\n    return "";\n  }
+
+Step 4 skeletonCode:
+  public static String describe(int n) {
+    // TODO: implement using the above methods\n    return "";\n  }
+
+The learner will see skeleton code progressively as they complete each step. Keep each step's skeleton focused and concise.`,
 
   derive: `Generate a step-by-step problem-solving lab (for math derivations, proofs, symbolic manipulation, or step-by-step reasoning) with this JSON structure:
 {
@@ -307,6 +339,8 @@ The "stepId" field in the test case MUST match the "id" of the step where the co
       {
         "id": "identify-parts",
         "title": "Identify $u$ and $dv$",
+        "instruction": "Clear markdown explanation of what to identify and why (can use LaTeX: $x^2$)",
+        "keyQuestions": ["What should you look for?", "Why does this choice matter?"],
         "widgets": [
           {
             "type": "multiple-choice",
@@ -328,6 +362,8 @@ The "stepId" field in the test case MUST match the "id" of the step where the co
       {
         "id": "compute",
         "title": "Compute $du$ and $v$",
+        "instruction": "Differentiate $u$ to get $du$ and integrate $dv$ to get $v$",
+        "keyQuestions": ["What derivative rule applies?", "What integration technique?"],
         "widgets": [
           {
             "type": "derivation-steps",
@@ -340,6 +376,8 @@ The "stepId" field in the test case MUST match the "id" of the step where the co
       {
         "id": "apply-formula",
         "title": "Apply Integration by Parts",
+        "instruction": "Substitute your values into the integration by parts formula: $\\int u\\,dv = uv - \\int v\\,du$",
+        "keyQuestions": ["Are all values correctly substituted?", "Does the new integral look simpler?"],
         "widgets": [
           {
             "type": "editor",
@@ -358,9 +396,11 @@ The "stepId" field in the test case MUST match the "id" of the step where the co
 
 CRITICAL - WIDGET REQUIREMENTS:
 1. EVERY step MUST have a "widgets" array with at least one widget
-2. Use "editor" for: explaining concepts, restating problems, verification, conclusions, essays, detailed responses
-3. Use "multiple-choice" for: selecting rules/methods/approaches (set multiSelect and showExplanation appropriately)
-4. Use "derivation-steps" for: step-by-step mathematical work, showing calculations
+2. EVERY step MUST have an "instruction" field (markdown text explaining what to do)
+3. EVERY step SHOULD have "keyQuestions" array (2-4 questions to guide thinking)
+4. Use "editor" for: explaining concepts, restating problems, verification, conclusions, essays, detailed responses
+5. Use "multiple-choice" for: selecting rules/methods/approaches (set multiSelect and showExplanation appropriately)
+6. Use "derivation-steps" for: step-by-step mathematical work, showing calculations
 
 WIDGET CONFIGURATION DETAILS:
 **editor**: 
@@ -451,6 +491,17 @@ Examples of good step titles based on problem type:
 - For integration by parts: "Identify $u = x$ and $dv = e^x dx$", "Compute $du$ and $v$", "Apply $uv - \\int v\\,du$"
 - For derivative problems: "Apply Chain Rule to $\\sin(x^2)$", "Differentiate the Inner Function", "Combine Using Product Rule"
 - For limit problems: "Factor Out $(x-2)$", "Cancel Common Terms", "Evaluate at $x = 2$"
+
+CRITICAL - STEP STRUCTURE (APPLIES TO ALL TEMPLATES):
+EVERY step object MUST include:
+- "id": unique identifier (kebab-case)
+- "title": specific, action-oriented title (can use LaTeX)
+- "instruction": markdown text explaining what to do, why it matters, and how to approach it (2-4 sentences)
+- "keyQuestions": array of 2-4 thought-provoking questions (strings, plain English)
+- "widgets": array of widget configurations
+
+The "instruction" field is CRITICAL - it provides the guidance that appears above the interactive widgets.
+The "keyQuestions" help learners think critically before interacting with widgets.
 
 Each step title should reference ACTUAL mathematical expressions from THIS problem. The number of steps should match the problem's complexity.`,
 

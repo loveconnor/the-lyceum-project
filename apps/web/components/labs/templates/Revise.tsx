@@ -14,6 +14,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   CheckCircle2, 
   FileEdit,
@@ -25,7 +33,8 @@ import {
   Loader2,
   ThumbsUp,
   ThumbsDown,
-  Brain
+  Brain,
+  Info
 } from "lucide-react";
 import { cn, extractJSON } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -99,6 +108,7 @@ export default function ReviseTemplate({ data, labId, moduleContext }: ReviseTem
   // AI feedback state
   const [stepFeedback, setStepFeedback] = useState<Record<string, { text: string; approved: boolean; correctIds?: string[]; incorrectIds?: string[] }>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showLabOverview, setShowLabOverview] = useState(false);
   const { getAssistance, loading: aiLoading } = labId ? useLabAI(labId) : { getAssistance: null, loading: false };
   
   const currentStep = steps.find(s => s.status === "current");
@@ -413,6 +423,17 @@ Approve if they show reasonable effort and understanding. If not approved, expla
         <LabStepPanel
           steps={steps}
           onStepClick={goToStep}
+          labOverview={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowLabOverview(true)}
+              className="w-full justify-start gap-2 text-xs"
+            >
+              <Info className="h-3.5 w-3.5" />
+              Lab Overview
+            </Button>
+          }
         />
 
         <ResizableHandle withHandle />
@@ -513,23 +534,24 @@ Approve if they show reasonable effort and understanding. If not approved, expla
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                       {currentStepIndex + 1}. {currentStep.title}
                     </label>
-                    {currentStep.instruction && (
-                      <Markdown className="text-sm text-muted-foreground">
-                        {currentStep.instruction}
-                      </Markdown>
-                    )}
                     
-                    {currentStep.keyQuestions && currentStep.keyQuestions.length > 0 && (
-                      <Card className="border-none bg-primary/5 shadow-none">
-                        <CardContent className="p-4 space-y-2">
-                          <p className="text-xs font-medium">Key Questions:</p>
-                          <ul className="text-xs space-y-1 list-disc list-inside text-muted-foreground">
-                            {currentStep.keyQuestions.map((q: string, i: number) => (
-                              <li key={i}><Markdown className="inline">{q}</Markdown></li>
-                            ))}
-                          </ul>
-                        </CardContent>
-                      </Card>
+                    {/* Step Instructions */}
+                    {(currentStep as any).instruction && (
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <Markdown>{(currentStep as any).instruction}</Markdown>
+                      </div>
+                    )}
+
+                    {/* Key Questions */}
+                    {(currentStep as any).keyQuestions && (currentStep as any).keyQuestions.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-muted-foreground">Key Questions</h4>
+                        <ul className="space-y-1.5 list-disc list-inside">
+                          {(currentStep as any).keyQuestions.map((q: string, i: number) => (
+                            <li key={i} className="text-sm text-muted-foreground">{q}</li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                     
                     {currentStep.prompt && (
@@ -656,6 +678,54 @@ Approve if they show reasonable effort and understanding. If not approved, expla
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+
+      {/* Lab Overview Dialog */}
+      <Dialog open={showLabOverview} onOpenChange={setShowLabOverview}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">{labTitle}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Overall lab instructions and overview
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {/* Lab Description */}
+            {description && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Description</h3>
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <Markdown>{description}</Markdown>
+                </div>
+              </div>
+            )}
+
+            {/* Target Audience */}
+            {targetAudience && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Target Audience</h3>
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <Markdown>{targetAudience}</Markdown>
+                </div>
+              </div>
+            )}
+
+            {/* Purpose */}
+            {initialPurpose && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Purpose</h3>
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <Markdown>{initialPurpose}</Markdown>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowLabOverview(false)} className="w-full sm:w-auto">
+              Got it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

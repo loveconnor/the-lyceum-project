@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Play, CheckCircle2 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 
 interface CodeEditorWidgetProps {
   language?: string;
@@ -23,6 +24,7 @@ export function CodeEditorWidget({
   onComplete,
   onAttempt,
 }: CodeEditorWidgetProps) {
+  const { theme } = useTheme();
   const [code, setCode] = useState(initialCode);
   const [hasRun, setHasRun] = useState(false);
 
@@ -78,7 +80,7 @@ export function CodeEditorWidget({
             language={language}
             value={code}
             onChange={(value) => setCode(value || "")}
-            theme="vs-dark"
+            theme={theme === "light" ? "light" : "vs-dark"}
             options={{
               minimap: { enabled: false },
               fontSize: 14,

@@ -45,6 +45,8 @@ interface ExploreTemplateProps {
 export default function ExploreTemplate({ data, labId, moduleContext }: ExploreTemplateProps) {
   const { labTitle, description, parameters: paramConfig, guidingQuestions } = data;
   
+  const [isLoadingProgress, setIsLoadingProgress] = useState(true);
+  
   // Initialize parameters state from config
   const initialParams = paramConfig.reduce((acc, param) => {
     acc[param.id] = [param.defaultValue];
@@ -56,6 +58,74 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
   const [isSimulating, setIsSimulating] = useState(false);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [currentReflection, setCurrentReflection] = useState("");
+  
+  // Load progress when component mounts
+  React.useEffect(() => {
+    if (!labId) {
+      setIsLoadingProgress(false);
+      return;
+    }
+
+    const loadProgress = async () => {
+      try {
+        const { fetchLabProgress } = await import("@/lib/api/labs");
+        const progress = await fetchLabProgress(labId);
+        
+        if (progress && progress.length > 0) {
+          const mostRecent = progress[progress.length - 1];
+          
+          // Restore data from most recent progress entry
+          if (mostRecent?.step_data) {
+            if (mostRecent.step_data.parameters) {
+              setParameters(mostRecent.step_data.parameters);
+            }
+            if (mostRecent.step_data.insights) {
+              setInsights(mostRecent.step_data.insights);
+            }
+            if (mostRecent.step_data.currentReflection) {
+              setCurrentReflection(mostRecent.step_data.currentReflection);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load progress:", error);
+      } finally {
+        setIsLoadingProgress(false);
+      }
+    };
+
+    loadProgress();
+  }, [labId]);
+
+  // Auto-save progress when state changes (debounced)
+  React.useEffect(() => {
+    if (!labId || isLoadingProgress) return;
+
+    const timer = setTimeout(() => {
+      saveProgress();
+    }, 2000); // Auto-save after 2 seconds of no changes
+
+    return () => clearTimeout(timer);
+  }, [parameters, insights, currentReflection, labId, isLoadingProgress]);
+
+  const saveProgress = async () => {
+    if (!labId) return;
+    
+    try {
+      const { updateLabProgress } = await import("@/lib/api/labs");
+      await updateLabProgress(labId, {
+        step_id: "explore", // Single step for explore labs
+        step_data: {
+          parameters,
+          insights,
+          currentReflection
+        },
+        completed: false
+      });
+    } catch (error) {
+      console.error("Failed to save progress:", error);
+    }
+  };
   
   const calculateTrajectory = () => {
     const g = parameters[paramConfig[0]?.id]?.[0] || 9.8;

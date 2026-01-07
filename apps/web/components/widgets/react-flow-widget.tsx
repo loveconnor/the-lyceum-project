@@ -408,7 +408,12 @@ const calculateTreeLayout = (nodes: any[], edges: any[]) => {
   const SIBLING_GAP = 50;
   
   // 3. Recursive Width Calculation & Initial Placement
+  const calculateVisited = new Set<string>();
   const calculateSubtree = (nodeId: string): number => {
+    // Prevent infinite recursion / cycles
+    if (calculateVisited.has(nodeId)) return 0;
+    calculateVisited.add(nodeId);
+
     const node = nodeMap.get(nodeId);
     if (!node) return 0;
     
@@ -430,7 +435,12 @@ const calculateTreeLayout = (nodes: any[], edges: any[]) => {
   roots.forEach(calculateSubtree);
 
   // 4. Assign Absolute Positions
+  const positionVisited = new Set<string>();
   const assignPositions = (nodeId: string, x: number, y: number) => {
+    // Prevent infinite recursion / re-positioning
+    if (positionVisited.has(nodeId)) return;
+    positionVisited.add(nodeId);
+
     const node = nodeMap.get(nodeId);
     if (!node) return;
     

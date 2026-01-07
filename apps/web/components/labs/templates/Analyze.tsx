@@ -12,6 +12,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   BarChart3, 
   CheckCircle2, 
@@ -26,7 +34,8 @@ import {
   AlertCircle,
   FileText,
   Database,
-  TrendingUp
+  TrendingUp,
+  Info
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { 
@@ -79,6 +88,8 @@ interface AnalyzeTemplateProps {
 export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeTemplateProps) {
   const { labTitle, description, dataset, availableVariables, guidingQuestions } = data;
   const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS);
+  const [showLabOverview, setShowLabOverview] = useState(false);
+  const [isLoadingProgress, setIsLoadingProgress] = useState(true);
   const [analysis, setAnalysis] = useState({
     question: "",
     patterns: "",
@@ -91,6 +102,113 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
   const [claim, setClaim] = useState("");
   const [evidence, setEvidence] = useState("");
   const [reasoning, setReasoning] = useState("");
+
+  // Load progress when component mounts
+  React.useEffect(() => {
+    if (!labId) {
+      setIsLoadingProgress(false);
+      return;
+    }
+
+    const loadProgress = async () => {
+      try {
+        const { fetchLabProgress } = await import("@/lib/api/labs");
+        const progress = await fetchLabProgress(labId);
+        
+        if (progress && progress.length > 0) {
+          const mostRecent = progress[progress.length - 1];
+          
+          // Restore data from most recent progress entry
+          if (mostRecent?.step_data) {
+            if (mostRecent.step_data.analysis) {
+              setAnalysis(mostRecent.step_data.analysis);
+            }
+            if (mostRecent.step_data.primaryVariables) {
+              setPrimaryVariables(mostRecent.step_data.primaryVariables);
+            }
+            if (mostRecent.step_data.comparisonVariable) {
+              setComparisonVariable(mostRecent.step_data.comparisonVariable);
+            }
+            if (mostRecent.step_data.annotations) {
+              setAnnotations(mostRecent.step_data.annotations);
+            }
+            if (mostRecent.step_data.claim) {
+              setClaim(mostRecent.step_data.claim);
+            }
+            if (mostRecent.step_data.evidence) {
+              setEvidence(mostRecent.step_data.evidence);
+            }
+            if (mostRecent.step_data.reasoning) {
+              setReasoning(mostRecent.step_data.reasoning);
+            }
+          }
+
+          // Restore step completion status
+          const completedStepIds = progress.filter((p: any) => p.completed).map((p: any) => p.step_id);
+          
+          setSteps(prev => {
+            const newSteps = prev.map(step => {
+              if (completedStepIds.includes(step.id)) {
+                return { ...step, status: "completed" as const };
+              }
+              return step;
+            });
+            
+            // Set first incomplete step as current
+            const firstIncomplete = newSteps.findIndex(s => s.status !== "completed");
+            if (firstIncomplete !== -1) {
+              newSteps[firstIncomplete] = { ...newSteps[firstIncomplete], status: "current" as const };
+            }
+            
+            return newSteps;
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load progress:", error);
+      } finally {
+        setIsLoadingProgress(false);
+      }
+    };
+
+    loadProgress();
+  }, [labId]);
+
+  // Auto-save progress when state changes (debounced)
+  React.useEffect(() => {
+    if (!labId || isLoadingProgress) return;
+    
+    const currentStep = steps.find(s => s.status === "current");
+    if (!currentStep) return;
+
+    const timer = setTimeout(() => {
+      saveProgress(currentStep.id, false);
+    }, 2000); // Auto-save after 2 seconds of no typing
+
+    return () => clearTimeout(timer);
+  }, [analysis, primaryVariables, comparisonVariable, annotations, claim, evidence, reasoning, labId, isLoadingProgress]);
+
+  const saveProgress = async (stepId: string, completed: boolean = false) => {
+    if (!labId || !stepId) return;
+    
+    try {
+      const { updateLabProgress } = await import("@/lib/api/labs");
+      await updateLabProgress(labId, {
+        step_id: stepId,
+        step_data: {
+          analysis,
+          primaryVariables,
+          comparisonVariable,
+          annotations,
+          claim,
+          evidence,
+          reasoning
+        },
+        completed
+      });
+    } catch (error) {
+      console.error("Failed to save progress:", error);
+    }
+  };
 
   const goToStep = (id: string) => {
     const stepIndex = steps.findIndex(s => s.id === id);
@@ -111,7 +229,10 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
     }));
   };
 
-  const completeStep = (id: string) => {
+  const completeStep = async (id: string) => {
+    // Save progress before completing
+    await saveProgress(id, true);
+    
     setSteps(prev => {
       const index = prev.findIndex(s => s.id === id);
       if (index === -1) return prev;
@@ -146,6 +267,17 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
         <LabStepPanel
           steps={steps}
           onStepClick={goToStep}
+          labOverview={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowLabOverview(true)}
+              className="w-full justify-start gap-2 text-xs"
+            >
+              <Info className="h-3.5 w-3.5" />
+              Lab Overview
+            </Button>
+          }
         />
 
         <ResizableHandle withHandle />
@@ -288,6 +420,26 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                       1. Define Question
                     </label>
+                    
+                    {/* Step Instructions */}
+                    {(steps.find(s => s.id === "question") as any)?.instruction && (
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <Markdown>{(steps.find(s => s.id === "question") as any).instruction}</Markdown>
+                      </div>
+                    )}
+
+                    {/* Key Questions */}
+                    {(steps.find(s => s.id === "question") as any)?.keyQuestions && (steps.find(s => s.id === "question") as any).keyQuestions.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-muted-foreground">Key Questions</h4>
+                        <ul className="space-y-1.5 list-disc list-inside">
+                          {(steps.find(s => s.id === "question") as any).keyQuestions.map((q: string, i: number) => (
+                            <li key={i} className="text-sm text-muted-foreground">{q}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <label className="text-[10px] font-medium text-muted-foreground uppercase">
@@ -363,6 +515,26 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                       2. Inspect Data
                     </label>
+                    
+                    {/* Step Instructions */}
+                    {(steps.find(s => s.id === "inspect") as any)?.instruction && (
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <Markdown>{(steps.find(s => s.id === "inspect") as any).instruction}</Markdown>
+                      </div>
+                    )}
+
+                    {/* Key Questions */}
+                    {(steps.find(s => s.id === "inspect") as any)?.keyQuestions && (steps.find(s => s.id === "inspect") as any).keyQuestions.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-muted-foreground">Key Questions</h4>
+                        <ul className="space-y-1.5 list-disc list-inside">
+                          {(steps.find(s => s.id === "inspect") as any).keyQuestions.map((q: string, i: number) => (
+                            <li key={i} className="text-sm text-muted-foreground">{q}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
                     <p className="text-sm text-muted-foreground italic">
                       Click on rows in the table to add annotations about notable data points.
                     </p>
@@ -380,6 +552,26 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                       2. Analyze Patterns
                     </label>
+                    
+                    {/* Step Instructions */}
+                    {(steps.find(s => s.id === "patterns") as any)?.instruction && (
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <Markdown>{(steps.find(s => s.id === "patterns") as any).instruction}</Markdown>
+                      </div>
+                    )}
+
+                    {/* Key Questions */}
+                    {(steps.find(s => s.id === "patterns") as any)?.keyQuestions && (steps.find(s => s.id === "patterns") as any).keyQuestions.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-muted-foreground">Key Questions</h4>
+                        <ul className="space-y-1.5 list-disc list-inside">
+                          {(steps.find(s => s.id === "patterns") as any).keyQuestions.map((q: string, i: number) => (
+                            <li key={i} className="text-sm text-muted-foreground">{q}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
                     <Markdown className="text-sm text-muted-foreground italic">
                       {guidingQuestions.patterns}
                     </Markdown>
@@ -403,6 +595,26 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                       3. Draw Conclusions
                     </label>
+                    
+                    {/* Step Instructions */}
+                    {(steps.find(s => s.id === "conclusions") as any)?.instruction && (
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <Markdown>{(steps.find(s => s.id === "conclusions") as any).instruction}</Markdown>
+                      </div>
+                    )}
+
+                    {/* Key Questions */}
+                    {(steps.find(s => s.id === "conclusions") as any)?.keyQuestions && (steps.find(s => s.id === "conclusions") as any).keyQuestions.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-muted-foreground">Key Questions</h4>
+                        <ul className="space-y-1.5 list-disc list-inside">
+                          {(steps.find(s => s.id === "conclusions") as any).keyQuestions.map((q: string, i: number) => (
+                            <li key={i} className="text-sm text-muted-foreground">{q}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    
                     <Markdown className="text-sm text-muted-foreground italic">
                       {guidingQuestions.conclusions}
                     </Markdown>
@@ -499,6 +711,48 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+
+      {/* Lab Overview Dialog */}
+      <Dialog open={showLabOverview} onOpenChange={setShowLabOverview}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">{labTitle}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Overall lab instructions and overview
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {/* Lab Description */}
+            {description && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Description</h3>
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <Markdown>{description}</Markdown>
+                </div>
+              </div>
+            )}
+
+            {/* Dataset Info */}
+            {dataset && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Dataset Information</h3>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground leading-relaxed">Dataset: {dataset.name}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">Rows: {dataset.rows?.length || 0}</p>
+                  {availableVariables && availableVariables.length > 0 && (
+                    <p className="text-sm text-muted-foreground leading-relaxed">Variables: {availableVariables.join(', ')}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowLabOverview(false)} className="w-full sm:w-auto">
+              Got it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

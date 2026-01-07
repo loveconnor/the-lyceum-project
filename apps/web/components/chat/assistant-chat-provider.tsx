@@ -316,25 +316,60 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
           for (const part of parts) {
             if (!part.trim()) continue;
             
-            // Handle event messages
-            if (part.startsWith("event:")) {
-              const eventType = part.replace(/^event:\s*/, "").trim();
-              if (eventType === "end") break;
-              if (eventType === "error") continue;
-              continue;
+            const lines = part.split("\n");
+            let event = "";
+            let dataLines: string[] = [];
+
+            for (const line of lines) {
+              if (line.startsWith("event:")) {
+                event = line.replace(/^event:\s*/, "").trim();
+              } else if (line.startsWith("data:")) {
+                dataLines.push(line.replace(/^data:\s?/, ""));
+              }
             }
             
-            if (!part.startsWith("data:")) continue;
-            const payload = part.replace(/^data:\s*/, "").trim();
-            if (!payload || payload === "done" || payload === "[DONE]") continue;
+            const data = dataLines.join("\n");
+
+            if (event === "end") break;
+            if (event === "error") continue;
+            
+            if (event === "title") {
+              try {
+                let title = data;
+                if (title.startsWith('"') && title.endsWith('"')) {
+                   title = JSON.parse(title);
+                }
+                setConversations(prev => prev.map(c => 
+                  c.id === conversationId ? { ...c, title } : c
+                ));
+              } catch (e) {
+                console.error("Failed to parse title update", e);
+              }
+              continue;
+            }
+
+            let payload = data;
+            if (!payload && part.startsWith("data:")) {
+              const match = part.match(/^data: ?(.*)$/s);
+              if (match) payload = match[1];
+            }
+
+            if (!payload) continue;
+            if (payload === "done" || payload === "[DONE]") continue;
+
+            try {
+              if (payload.startsWith('"') && payload.endsWith('"')) {
+                 payload = JSON.parse(payload);
+              }
+            } catch (e) {
+              // ignore
+            }
 
             if (!hasStarted) {
               hasStarted = true;
-              // add assistant placeholder when first chunk arrives
               setMessages((prev) => [...prev, { id: tempAssistantId, role: "assistant", content: "" }]);
             }
 
-            // Backend sends raw text chunks, not JSON
             assistantText += payload;
             setMessages((prev) =>
               prev.map((m) =>

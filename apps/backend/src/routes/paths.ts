@@ -461,13 +461,13 @@ router.post("/generate", async (req: Request, res: Response) => {
                 type: 'status', 
                 message: `✅ Found match: "${bestMatch.book.title}" (matched: ${bestMatch.matchedTerms.join(', ')})`
               })}\n\n`);
-              res.write(`data: ${JSON.stringify({ type: 'status', message: '💾 Loading source into registry...' })}\n\n`);
+              res.write(`data: ${JSON.stringify({ type: 'status', message: 'Loading source into registry...' })}\n\n`);
             }
             
             asset = await dynamicFetcher.getOrCreateAsset(bestMatch.book);
             
             if (stream) {
-              res.write(`data: ${JSON.stringify({ type: 'status', message: '📖 Fetching table of contents...' })}\n\n`);
+              res.write(`data: ${JSON.stringify({ type: 'status', message: 'Fetching table of contents...' })}\n\n`);
             }
             
             tocSummaries = await dynamicFetcher.getTocSummaries(asset);
@@ -482,7 +482,7 @@ router.post("/generate", async (req: Request, res: Response) => {
           } else {
             const bestScore = searchResults[0]?.score || 0;
             const bestTitle = searchResults[0]?.book?.title || 'none';
-            console.log(`[Generate] ⚠️ No good OpenStax match. Best: "${bestTitle}" (score: ${bestScore}, need: ${MIN_MATCH_SCORE})`);
+            console.log(`[Generate] No good OpenStax match. Best: "${bestTitle}" (score: ${bestScore}, need: ${MIN_MATCH_SCORE})`);
             
             // ============================================
             // TRY MIT OCW NEXT
@@ -1164,7 +1164,7 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
             url: bestMatch.book.url
           }
         })}\n\n`);
-        res.write(`data: ${JSON.stringify({ type: 'status', message: '📖 Fetching table of contents from OpenStax...' })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'status', message: 'Fetching table of contents from OpenStax...' })}\n\n`);
       }
       
       // Get TOC (will fetch from OpenStax if not cached)

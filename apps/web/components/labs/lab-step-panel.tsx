@@ -21,6 +21,7 @@ interface LabStepPanelProps {
   defaultSize?: number;
   minSize?: number;
   maxSize?: number;
+  labOverview?: React.ReactNode;
 }
 
 export function LabStepPanel({
@@ -31,6 +32,7 @@ export function LabStepPanel({
   defaultSize = 20,
   minSize = 15,
   maxSize = 25,
+  labOverview,
 }: LabStepPanelProps) {
   return (
     <ResizablePanel 
@@ -41,6 +43,13 @@ export function LabStepPanel({
     >
       <ScrollArea className="h-full w-full">
         <div className="p-4 space-y-3">
+            {/* Lab Overview Button */}
+            {labOverview && (
+              <div className="pb-2">
+                {labOverview}
+              </div>
+            )}
+
             {steps.map((step, index) => {
               const isAccessible = accessedSteps 
                 ? (step.status === "completed" || step.status === "current" || accessedSteps.has(step.id))

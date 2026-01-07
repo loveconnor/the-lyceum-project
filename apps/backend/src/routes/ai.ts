@@ -428,7 +428,7 @@ aiRouter.post('/assistant/chat', async (req, res) => {
 
         for await (const chunk of generator) {
           full += chunk;
-          res.write(`data: ${chunk}\n\n`);
+          res.write(`data: ${JSON.stringify(chunk)}\n\n`);
         }
 
         await appendAssistantMessages(
@@ -443,9 +443,16 @@ aiRouter.post('/assistant/chat', async (req, res) => {
 
         // Generate title for new conversations after first exchange
         if (isFirstMessage || !conversation.title || conversation.title === 'New chat' || conversation.title === 'Untitled chat') {
-          const title = await generateChatTitle(userMessage, full);
+          // Wait to reduce rate limit issues
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          let title = await generateChatTitle(userMessage, full);
+          
           if (title && title !== 'New chat' && title !== 'Untitled chat') {
             await updateConversationTitle(conversation.id, userId, title);
+            res.write(`event: title\ndata: ${JSON.stringify(title)}\n\n`);
+          } else {
+             console.log("Failed to generate title, title was:", title);
           }
         }
 

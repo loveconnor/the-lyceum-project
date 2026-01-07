@@ -1320,7 +1320,7 @@ const ExamplesView = ({
     if (conceptsComplete && exercisesComplete && !isExamplesComplete) {
       setIsExamplesComplete(true);
     }
-  }, [viewedConcepts.size, keyConcepts.length, viewedExercises.size, practicalExercises.length, isExamplesComplete, setIsExamplesComplete]);
+  }, [viewedConcepts.size, keyConcepts.length, completedExercises.size, practicalExercises.length, isExamplesComplete, setIsExamplesComplete]);
 
   // Empty state
   if ((!keyConcepts || keyConcepts.length === 0) && (!practicalExercises || practicalExercises.length === 0)) {

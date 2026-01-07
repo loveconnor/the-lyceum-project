@@ -167,6 +167,9 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
   const [stepResponses, setStepResponses] = useState<Record<string, string>>({});
   const [accessedSteps, setAccessedSteps] = useState<Set<string>>(new Set());
   
+  // Track completed code for each step
+  const [completedStepCode, setCompletedStepCode] = useState<Record<string, string>>({});
+  
   // AI feedback state
   const [stepFeedback, setStepFeedback] = useState<Record<string, { text: string; approved: boolean; correctIds?: string[]; incorrectIds?: string[] }>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -174,6 +177,7 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
   const currentStepRef = React.useRef<HTMLButtonElement>(null);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [hasShownCompletionModal, setHasShownCompletionModal] = useState(false);
+  const [showLabOverview, setShowLabOverview] = useState(false);
   
   // Get file extension based on language
   const getFileExtension = () => {
@@ -190,6 +194,165 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
       ruby: 'rb'
     };
     return extensions[detectedLanguage] || 'java';
+  };
+  
+  // Extract method implementation from code for a specific step
+  const extractMethodFromCode = (fullCode: string, stepId: string): string => {
+    const stepData = aiSteps?.find(s => s.id === stepId);
+    if (!stepData || !(stepData as any).skeletonCode) return fullCode;
+    
+    // Get the method signature from skeleton to identify what to extract
+    const skeleton = (stepData as any).skeletonCode;
+    const lines = skeleton.split('\n');
+    const signatureLine = lines.find((l: string) => l.includes('(') && (l.includes('public') || l.includes('private') || l.includes('protected')));
+    
+    if (!signatureLine) return fullCode;
+    
+    // Extract method name from signature (e.g., "getSign" from "public static String getSign(int n)")
+    const methodNameMatch = signatureLine.match(/\s+(\w+)\s*\(/);
+    if (!methodNameMatch) return fullCode;
+    
+    const methodName = methodNameMatch[1];
+    
+    // Find and extract this method from the full code
+    const codeLines = fullCode.split('\n');
+    
+    // Skip any class declarations or braces before the method
+    let methodStartIndex = -1;
+    for (let i = 0; i < codeLines.length; i++) {
+      const line = codeLines[i].trim();
+      // Skip class declarations and opening braces
+      if (line.startsWith('public class') || line.startsWith('class ') || line === '{' || line === '') {
+        continue;
+      }
+      // Found the method signature
+      if (line.includes(methodName) && line.includes('(') && 
+          (line.includes('public') || line.includes('private') || line.includes('protected'))) {
+        methodStartIndex = i;
+        break;
+      }
+    }
+    
+    if (methodStartIndex === -1) return fullCode;
+    
+    // Find the closing brace of this method
+    let braceCount = 0;
+    let methodEndIndex = methodStartIndex;
+    let foundOpenBrace = false;
+    let inMethod = false;
+    
+    for (let i = methodStartIndex; i < codeLines.length; i++) {
+      const line = codeLines[i];
+      
+      for (const char of line) {
+        if (char === '{') {
+          braceCount++;
+          foundOpenBrace = true;
+          inMethod = true;
+        } else if (char === '}') {
+          braceCount--;
+          if (inMethod && braceCount === 0) {
+            methodEndIndex = i;
+            break;
+          }
+        }
+      }
+      
+      // Exit as soon as we found the method's closing brace
+      if (inMethod && braceCount === 0) {
+        break;
+      }
+    }
+    
+    // Extract just the method with proper indentation
+    const methodLines = codeLines.slice(methodStartIndex, methodEndIndex + 1);
+    
+    // Filter out any class closing braces or class declarations
+    const cleanedLines = methodLines.filter(line => {
+      const trimmed = line.trim();
+      // Skip class declarations and standalone closing braces that might be class endings
+      if (trimmed.startsWith('public class') || trimmed.startsWith('class ')) {
+        return false;
+      }
+      return true;
+    });
+    
+    // Ensure proper indentation (add 2 spaces if not already indented)
+    return cleanedLines.map(line => {
+      if (line.trim() === '') return '';
+      // If line doesn't start with whitespace, add indentation
+      if (line[0] !== ' ' && line[0] !== '\t') {
+        return '  ' + line;
+      }
+      return line;
+    }).join('\n');
+  };
+  
+  // Compose code from completed steps + current step skeleton
+  const getComposedCode = () => {
+    const currentStepIndex = steps.findIndex(s => s.status === "current");
+    if (currentStepIndex === -1) return code;
+    
+    // Don't use skeleton code composition if we don't have AI steps
+    if (!aiSteps || aiSteps.length === 0) return code;
+    
+    // Get initialCode structure (imports and class declaration)
+    const lines = initialCode.split('\n');
+    const classStart = lines.findIndex(line => {
+      const trimmed = line.trim();
+      return trimmed.startsWith('public class') || trimmed.startsWith('class ');
+    });
+    
+    // Build code from completed steps
+    let composedLines: string[] = [];
+    
+    // Add any imports and class header (only once!)
+    if (classStart >= 0) {
+      // Get everything up to and including the class declaration
+      const headerLines = lines.slice(0, classStart + 1);
+      composedLines.push(...headerLines);
+      composedLines.push(''); // Empty line after class declaration
+    }
+    
+    // Add completed code from previous steps (just the methods)
+    for (let i = 0; i < currentStepIndex; i++) {
+      const stepId = steps[i].id;
+      if (completedStepCode[stepId]) {
+        composedLines.push(completedStepCode[stepId]);
+        composedLines.push(''); // Empty line between methods
+      }
+    }
+    
+    // Add skeleton or saved code for current step
+    const currentStep = steps[currentStepIndex];
+    
+    // Check if we already have completed code for this step
+    if (completedStepCode[currentStep.id]) {
+      composedLines.push(completedStepCode[currentStep.id]);
+      composedLines.push(''); // Empty line after method
+    } else {
+      const currentStepData = aiSteps?.find(s => s.id === currentStep.id);
+      if (currentStepData && (currentStepData as any).skeletonCode) {
+        const skeletonCode = (currentStepData as any).skeletonCode;
+        // Ensure skeleton has proper indentation
+        const skeletonLines = skeletonCode.split('\n').map((line: string) => {
+          if (line.trim() === '') return '';
+          if (line[0] !== ' ' && line[0] !== '\t') {
+            return '  ' + line;
+          }
+          return line;
+        });
+        composedLines.push(skeletonLines.join('\n'));
+        composedLines.push(''); // Empty line after skeleton
+      }
+    }
+    
+    // Close class
+    if (classStart >= 0) {
+      composedLines.push('}');
+    }
+    
+    return composedLines.join('\n');
   };
   
   // Explanation step fields
@@ -290,6 +453,9 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
             if (mostRecent.step_data.output) {
               setOutput(mostRecent.step_data.output);
             }
+            if (mostRecent.step_data.completedStepCode) {
+              setCompletedStepCode(mostRecent.step_data.completedStepCode);
+            }
           }
 
           // Restore step completion status
@@ -311,6 +477,12 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
             const firstIncomplete = newSteps.findIndex(s => s.status !== "completed");
             if (firstIncomplete !== -1) {
               newSteps[firstIncomplete] = { ...newSteps[firstIncomplete], status: "current" as const };
+            } else {
+              // All steps are completed - show completion modal if not already shown
+              if (!hasShownCompletionModal) {
+                setTimeout(() => setShowCompletionModal(true), 500);
+                setHasShownCompletionModal(true);
+              }
             }
             
             return newSteps;
@@ -592,7 +764,8 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
           code,
           testResults,
           output,
-          feedback: stepFeedback[stepId]
+          feedback: stepFeedback[stepId],
+          completedStepCode // Save completed code for each step
         },
         completed
       });
@@ -601,7 +774,29 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
     }
   };
 
+  const markLabComplete = async () => {
+    if (!labId) return;
+    
+    try {
+      const { updateLab } = await import("@/lib/api/labs");
+      await updateLab(labId, {
+        status: 'completed',
+        completed_at: new Date().toISOString()
+      });
+      console.log('Lab marked as complete:', labId);
+    } catch (error) {
+      console.error("Failed to mark lab as complete:", error);
+    }
+  };
+
   const completeStep = async (id: string, skipTestDebug: boolean = false) => {
+    // Extract and save just the method implementation for this step
+    const methodCode = extractMethodFromCode(code, id);
+    setCompletedStepCode(prev => ({
+      ...prev,
+      [id]: methodCode
+    }));
+    
     // Save progress before completing
     await saveProgress(id, true);
     
@@ -631,6 +826,7 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
         if (nextIndex < newSteps.length) {
           newSteps[nextIndex] = { ...newSteps[nextIndex], status: "current" };
         }
+        // If no next step, all are completed - we'll handle showing the last step later
         
         resolve(newSteps);
         return newSteps;
@@ -643,8 +839,11 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
     console.log('Updated steps:', updatedSteps.map(s => ({ id: s.id, status: s.status })));
     console.log('All completed?', allCompleted);
     
-    if (allCompleted) {
+    if (allCompleted && !hasShownCompletionModal) {
       console.log('Triggering completion modal...');
+      setHasShownCompletionModal(true);
+      // Mark the lab as complete in the database
+      await markLabComplete();
       setTimeout(() => setShowCompletionModal(true), 500);
     }
   };
@@ -762,6 +961,16 @@ Approve if they show reasonable understanding or selected the correct option. If
     const canNavigate = step.status === "completed" || step.status === "current" || accessedSteps.has(id);
     if (!canNavigate) return;
     
+    // Save current method code for the current step before switching
+    const currentStepBefore = steps.find(s => s.status === "current");
+    if (currentStepBefore && code !== getComposedCode()) {
+      const methodCode = extractMethodFromCode(code, currentStepBefore.id);
+      setCompletedStepCode(prev => ({
+        ...prev,
+        [currentStepBefore.id]: methodCode
+      }));
+    }
+    
     setSteps(prev => prev.map((s, idx) => {
       // Set clicked step as current
       if (idx === stepIndex) {
@@ -779,6 +988,28 @@ Approve if they show reasonable understanding or selected the correct option. If
   };
 
   const currentStep = steps.find(s => s.status === "current") || steps[steps.length - 1];
+  
+  // Update code when step changes to show composed code (completed steps + current skeleton)
+  // But only if we're using AI-generated steps with skeleton code
+  React.useEffect(() => {
+    if (isLoadingProgress) return; // Wait for progress to finish loading
+    
+    // Don't recompose if all steps are completed - keep the final code as is
+    const allCompleted = steps.length > 0 && steps.every(s => s.status === "completed");
+    if (allCompleted) return;
+    
+    if (currentStep && aiSteps && aiSteps.length > 0) {
+      // Check if current step has skeleton code defined
+      const currentStepData = aiSteps.find(s => s.id === currentStep.id);
+      const hasSkeletonCode = currentStepData && (currentStepData as any).skeletonCode;
+      
+      // Only compose if we have skeleton code structure
+      if (hasSkeletonCode) {
+        const composed = getComposedCode();
+        setCode(composed);
+      }
+    }
+  }, [currentStep?.id, completedStepCode, isLoadingProgress, steps]);
   
   // Determine if code editor should be read-only
   // Only allow editing during "implement" type steps or steps without text input requirements
@@ -806,6 +1037,17 @@ Approve if they show reasonable understanding or selected the correct option. If
           accessedSteps={accessedSteps}
           currentStepRef={currentStepRef}
           onStepClick={goToStep}
+          labOverview={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowLabOverview(true)}
+              className="w-full justify-start gap-2 text-xs"
+            >
+              <Info className="h-3.5 w-3.5" />
+              Lab Overview
+            </Button>
+          }
         />
 
         <ResizableHandle withHandle />
@@ -814,22 +1056,32 @@ Approve if they show reasonable understanding or selected the correct option. If
         <ResizablePanel defaultSize={75} minSize={40}>
           {hasCodeEditor ? (
             <ResizablePanelGroup direction="horizontal">
-              {/* Instructions Section */}
+              {/* Step Instructions Section */}
               <ResizablePanel defaultSize={40} minSize={20}>
-                <ScrollArea className="h-full w-full">
-                  <div className="p-6 max-w-4xl mx-auto w-full space-y-6">
-                    {/* Problem Statement */}
-                    {data.problemStatement && data.problemStatement !== "No problem statement provided." && (
-                      <div className="space-y-3">
-                        <div className="text-lg font-serif leading-relaxed">
-                          <Markdown>{convertNewlines(data.problemStatement)}</Markdown>
-                        </div>
-                      </div>
-                    )}
-
+                <div className="h-full w-full overflow-y-auto overflow-x-auto">
+                  <div className="p-6 space-y-6">
                     {/* Dynamic Widget Rendering (Non-code) */}
                     {currentStep && (
                       <div className="space-y-6 pb-4">
+                        {/* Step Instructions */}
+                        {currentStep.instruction && (
+                          <div className="prose prose-sm dark:prose-invert max-w-none">
+                            <Markdown>{currentStep.instruction}</Markdown>
+                          </div>
+                        )}
+
+                        {/* Key Questions */}
+                        {currentStep.keyQuestions && currentStep.keyQuestions.length > 0 && (
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-semibold text-muted-foreground">Key Questions</h4>
+                            <ul className="space-y-1.5 list-disc list-inside">
+                              {currentStep.keyQuestions.map((q, i) => (
+                                <li key={i} className="text-sm text-muted-foreground">{q}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
                         {currentStep.widgets ? (
                           <div className="space-y-6">
                             {currentStep.widgets.filter(w => w.type !== "code-editor").map((widget, idx) => {
@@ -941,7 +1193,7 @@ Approve if they show reasonable understanding or selected the correct option. If
                       </div>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
               </ResizablePanel>
 
               <ResizableHandle withHandle />
@@ -1045,16 +1297,6 @@ Approve if they show reasonable understanding or selected the correct option. If
             /* No Editor Layout */
             <ScrollArea className="h-full w-full">
               <div className="p-8 max-w-4xl mx-auto w-full space-y-8">
-                {/* Problem Statement */}
-                <div className="space-y-4">
-                  <Badge variant="outline" className="px-2 py-0.5 text-[10px] uppercase tracking-widest font-bold">
-                    Problem Statement
-                  </Badge>
-                  <div className="text-xl font-serif leading-relaxed">
-                    <Markdown>{convertNewlines(data.problemStatement || description || "No problem statement provided.")}</Markdown>
-                  </div>
-                </div>
-
                 {/* Reference Code */}
                 <div className="space-y-4">
                   <div className="rounded-lg overflow-hidden border bg-[#1e1e1e]">
@@ -1097,6 +1339,25 @@ Approve if they show reasonable understanding or selected the correct option. If
                         <Markdown>{currentStep.title}</Markdown>
                       </h3>
                     </div>
+
+                    {/* Step Instructions */}
+                    {currentStep.instruction && (
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <Markdown>{currentStep.instruction}</Markdown>
+                      </div>
+                    )}
+
+                    {/* Key Questions */}
+                    {currentStep.keyQuestions && currentStep.keyQuestions.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold text-muted-foreground">Key Questions</h4>
+                        <ul className="space-y-1.5 list-disc list-inside">
+                          {currentStep.keyQuestions.map((q, i) => (
+                            <li key={i} className="text-sm text-muted-foreground">{q}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
 
                     {currentStep.widgets ? (
                       <div className="space-y-8">
@@ -1232,7 +1493,9 @@ Approve if they show reasonable understanding or selected the correct option. If
           </DialogHeader>
           <DialogFooter className="flex-col gap-2 sm:flex-col">
             <Button 
-              onClick={() => {
+              onClick={async () => {
+                // Ensure lab is marked complete before navigating
+                await markLabComplete();
                 setShowCompletionModal(false);
                 if (moduleContext?.onComplete) {
                   moduleContext.onComplete();
@@ -1250,6 +1513,61 @@ Approve if they show reasonable understanding or selected the correct option. If
               className="w-full"
             >
               Review Lab
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lab Overview Dialog */}
+      <Dialog open={showLabOverview} onOpenChange={setShowLabOverview}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">{labTitle}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Overall lab instructions and problem statement
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {/* Lab Description */}
+            {description && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Description</h3>
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <Markdown>{convertNewlines(description)}</Markdown>
+                </div>
+              </div>
+            )}
+
+            {/* Problem Statement */}
+            {data.problemStatement && data.problemStatement !== "No problem statement provided." && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Problem Statement</h3>
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <Markdown>{convertNewlines(data.problemStatement)}</Markdown>
+                </div>
+              </div>
+            )}
+
+            {/* Hints if available */}
+            {hints && hints.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Available Hints</h3>
+                <div className="space-y-3">
+                  {hints.map((hintItem, idx) => (
+                    <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+                      <Lightbulb className="h-4 w-4 mt-0.5 shrink-0 text-amber-500" />
+                      <div className="flex-1 text-sm leading-relaxed">
+                        {typeof hintItem === 'string' ? hintItem : hintItem.hint}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowLabOverview(false)} className="w-full sm:w-auto">
+              Got it
             </Button>
           </DialogFooter>
         </DialogContent>
