@@ -5,11 +5,15 @@ import * as d3 from 'd3';
 import { useTheme } from 'next-themes';
 
 // Math function evaluator - safely evaluates mathematical expressions
-const evaluateMathFunction = (expression: string, x: number): number | null => {
+const evaluateMathFunction = (expression: string, x: number, parameters: Record<string, number> = {}): number | null => {
   try {
     // Create safe math context
     const mathContext = {
       x,
+      t: x, // Allow 't' as an alias for 'x' (time based functions)
+      T: x, 
+      time: x,
+      ...parameters, // Include custom parameters (a, v0, etc.)
       Math,
       sin: Math.sin,
       cos: Math.cos,
@@ -59,14 +63,15 @@ const generateFunctionData = (
   expression: string, 
   xMin: number, 
   xMax: number, 
-  numPoints: number = 200
+  numPoints: number = 200,
+  parameters: Record<string, number> = {}
 ): Array<{ x: number; y: number }> => {
   const data: Array<{ x: number; y: number }> = [];
   const step = (xMax - xMin) / (numPoints - 1);
   
   for (let i = 0; i < numPoints; i++) {
     const x = xMin + i * step;
-    const y = evaluateMathFunction(expression, x);
+    const y = evaluateMathFunction(expression, x, parameters);
     if (y !== null) {
       data.push({ x, y });
     }
@@ -135,13 +140,15 @@ export function D3Chart({ options, height }: D3ChartProps) {
       const xMin = firstFunctionSeries.xMin ?? -10;
       const xMax = firstFunctionSeries.xMax ?? 10;
       const numPoints = firstFunctionSeries.numPoints ?? 200;
-      
+      const parameters = options.parameters || {}; // Extract parameters from options
+
       // Generate combined data from all function series
       const functionData = generateFunctionData(
         firstFunctionSeries.function || 'x',
         xMin,
         xMax,
-        numPoints
+        numPoints,
+        parameters
       );
       
       // Use generated data if no data was provided

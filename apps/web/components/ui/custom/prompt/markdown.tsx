@@ -193,7 +193,15 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
     const charts3d: Chart3DWidgetData[][] = [];
     // Ensure we always work with a string to avoid runtime errors
     const sourceText = typeof children === 'string' ? children : (children == null ? '' : String(children));
-    let processedText = sourceText;
+    
+    // Fix common AI LaTeX typos
+    // 1. Fix \cdotps -> \cdot\,\mathrm{ps} (common unit notation error)
+    // 2. Fix \cdotp (invalid command) -> \cdot
+    // 3. Fix \cdot followed by letter without space
+    let processedText = sourceText
+      .replace(/\\cdotps/g, '\\cdot\\,\\mathrm{ps}')  // Fix common unit typo
+      .replace(/\\cdotp/g, '\\cdot')                    // Remove invalid 'p'
+      .replace(/\\cdot([a-zA-Z])/g, '\\cdot\\,\\mathrm{$1}'); // Fix \cdot + letter
 
     // Process Visual tags
     let match;
@@ -202,7 +210,7 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
     // Reset the regex
     visualTagPattern.lastIndex = 0;
     
-    while ((match = visualTagPattern.exec(children)) !== null) {
+    while ((match = visualTagPattern.exec(processedText)) !== null) {
       try {
         const trimmedContent = match[1].trim();
         let visualData: ReactFlowWidgetData[];
@@ -345,8 +353,27 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
       // Check if this paragraph contains only a visual marker
       const childrenArray = React.Children.toArray(children);
       
-      if (childrenArray.length === 1 && typeof childrenArray[0] === 'string') {
-        const text = childrenArray[0].trim();
+      // Helper to check if text content matches marker pattern
+      const isCompleteMarker = (text: string, pattern: RegExp) => {
+        const trimmed = text.trim();
+        return pattern.test(trimmed);
+      };
+
+      // Extract text content from children
+      const textContent = childrenArray
+        .map(child => {
+          if (typeof child === 'string') return child;
+          if (typeof child === 'number') return String(child);
+          // Handle case where ReactMarkdown wraps text in other elements
+          if (React.isValidElement(child) && child.props.children) {
+             return React.Children.toArray(child.props.children).join('');
+          }
+          return '';
+        })
+        .join('');
+
+      if (textContent) {
+        const text = textContent.trim();
         
         // Check for ReactFlow visual marker
         const visualMatch = text.match(/^\[REACTFLOW_VISUAL_(\d+)\]$/);
@@ -356,10 +383,10 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
           
           if (visualData) {
             return (
-              <div className="my-6 not-prose w-full">
+              <div className="my-6 not-prose w-full h-[500px]">
                 <ReactFlowWidget
                   visuals={visualData}
-                  height="500px"
+                  height="100%"
                   showNavigation={true}
                   showSidebar={false}
                   variant="card"
@@ -377,10 +404,10 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
           
           if (chartData) {
             return (
-              <div className="my-6 not-prose w-full">
+              <div className="my-6 not-prose w-full h-[450px]">
                 <ChartWidget
                   charts={chartData}
-                  height="350px"
+                  height="100%"
                   showNavigation={true}
                   showSidebar={false}
                   variant="card"
@@ -398,10 +425,10 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
           
           if (chart3dData) {
             return (
-              <div className="my-6 not-prose w-full">
+              <div className="my-6 not-prose w-full h-[600px]">
                 <Chart3DWidget
                   charts={chart3dData}
-                  height="600px"
+                  height="100%"
                   showNavigation={true}
                   showSidebar={false}
                   variant="card"
