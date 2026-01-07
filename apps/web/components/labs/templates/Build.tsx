@@ -178,6 +178,7 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [hasShownCompletionModal, setHasShownCompletionModal] = useState(false);
   const [showLabOverview, setShowLabOverview] = useState(false);
+  const [hasLoadedProgress, setHasLoadedProgress] = useState(false);
   
   // Get file extension based on language
   const getFileExtension = () => {
@@ -420,6 +421,7 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
         const progress = await fetchLabProgress(labId);
         
         if (progress && progress.length > 0) {
+          setHasLoadedProgress(true);
           // Restore step feedback from all progress entries
           const feedbackMap: Record<string, any> = {};
           progress.forEach((p: any) => {
@@ -487,6 +489,10 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
             
             return newSteps;
           });
+        } else {
+          // No progress found - this is first time visiting the lab
+          // Show the lab overview modal after a brief delay
+          setTimeout(() => setShowLabOverview(true), 300);
         }
       } catch (error) {
         console.error("Failed to load progress:", error);
@@ -1520,7 +1526,7 @@ Approve if they show reasonable understanding or selected the correct option. If
 
       {/* Lab Overview Dialog */}
       <Dialog open={showLabOverview} onOpenChange={setShowLabOverview}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl">{labTitle}</DialogTitle>
             <DialogDescription className="sr-only">

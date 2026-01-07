@@ -149,7 +149,7 @@ router.post("/generate", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Learning goal is required" });
     }
 
-    // If path_id is provided, fetch path details to include as context
+    // If path_id is provided, fetch path details and previous modules to include as context
     let enrichedContext = context || '';
     if (path_id) {
       const supabase = getSupabaseAdmin();
@@ -161,10 +161,43 @@ router.post("/generate", async (req: Request, res: Response) => {
         .single();
       
       if (pathData && !pathError) {
+        // Fetch all modules in the path to understand what content has been covered
+        const { data: pathItems, error: itemsError } = await supabase
+          .from('learning_path_items')
+          .select('title, description, order_index, item_type, content_data, status')
+          .eq('path_id', path_id)
+          .order('order_index', { ascending: true });
+        
+        // Build context about covered content
+        let coveredTopicsContext = '';
+        if (pathItems && !itemsError && pathItems.length > 0) {
+          const completedModules = pathItems.filter((item: any) => 
+            item.item_type === 'module' && item.status === 'completed' && item.content_data
+          );
+          
+          if (completedModules.length > 0) {
+            const topicsSummary: string[] = [];
+            completedModules.forEach((module: any) => {
+              const content = module.content_data;
+              // Extract key concepts and learning objectives
+              if (content.learning_objectives) {
+                topicsSummary.push(`Module "${module.title}": ${content.learning_objectives.join(', ')}`);
+              } else if (content.key_concepts) {
+                const concepts = content.key_concepts.map((kc: any) => kc.concept || kc).join(', ');
+                topicsSummary.push(`Module "${module.title}": ${concepts}`);
+              } else {
+                topicsSummary.push(`Module "${module.title}": ${module.description || ''}`);
+              }
+            });
+            
+            coveredTopicsContext = `\n\nCONCEPTS COVERED IN PREVIOUS MODULES (you MUST only use concepts from this list):\n${topicsSummary.join('\n')}\n\nIMPORTANT: Only create labs that use concepts, techniques, and knowledge from the modules listed above. Do not introduce new concepts or assume knowledge of topics not yet covered in this learning path.`;
+          }
+        }
+        
         // Prepend path context to any existing context
-        const pathContext = `This lab is part of the learning path "${pathData.title}"${pathData.description ? `: ${pathData.description}` : ''}${pathData.topics?.length ? `. Path topics: ${pathData.topics.join(', ')}` : ''}${pathData.difficulty ? `. Difficulty level: ${pathData.difficulty}` : ''}. Please ensure the lab aligns with the path's subject matter, programming language, and difficulty level.`;
+        const pathContext = `This lab is part of the learning path "${pathData.title}"${pathData.description ? `: ${pathData.description}` : ''}${pathData.topics?.length ? `. Path topics: ${pathData.topics.join(', ')}` : ''}${pathData.difficulty ? `. Difficulty level: ${pathData.difficulty}` : ''}. Please ensure the lab aligns with the path's subject matter, programming language, and difficulty level.${coveredTopicsContext}`;
         enrichedContext = enrichedContext ? `${pathContext}\n\n${enrichedContext}` : pathContext;
-        console.log('Enriched lab context with path information:', pathContext);
+        console.log('Enriched lab context with path and covered topics:', pathContext);
       } else if (pathError) {
         console.warn('Failed to fetch path context:', pathError);
       }

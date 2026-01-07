@@ -161,8 +161,9 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
             }
             
             return newSteps;
-          });
-        }
+          });        } else {
+          // No progress - show lab overview on first visit
+          setTimeout(() => setShowLabOverview(true), 300);        }
       } catch (error) {
         console.error("Failed to load progress:", error);
       } finally {
@@ -714,7 +715,7 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
 
       {/* Lab Overview Dialog */}
       <Dialog open={showLabOverview} onOpenChange={setShowLabOverview}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl">{labTitle}</DialogTitle>
             <DialogDescription className="sr-only">

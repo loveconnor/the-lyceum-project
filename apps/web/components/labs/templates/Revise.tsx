@@ -109,6 +109,7 @@ export default function ReviseTemplate({ data, labId, moduleContext }: ReviseTem
   const [stepFeedback, setStepFeedback] = useState<Record<string, { text: string; approved: boolean; correctIds?: string[]; incorrectIds?: string[] }>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLabOverview, setShowLabOverview] = useState(false);
+  const [hasLoadedProgress, setHasLoadedProgress] = useState(false);
   const { getAssistance, loading: aiLoading } = labId ? useLabAI(labId) : { getAssistance: null, loading: false };
   
   const currentStep = steps.find(s => s.status === "current");
@@ -127,6 +128,7 @@ export default function ReviseTemplate({ data, labId, moduleContext }: ReviseTem
         const progress = await fetchLabProgress(labId);
         
         if (progress && progress.length > 0) {
+          setHasLoadedProgress(true);
           // Restore widget responses from saved progress
           const savedResponses: any = {};
           progress.forEach((p: any) => {
@@ -681,7 +683,7 @@ Approve if they show reasonable effort and understanding. If not approved, expla
 
       {/* Lab Overview Dialog */}
       <Dialog open={showLabOverview} onOpenChange={setShowLabOverview}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl">{labTitle}</DialogTitle>
             <DialogDescription className="sr-only">

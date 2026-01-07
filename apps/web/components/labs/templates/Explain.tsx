@@ -99,6 +99,7 @@ export default function ExplainTemplate({ data, labId, moduleContext }: ExplainT
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showLabOverview, setShowLabOverview] = useState(false);
+  const [hasLoadedProgress, setHasLoadedProgress] = useState(false);
   const { getAssistance, loading: aiLoading } = labId ? useLabAI(labId) : { getAssistance: null, loading: false };
 
   // Dynamic explanations object based on step IDs
@@ -135,6 +136,7 @@ export default function ExplainTemplate({ data, labId, moduleContext }: ExplainT
         const progress = await fetchLabProgress(labId);
         
         if (progress && progress.length > 0) {
+          setHasLoadedProgress(true);
           // Restore explanations from saved progress
           const savedExplanations: any = {};
           progress.forEach((p: any) => {
@@ -166,6 +168,9 @@ export default function ExplainTemplate({ data, labId, moduleContext }: ExplainT
               return newSteps;
             });
           }
+        } else {
+          // No progress - show lab overview on first visit
+          setTimeout(() => setShowLabOverview(true), 300);
         }
       } catch (error) {
         console.error("Failed to load progress:", error);
@@ -498,7 +503,7 @@ Approve if they show reasonable understanding. If not approved, explain what's m
 
       {/* Lab Overview Dialog */}
       <Dialog open={showLabOverview} onOpenChange={setShowLabOverview}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl">{labTitle}</DialogTitle>
             <DialogDescription className="sr-only">

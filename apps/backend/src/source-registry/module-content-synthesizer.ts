@@ -68,13 +68,13 @@ OUTPUT FORMAT - Respond with JSON only:
         {
           "question": "Question testing understanding of source content",
           "options": [
-            { "id": "A", "text": "Option A" },
+            { "id": "A", "text": "Option A - use markdown for code with single or triple backticks" },
             { "id": "B", "text": "Option B" },
             { "id": "C", "text": "Option C" },
             { "id": "D", "text": "Option D" }
           ],
           "correct": "B",
-          "explanation": "Why this is correct based on the source"
+          "explanation": "Why this is correct based on the source (can also use markdown/code formatting)"
         }
       ]
     }
