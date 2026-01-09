@@ -29,6 +29,10 @@ const chartConfig = {
     label: "Paths Started",
     color: "var(--chart-4)"
   },
+  chat_active: {
+    label: "Chats Created",
+    color: "var(--chart-5)"
+  },
   none: {
     label: "No activity yet",
     color: "var(--chart-1)"

@@ -291,15 +291,15 @@ Respond with JSON only in this structure:
         "content": "READING CONTENT ONLY. Rich markdown with headings, bullet points, code examples if relevant, and clear explanations. 3-5 paragraphs of EDUCATIONAL READING. Do NOT include any quiz questions, 'Quick Check', 'Practice Activity', 'Quiz', or any interactive elements here - those go ONLY in the quizzes array below.",
         "quizzes": [
           {
-            "question": "Clear, specific question testing understanding (wrap any math in $ like: What is $x^2 + y^2$?)",
+            "question": "Clear, specific question testing understanding (wrap any math in $ like: What is $x^2 + y^2$? - for code, use markdown code blocks)",
             "options": [
-              { "id": "A", "text": "Option A text (if math: $\\\\mathbf{v} = (3, 4)$)" },
+              { "id": "A", "text": "Option A text (if math: $\\\\mathbf{v} = (3, 4)$ - if code: use backtick for inline or triple-backtick for blocks)" },
               { "id": "B", "text": "Option B text (if math: $x = 3 + 4i$)" },
               { "id": "C", "text": "Option C text" },
               { "id": "D", "text": "Option D text" }
             ],
             "correct": "B",
-            "explanation": "Brief explanation of why this is correct (wrap math in $ as well)"
+            "explanation": "Brief explanation of why this is correct (wrap math in $ and code in backticks as well)"
           }
         ]
       }

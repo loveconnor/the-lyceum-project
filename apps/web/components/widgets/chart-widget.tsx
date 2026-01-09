@@ -131,27 +131,27 @@ export function ChartWidget({
   const currentChart = charts[currentChartIndex];
 
   const chartContent = (
-    <div className="space-y-3">
+    <div className="flex flex-col h-full gap-3 overflow-hidden">
       {/* Header */}
-      <div>
-        <h3 className="text-lg font-semibold mb-1">{currentChart.title}</h3>
+      <div className="shrink-0">
+        <h3 className="text-lg font-semibold mb-1 truncate">{currentChart.title}</h3>
         {currentChart.description && (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-sm text-muted-foreground line-clamp-2">
             <Markdown>{currentChart.description}</Markdown>
           </div>
         )}
       </div>
 
       {/* D3 Visualization */}
-      <div className="overflow-hidden rounded-xl border bg-card p-4">
-        <div style={{ height, width: '100%' }}>
-          <D3Chart options={currentChart.chartOptions} height={height} />
+      <div className="flex-1 min-h-0 overflow-hidden rounded-xl border bg-card p-4 relative">
+        <div className="w-full h-full">
+          <D3Chart options={currentChart.chartOptions} height="100%" /> 
         </div>
       </div>
 
       {/* Navigation buttons */}
       {showNavigation && charts.length > 1 && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between shrink-0">
           <Button
             variant="outline"
             size="sm"
@@ -179,7 +179,7 @@ export function ChartWidget({
   );
 
   if (!showSidebar) {
-    return chartContent;
+    return <div style={{ height }} className="w-full">{chartContent}</div>;
   }
 
   return (

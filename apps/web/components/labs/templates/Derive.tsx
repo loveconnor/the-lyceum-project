@@ -176,8 +176,9 @@ export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTem
             }
             
             return newSteps;
-          });
-        }
+          });        } else {
+          // No progress - show lab overview on first visit
+          setTimeout(() => setShowLabOverview(true), 300);        }
       } catch (error) {
         console.error("Failed to load progress:", error);
       } finally {
@@ -720,7 +721,7 @@ Approve if they show reasonable understanding and correct approach. If not appro
 
       {/* Lab Overview Dialog */}
       <Dialog open={showLabOverview} onOpenChange={setShowLabOverview}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="w-[90vw] max-w-[90vw] sm:max-w-[90vw] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl">{labTitle}</DialogTitle>
             <DialogDescription className="sr-only">

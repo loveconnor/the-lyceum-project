@@ -49,6 +49,10 @@ type DashboardState = {
     in_progress?: number;
     completed?: number;
     previous_success_rate?: number;
+    labs_completed?: number;
+    labs_in_progress?: number;
+    paths_completed?: number;
+    paths_in_progress?: number;
   };
   activities?: Array<{ timestamp: string; type: 'lab' | 'path' }>;
 };
@@ -254,6 +258,10 @@ async function DashboardContent({
                 totalActivity={dashboard.progress || 0}
                 inProgress={dashboard.stats?.in_progress ?? 0}
                 completed={dashboard.stats?.completed ?? 0}
+                labsCompleted={dashboard.stats?.labs_completed}
+                labsInProgress={dashboard.stats?.labs_in_progress}
+                pathsCompleted={dashboard.stats?.paths_completed}
+                pathsInProgress={dashboard.stats?.paths_in_progress}
               />
             )}
             {hasActivityData && (

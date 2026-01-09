@@ -172,10 +172,13 @@ Available chart types: bar, line, scatter, area, pie, histogram, heatmap.`,
       {
         "id": "unique-id",
         "title": "Step title",
-        "instruction": "Clear markdown explanation of what the learner should do in this step and why",
+        "instruction": "Clear markdown explanation of what the learner should do in this step and why (THIS IS THE MAIN INSTRUCTIONAL TEXT - always include this)",
         "keyQuestions": ["Key question 1?", "Key question 2?"],
         "skeletonCode": "// Skeleton code for THIS STEP ONLY (method signature + TODO comment)",
         "widgets": [
+          // WIDGETS ARE OPTIONAL - only include if the step requires interactive input beyond writing code
+          // Most coding steps only need the code editor and don't need additional widgets
+          // Only add widgets like text-input or multiple-choice if there's a specific conceptual question to answer
           {
             "type": "text-input",
             "config": {
@@ -220,11 +223,36 @@ Instead, create 3-7 steps with titles that are SPECIFIC to the learning goal. Ex
 
 Each step should:
 1. Have a SPECIFIC, action-oriented title related to THIS problem (not generic titles)
-2. Include a clear "instruction" field with markdown text explaining what to do and why
-3. Include 2-4 "keyQuestions" to guide the learner's thinking
+2. Include a clear "instruction" field with markdown text that is COMPLETE and SELF-CONTAINED:
+   - State exactly what needs to be implemented/returned/calculated
+   - Include all specific values, ranges, conditions, or formulas needed
+   - Provide concrete examples when helpful
+   - The learner should NOT need to reference the problem statement or lab overview to complete the step
+3. Include 2-4 "keyQuestions" to guide the learner's thinking - displayed as text, not as widgets
 4. Focus on ONE small concept or coding task
-5. Use widgets appropriate for that specific task
+5. Only include widgets if the step requires input BEYOND just writing code (most steps won't need extra widgets)
 6. Build progressively toward the complete solution
+
+EXAMPLE - Good step structure (for BMI category):
+{
+  "id": "implement-bmi-category",
+  "title": "Implement bmiCategory to map BMI to a weight class",
+  "instruction": "Complete the bmiCategory method so it returns the appropriate category string based on the BMI value:\\n\\n- If BMI < 18.5: return \\"Underweight\\"\\n- If BMI is between 18.5 and 24.9 (inclusive): return \\"Normal weight\\"\\n- If BMI is between 25.0 and 29.9 (inclusive): return \\"Overweight\\"\\n- If BMI >= 30.0: return \\"Obese\\"\\n- If BMI <= 0: return \\"Invalid\\"\\n\\nUse if-else statements to check each range in order.",
+  "keyQuestions": [
+    "Which relational operators should I use for the interval checks?",
+    "How can I ensure the conditions are evaluated in the correct order?",
+    "What string should be returned for an invalid BMI?"
+  ],
+  "skeletonCode": "public static String bmiCategory(double bmi) {\\n  // TODO: implement category logic\\n  return \\"\\";\\n}",
+}
+
+EXAMPLE - Bad step structure (do not do this):
+{
+  "id": "implement-bmi-category",
+  "title": "Implement bmiCategory",
+  "instruction": "Complete bmiCategory so that it returns the appropriate string based on the BMI value. Use a series of if-else statements to check the ranges defined in the problem statement.",
+  // BAD: Doesn't specify what the ranges are or what strings to return - forces learner to look elsewhere
+}
 
 The number of steps should match the complexity of the topic - simple topics need fewer steps (3-4), complex topics need more (5-7).
 
@@ -296,6 +324,13 @@ CRITICAL - TEST CASES:
 Every step that includes a "code-editor" widget MUST have at least one corresponding test case in the "testCases" array.
 The "stepId" field in the test case MUST match the "id" of the step where the code is written.
 
+CRITICAL - WIDGETS VS INSTRUCTIONS:
+- The "instruction" field contains markdown text that EXPLAINS what to do - this is ALWAYS shown as text
+- The "keyQuestions" field contains questions to guide thinking - these are ALWAYS shown as text bullets
+- Widgets are for INTERACTIVE INPUT where the learner types, selects, or constructs something
+- Do NOT create widgets that just display information that should be in "instruction" or "keyQuestions"
+- If a step only needs the learner to READ and UNDERSTAND (not input anything), you can omit the "widgets" array entirely
+
 CRITICAL - SKELETON CODE PER STEP:
 For each step that involves coding, include a "skeletonCode" field with ONLY the code skeleton for that specific step.
 - Step 1 skeleton: Only the method/function signature for step 1 with a TODO comment
@@ -362,8 +397,8 @@ The learner will see skeleton code progressively as they complete each step. Kee
       {
         "id": "compute",
         "title": "Compute $du$ and $v$",
-        "instruction": "Differentiate $u$ to get $du$ and integrate $dv$ to get $v$",
-        "keyQuestions": ["What derivative rule applies?", "What integration technique?"],
+        "instruction": "Differentiate $u = x$ to get $du = dx$, and integrate $dv = e^x dx$ to get $v = e^x$. Show your work step-by-step using the derivation widget below.",
+        "keyQuestions": ["What derivative rule applies to u = x?", "What is the antiderivative of e^x?"],
         "widgets": [
           {
             "type": "derivation-steps",
@@ -376,7 +411,7 @@ The learner will see skeleton code progressively as they complete each step. Kee
       {
         "id": "apply-formula",
         "title": "Apply Integration by Parts",
-        "instruction": "Substitute your values into the integration by parts formula: $\\int u\\,dv = uv - \\int v\\,du$",
+        "instruction": "Substitute your values (u = x, v = e^x, du = dx) into the integration by parts formula: $\\\\int u\\\\,dv = uv - \\\\int v\\\\,du$. This gives us $xe^x - \\\\int e^x dx$. Then evaluate the remaining integral.",
         "keyQuestions": ["Are all values correctly substituted?", "Does the new integral look simpler?"],
         "widgets": [
           {
@@ -395,12 +430,13 @@ The learner will see skeleton code progressively as they complete each step. Kee
 }
 
 CRITICAL - WIDGET REQUIREMENTS:
-1. EVERY step MUST have a "widgets" array with at least one widget
-2. EVERY step MUST have an "instruction" field (markdown text explaining what to do)
-3. EVERY step SHOULD have "keyQuestions" array (2-4 questions to guide thinking)
-4. Use "editor" for: explaining concepts, restating problems, verification, conclusions, essays, detailed responses
-5. Use "multiple-choice" for: selecting rules/methods/approaches (set multiSelect and showExplanation appropriately)
-6. Use "derivation-steps" for: step-by-step mathematical work, showing calculations
+1. EVERY step MUST have an "instruction" field (markdown text explaining what to do) - this is the PRIMARY instructional content
+2. EVERY step SHOULD have "keyQuestions" array (2-4 questions to guide thinking) - these are displayed as text, NOT as interactive widgets
+3. Widgets are OPTIONAL and should only be used when the learner needs to ACTIVELY INPUT something (write code, make selections, enter text responses)
+4. Use "editor" for: text responses where learners write explanations, essays, code documentation
+5. Use "multiple-choice" for: selecting between actual options that will be validated (NOT for displaying rhetorical questions)
+6. Use "derivation-steps" for: step-by-step mathematical work where learners show their calculations
+7. The "instruction" and "keyQuestions" fields are for DISPLAYING information. Widgets are for COLLECTING learner input.
 
 WIDGET CONFIGURATION DETAILS:
 **editor**: 
@@ -496,12 +532,26 @@ CRITICAL - STEP STRUCTURE (APPLIES TO ALL TEMPLATES):
 EVERY step object MUST include:
 - "id": unique identifier (kebab-case)
 - "title": specific, action-oriented title (can use LaTeX)
-- "instruction": markdown text explaining what to do, why it matters, and how to approach it (2-4 sentences)
-- "keyQuestions": array of 2-4 thought-provoking questions (strings, plain English)
-- "widgets": array of widget configurations
+- "instruction": markdown text that is COMPLETE and SELF-CONTAINED (3-6 sentences):
+  * Must include ALL specific details needed to complete the step
+  * Must specify exact values, ranges, formulas, conditions, or outputs expected
+  * Should include concrete examples when helpful
+  * Learner should NOT need to reference problem statement or lab overview
+  * Example: Don't say "check the ranges" - instead say "If BMI < 18.5 return 'Underweight', if 18.5-24.9 return 'Normal'"
+- "keyQuestions": array of 2-4 thought-provoking questions (strings, plain English) - displayed as text to guide thinking
+- "widgets": array of widget configurations - OPTIONAL, only include if the step requires interactive input
 
-The "instruction" field is CRITICAL - it provides the guidance that appears above the interactive widgets.
-The "keyQuestions" help learners think critically before interacting with widgets.
+CRITICAL DISTINCTION:
+- "instruction" and "keyQuestions" = STATIC TEXT that teaches and guides (always displayed)
+- "widgets" = INTERACTIVE ELEMENTS where learners input answers, make selections, or construct solutions (only when needed)
+
+DO NOT use widgets to display questions that should be in "keyQuestions".
+DO NOT use multiple-choice widgets for rhetorical/conceptual questions - only use them when the selection will be validated.
+DO NOT write vague instructions that reference "the problem statement" or "as described above" - include ALL details directly.
+
+The "instruction" field is the PRIMARY teaching content that appears at the top of each step.
+The "keyQuestions" help learners think critically about the concepts.
+Widgets are for collecting and validating learner responses.
 
 Each step title should reference ACTUAL mathematical expressions from THIS problem. The number of steps should match the problem's complexity.`,
 
@@ -703,6 +753,8 @@ ${request.context ? `Additional context: ${request.context}` : ''}
 ${request.userProfile?.level ? `User level: ${request.userProfile.level}` : ''}
 ${request.userProfile?.interests?.length ? `User interests: ${request.userProfile.interests.join(', ')}` : ''}
 ${request.userProfile?.completedTopics?.length ? `Completed topics: ${request.userProfile.completedTopics.join(', ')}` : ''}
+
+CRITICAL: If the context above includes a list of "CONCEPTS COVERED IN PREVIOUS MODULES", you MUST only use those concepts in this lab. Do not introduce any new concepts, techniques, or knowledge not listed. This ensures proper pedagogical sequencing.
 
 IMPORTANT: The "topics" field must contain 2-5 specific, relevant topic tags (e.g., ["JavaScript", "Algorithms", "Data Structures"] for a coding lab, ["Statistics", "Data Visualization"] for analysis, ["Calculus", "Derivatives"] for math).
 

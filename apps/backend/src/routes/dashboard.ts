@@ -315,17 +315,42 @@ const recalculateStatsFromLabs = async (userId: string): Promise<Partial<Dashboa
     return {};
   }
 
-  if (!labs || labs.length === 0) {
+  // Fetch all paths for this user
+  const { data: paths, error: pathsError } = await supabase
+    .from('learning_paths')
+    .select('id, status, completed_at')
+    .eq('user_id', userId);
+
+  if (pathsError) {
+    console.error('Error fetching paths for stats:', pathsError);
+  }
+
+  // Fetch conversations count
+  const { count: conversationCount, error: conversationError } = await supabase
+    .from('assistant_conversations')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId);
+
+  if (conversationError) {
+    console.error('Error fetching conversations for stats:', conversationError);
+  }
+
+  const allLabs = labs || [];
+  const allPaths = paths || [];
+  const totalChats = conversationCount || 0;
+
+  if (allLabs.length === 0 && allPaths.length === 0 && totalChats === 0) {
     return {};
   }
 
   // Calculate statistics
-  const completedLabs = labs.filter(l => l.status === 'completed');
-  const inProgressLabs = labs.filter(l => l.status === 'in-progress');
-  const notStartedLabs = labs.filter(l => l.status === 'not-started');
+  const completedLabs = allLabs.filter(l => l.status === 'completed');
+  const inProgressLabs = allLabs.filter(l => l.status === 'in-progress');
   
-  // Calculate success rate: (completed / (completed + in-progress)) * 100
-  // This shows the success rate of labs you've actually engaged with
+  const completedPaths = allPaths.filter(p => p.status === 'completed');
+  const inProgressPaths = allPaths.filter(p => p.status === 'in-progress');
+  
+  // Calculate success rate: show success rate of labs you've actually engaged with
   const engagedLabs = completedLabs.length + inProgressLabs.length;
   const successRate = engagedLabs > 0 
     ? (completedLabs.length / engagedLabs) * 100 
@@ -359,6 +384,17 @@ const recalculateStatsFromLabs = async (userId: string): Promise<Partial<Dashboa
     }
   });
 
+  // Process completed paths for monthly activity
+  completedPaths.forEach(path => {
+    if (path.completed_at) {
+      const monthKey = path.completed_at.slice(0, 7);
+      if (!monthlyActivity[monthKey]) {
+        monthlyActivity[monthKey] = { labs: 0, paths: 0 };
+      }
+      monthlyActivity[monthKey].paths += 1;
+    }
+  });
+
   // Convert topic counts to dashboard format
   const topTopics: DashboardTopic[] = Object.entries(topicCounts)
     .sort((a, b) => b[1] - a[1])
@@ -375,11 +411,14 @@ const recalculateStatsFromLabs = async (userId: string): Promise<Partial<Dashboa
   const activityCounts = {
     lab_completed: completedLabs.length,
     lab_started: inProgressLabs.length,
+    path_completed: completedPaths.length,
+    path_started: inProgressPaths.length,
+    chat_active: totalChats
   };
 
   return {
-    total_courses: completedLabs.length,
-    total_activities: labs.length,
+    total_courses: completedLabs.length + completedPaths.length,
+    total_activities: allLabs.length + allPaths.length + totalChats,
     total_minutes: totalMinutes,
     overall_success_rate: Math.round(successRate),
     top_topics: topTopics,
@@ -391,8 +430,14 @@ const recalculateStatsFromLabs = async (userId: string): Promise<Partial<Dashboa
       total_students: 1, // Single user
       passing_students: completedLabs.length > 0 ? 1 : 0,
       // Frontend expects these fields
+      // We map these to the breakdown we want in the UI
       in_progress: inProgressLabs.length,
       completed: completedLabs.length,
+      // New specific fields
+      labs_completed: completedLabs.length,
+      labs_in_progress: inProgressLabs.length,
+      paths_completed: completedPaths.length,
+      paths_in_progress: inProgressPaths.length
     }
   };
 };

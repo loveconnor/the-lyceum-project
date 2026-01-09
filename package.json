@@ -17,13 +17,16 @@
     "turbo": "latest"
   },
   "dependencies": {
+    "@esbuild/win32-x64": "^0.27.2",
     "@monaco-editor/react": "^4.7.0",
     "@react-email/components": "^1.0.3",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
+    "@tailwindcss/oxide-win32-x64-msvc": "^4.1.18",
     "commander": "^14.0.2",
     "d3": "^7.9.0",
     "lightningcss": "^1.30.2",
-    "three": "^0.170.0"
+    "three": "^0.170.0",
+    "tsx": "^4.21.0"
   }
 }

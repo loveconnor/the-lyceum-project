@@ -136,6 +136,12 @@ const baseSystemInstruction =
   '  - Derivatives: $\\frac{d}{dx}$, $\\frac{\\partial}{\\partial x}$\n' +
   '  - Summations and products: $\\sum$, $\\prod$\n' +
   '  - Vectors, matrices, limits, logic symbols, and all formal math notation.\n' +
+  '- Units and measurements:\n' +
+  '  - Use $\\mathrm{m}$ for meters (not m)\n' +
+  '  - For compound units use: $\\mathrm{m}\\cdot\\mathrm{s}^{-1}$ or $\\mathrm{m/s}$\n' +
+  '  - NEVER use \\cdotp or \\cdotps (invalid commands)\n' +
+  '  - CORRECT: $3\\,\\mathrm{m}\\cdot\\mathrm{s}^{-2}$ or $3\\,\\mathrm{m/s}^2$\n' +
+  '  - WRONG: $3\\,m\\cdotps^{-2}$ or $3\\,\\mathrm{m}\\cdotp\\mathrm{s}^{-1}$\n' +
     '- Never mix plaintext math with LaTeX.\n' +
   'For math topics: explain concepts clearly using proper LaTeX notation (wrap all math in $...$ or $$...$$). ' +
   'When teaching mathematical or visual concepts ("teach me about X", "explain X", "what is X"), focus on conceptual understanding with interactive visuals. ' +

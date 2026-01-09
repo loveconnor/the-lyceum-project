@@ -621,8 +621,30 @@ const ImmersiveTextView = ({
                       )}>
                         {option.id}
                       </div>
-                      <div className="text-sm font-medium flex-1">
-                        <Markdown components={{ p: ({ children }) => <span className="inline">{children}</span> }}>
+                      <div className="text-sm font-medium flex-1 overflow-x-auto">
+                        <Markdown 
+                          components={{ 
+                            p: ({ children }) => <span className="inline">{children}</span>,
+                            code: ({ children, className }) => {
+                              const isBlock = className?.includes('language-');
+                              if (isBlock) {
+                                return (
+                                  <code className={cn(
+                                    "block my-2 px-3 py-2 rounded bg-muted text-xs font-mono overflow-x-auto",
+                                    className
+                                  )}>
+                                    {children}
+                                  </code>
+                                );
+                              }
+                              return (
+                                <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">
+                                  {children}
+                                </code>
+                              );
+                            }
+                          }}
+                        >
                           {ensureMathDelimiters(option.text)}
                         </Markdown>
                       </div>
