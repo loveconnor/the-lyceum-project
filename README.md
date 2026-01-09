@@ -15,14 +15,16 @@ The Lyceum Project seeks to redefine how people learn by merging adaptive techno
 - Interactive “lab” exercises where users learn by doing
 - A scalable foundation that supports both individual learners and institutional clients
 
-## Core Features
-- **Adaptive Learning Paths:** Dynamic lessons that adjust to performance and learning style  
-- **AI Tutor Assistance:** Context-aware explanations, hints, and guided problem-solving  
-- **Interactive Labs:** In-browser coding, math, writing, and science environments  
-- **Progress Tracking:** Personalized analytics to monitor mastery and improvement  
-- **Multi-Modal Learning:** Text, visuals, and examples tailored to comprehension preferences  
-- **Gamification (Planned):** Points, streaks, and achievements for engagement  
-- **Community (Planned):** Forums and peer discussion groups to encourage collaboration
+## Current Features Checklist
+- [x] **AI-Generated Learning Paths:** Create full courses on any topic instantly.
+- [x] **Smart AI Tutor:** A personal assistant to answer questions and explain concepts.
+- [x] **Interactive Labs:** Hands-on practice exercises generated for your topics.
+- [x] **Visual Learning Aids:** Automatically added visuals to make learning easier.
+- [x] **Content Integration:** Connects with trusted sources like MIT OpenCourseWare.
+- [x] **Learning Reflections:** Space to write down takeaways and review progress.
+- [x] **Progress Dashboard:** Track your completion and activity in one place.
+- [x] **Theme Customization:** Adjust the look and feel of your learning environment.
+- [x] **Waitlist & Onboarding:** Complete flow for new user registration and access.
 
 ## Technology Stack
 - **Frontend:** Next.js, TypeScript, Tailwind CSS  
