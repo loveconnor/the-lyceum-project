@@ -13,12 +13,22 @@ type Conversation = {
   created_at?: string;
 };
 
+type IllustrativeVisual = {
+  src: string;
+  fullSrc: string;
+  alt: string;
+  caption?: string;
+  attribution?: string;
+  usageLabel: string;
+};
+
 type Message = {
   id?: string | number;
   role: "user" | "assistant" | "system";
   content: string;
   created_at?: string;
   files?: File[];
+  visuals?: IllustrativeVisual[];
 };
 
 const AI_CONTEXT = "free_chat" as const;
@@ -304,6 +314,7 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
         let assistantText = "";
         let buffer = "";
         let hasStarted = false;
+        let messageVisuals: IllustrativeVisual[] = [];
 
         while (true) {
           const { value, done } = await reader.read();
@@ -348,6 +359,35 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
               continue;
             }
 
+            // Handle visuals event - store for the assistant message
+            if (event === "visuals") {
+              try {
+                messageVisuals = JSON.parse(data);
+                console.log("[VISUALS] Received", messageVisuals.length, "visuals");
+                
+                // If we haven't started the assistant message yet, create it now with visuals
+                if (!hasStarted) {
+                  hasStarted = true;
+                  setMessages((prev) => [...prev, { 
+                    id: tempAssistantId, 
+                    role: "assistant", 
+                    content: "",
+                    visuals: messageVisuals
+                  }]);
+                } else {
+                  // Update existing message with visuals
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === tempAssistantId ? { ...m, visuals: messageVisuals } : m
+                    )
+                  );
+                }
+              } catch (e) {
+                console.error("Failed to parse visuals", e);
+              }
+              continue;
+            }
+
             let payload = data;
             if (!payload && part.startsWith("data:")) {
               const match = part.match(/^data: ?(.*)$/s);
@@ -367,21 +407,28 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
 
             if (!hasStarted) {
               hasStarted = true;
-              setMessages((prev) => [...prev, { id: tempAssistantId, role: "assistant", content: "" }]);
+              setMessages((prev) => [...prev, { 
+                id: tempAssistantId, 
+                role: "assistant", 
+                content: "",
+                visuals: messageVisuals.length > 0 ? messageVisuals : undefined
+              }]);
             }
 
             assistantText += payload;
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === tempAssistantId ? { ...m, content: assistantText } : m
+                m.id === tempAssistantId ? { ...m, content: assistantText, visuals: messageVisuals.length > 0 ? messageVisuals : m.visuals } : m
               )
             );
           }
         }
 
-        // Refresh from server to align IDs/persistence
-        await selectConversation(conversationId);
+        // After streaming, we have the most up-to-date messages including visuals.
+        // Don't overwrite with server messages which don't include visuals.
+        // Just refresh conversation list for sidebar without touching messages.
         await refreshConversations();
+        setSelectedConversationId(conversationId);
         setError(null);
       } catch (err: any) {
         console.error("Assistant send message error", err);

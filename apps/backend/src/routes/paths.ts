@@ -8,6 +8,12 @@ import {
   createPathCompletionNotification 
 } from "../notificationService";
 import { ModuleGroundingService, DynamicSourceFetcher, MitOcwFetcher, WebDocsSearcher, logger } from "../source-registry";
+import { 
+  enrichModuleWithVisuals, 
+  formatVisualsForFrontend,
+  shouldUseVisualAids,
+  type GenerateVisualIntentRequest 
+} from "../visual-enrichment";
 
 const router = Router();
 
@@ -817,6 +823,22 @@ router.post("/generate", async (req: Request, res: Response) => {
               }
             }
 
+            // Determine if this module would benefit from visual aids
+            // This is a quick heuristic check - actual visuals are fetched during rendering
+            let usesVisualAids = false;
+            try {
+              usesVisualAids = await shouldUseVisualAids(
+                moduleOutline.title,
+                moduleOutline.description
+              );
+              if (usesVisualAids) {
+                console.log(`[Generate] Module "${moduleOutline.title}" flagged for visual aids`);
+              }
+            } catch (visualError) {
+              // Visual check is non-critical - continue without flag
+              console.warn(`[Generate] Visual aids check failed for "${moduleOutline.title}":`, visualError);
+            }
+
             allPathItems.push({
               path_id: newPath.id,
               lab_id: null,
@@ -830,7 +852,8 @@ router.post("/generate", async (req: Request, res: Response) => {
               source_node_ids: nodeIds,
               content_unavailable: contentUnavailable,
               last_resolved_at: new Date().toISOString(),
-              content_data: moduleContent
+              content_data: moduleContent,
+              uses_visual_aids: usesVisualAids  // NEW: Flag for visual enrichment
             });
 
             // Add lab suggestion
@@ -974,6 +997,14 @@ router.post("/generate", async (req: Request, res: Response) => {
           i
         );
 
+        // Check if this module would benefit from visual aids
+        let usesVisualAids = false;
+        try {
+          usesVisualAids = await shouldUseVisualAids(moduleOutline.title, moduleOutline.description);
+        } catch (visualError) {
+          // Non-critical - continue without flag
+        }
+
         moduleItems.push({
           path_id: newPath.id,
           lab_id: null,
@@ -983,7 +1014,8 @@ router.post("/generate", async (req: Request, res: Response) => {
           item_type: 'module',
           status: 'not-started',
           content_mode: 'ai_generated',
-          content_data: content
+          content_data: content,
+          uses_visual_aids: usesVisualAids
         });
 
         if (stream) {
@@ -1854,10 +1886,42 @@ router.get("/:pathId/items/:itemId/render", async (req: Request, res: Response) 
           item.source_node_ids
         );
 
+        // Get registry node titles for visual enrichment
+        const tocNodes = await groundingService.getTocNodesForModule(
+          item.source_asset_id,
+          item.source_node_ids
+        );
+        const registryNodeTitles = tocNodes.map((n: any) => n.title || '').filter(Boolean);
+
+        // Enrich with visual aids (non-blocking, graceful degradation)
+        let illustrativeVisuals: any[] = [];
+        try {
+          const visualRequest: GenerateVisualIntentRequest = {
+            module_title: item.title,
+            explanation_text: renderedContent.overview || '',
+            registry_node_titles: registryNodeTitles,
+            learning_objectives: renderedContent.learning_objectives,
+            key_concepts: renderedContent.key_concepts?.map((c: any) => c.concept) || [],
+          };
+
+          const visualEnrichment = await enrichModuleWithVisuals(visualRequest);
+          
+          if (visualEnrichment.has_visuals) {
+            illustrativeVisuals = formatVisualsForFrontend(visualEnrichment.visual_aids);
+            logger.info('paths', `Visual enrichment added ${illustrativeVisuals.length} visuals to module: ${item.title}`);
+          }
+        } catch (visualError) {
+          // Visual enrichment is supplemental - don't fail module rendering
+          logger.warn('paths', `Visual enrichment failed for module: ${item.title}`, {
+            details: { error: (visualError as Error).message }
+          });
+        }
+
         logger.info('paths', `Module rendered successfully: ${item.title}`, {
           details: {
             sectionsCount: renderedContent.sections.length,
-            citationsCount: renderedContent.citations.length
+            citationsCount: renderedContent.citations.length,
+            illustrativeVisualsCount: illustrativeVisuals.length
           }
         });
 
@@ -1867,7 +1931,8 @@ router.get("/:pathId/items/:itemId/render", async (req: Request, res: Response) 
             learning_objectives: renderedContent.learning_objectives,
             sections: renderedContent.sections,
             key_concepts: renderedContent.key_concepts,
-            figures: renderedContent.figures
+            figures: renderedContent.figures,
+            illustrative_visuals: illustrativeVisuals, // NEW: Visual aids with usage_label = "illustrative"
           },
           content_mode: 'registry_backed',
           content_unavailable: renderedContent.content_unavailable,

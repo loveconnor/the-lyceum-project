@@ -57,6 +57,7 @@ export interface PathItem {
   source_node_ids?: string[];
   content_unavailable?: boolean;
   last_resolved_at?: string | null;
+  uses_visual_aids?: boolean; // NEW: Flag indicating module benefits from visual enrichment
   labs?: {
     id: string;
     title: string;
@@ -65,6 +66,20 @@ export interface PathItem {
     difficulty?: string;
     estimated_duration?: number;
   };
+}
+
+/**
+ * Illustrative visual aid (NOT a source of truth)
+ * These are supplemental diagrams/illustrations to help understanding
+ */
+export interface IllustrativeVisual {
+  type: 'illustrative_image';
+  src: string;
+  alt: string;
+  caption: string;
+  usage_label: 'illustrative'; // ALWAYS "illustrative" - not authoritative
+  attribution?: string;
+  thumbnail_src?: string;
 }
 
 export interface LearningPath {

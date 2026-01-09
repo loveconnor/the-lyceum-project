@@ -18,6 +18,13 @@ import {
   deleteConversation,
 } from '../assistantStore';
 import { getSupabaseAdmin } from '../supabaseAdmin';
+import { 
+  buildVisualAidContext,
+  VISUAL_AID_INSTRUCTION,
+  generateVisualIntentFromQuestion,
+  VisualAidService,
+  type VisualAid 
+} from '../visual-enrichment';
 
 const aiRouter = Router();
 const assistantSystemPrompt =
@@ -359,6 +366,7 @@ aiRouter.post('/assistant/chat', async (req, res) => {
     context,
     systemPrompt,
     files,
+    visualAids,  // NEW: Visual aids context for module-based assistant
   } = req.body as {
     messages?: ChatMessage[];
     message?: string;
@@ -366,6 +374,7 @@ aiRouter.post('/assistant/chat', async (req, res) => {
     context?: string;
     systemPrompt?: string;
     files?: Array<{ name: string; content: string; type: string }>;
+    visualAids?: VisualAid[];  // NEW: Optional visual aids from module
   };
   const stream = req.query.stream === 'true';
 
@@ -399,6 +408,58 @@ aiRouter.post('/assistant/chat', async (req, res) => {
       console.log(`Built file context: ${fileContext.length} characters`);
     }
 
+    // Build visual aids context if visual aids are provided
+    // CRITICAL: Visual aids are illustrative only - not authoritative
+    let visualAidsContext = '';
+    let dynamicVisualAids: VisualAid[] = [];
+    
+    if (visualAids && visualAids.length > 0) {
+      // Use provided visual aids (from module context)
+      dynamicVisualAids = visualAids;
+      const visualContext = buildVisualAidContext(visualAids);
+      if (visualContext.instruction) {
+        visualAidsContext = '=== ILLUSTRATIVE VISUAL AIDS ===\n' +
+          visualContext.instruction + '\n' +
+          '='.repeat(80);
+        console.log(`Built visual aids context for ${visualAids.length} visual(s)`);
+      }
+    } else if (stream && userMessage) {
+      // Try to dynamically generate and fetch visuals for this question
+      // Only do this for streaming responses to avoid blocking
+      try {
+        console.log('[VISUALS] Checking if question needs visual aids...');
+        const intentResult = await generateVisualIntentFromQuestion(userMessage);
+        
+        if (intentResult.visuals_recommended && intentResult.intents.length > 0) {
+          console.log(`[VISUALS] Found ${intentResult.intents.length} visual intent(s), fetching images...`);
+          const visualService = new VisualAidService({ 
+            max_per_intent: 2, 
+            diagrams_only: false, // Allow more results for chat
+            timeout_ms: 5000 
+          });
+          const aidResult = await visualService.fetchVisualAids(intentResult.intents);
+          
+          if (aidResult.has_visuals && aidResult.visual_aids.length > 0) {
+            dynamicVisualAids = aidResult.visual_aids;
+            const visualContext = buildVisualAidContext(dynamicVisualAids);
+            if (visualContext.instruction) {
+              visualAidsContext = '=== ILLUSTRATIVE VISUAL AIDS ===\n' +
+                visualContext.instruction + '\n' +
+                '='.repeat(80);
+            }
+            console.log(`[VISUALS] Fetched ${dynamicVisualAids.length} visual aid(s) for question`);
+          } else {
+            console.log('[VISUALS] No suitable images found');
+          }
+        } else {
+          console.log(`[VISUALS] Visuals not recommended: ${intentResult.reasoning}`);
+        }
+      } catch (visualError) {
+        // Visual enrichment should never block chat - graceful degradation
+        console.warn('[VISUALS] Dynamic visual fetch failed (non-blocking):', (visualError as Error).message);
+      }
+    }
+
     const chatMessages: ChatMessage[] = [
       ...history.map((m) => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content })),
       ...(messages || []),
@@ -414,15 +475,36 @@ aiRouter.post('/assistant/chat', async (req, res) => {
       res.setHeader('Connection', 'keep-alive');
       res.flushHeaders?.();
 
+      // Send visual aids as a separate event BEFORE the text response
+      if (dynamicVisualAids.length > 0) {
+        const visualsPayload = dynamicVisualAids.map(aid => ({
+          src: aid.thumbnail_src || aid.src,
+          fullSrc: aid.src,
+          alt: aid.alt,
+          caption: aid.caption,
+          attribution: aid.attribution,
+          usageLabel: aid.usage_label,
+        }));
+        res.write(`event: visuals\ndata: ${JSON.stringify(visualsPayload)}\n\n`);
+        console.log(`[VISUALS] Streamed ${visualsPayload.length} visuals to client`);
+      }
+
       let full = '';
       try {
         // Add file instruction to system prompt if files are present
-        const enhancedSystemPrompt = files && files.length > 0
-          ? `${systemPrompt || assistantSystemPrompt}\n\n⚠️ IMPORTANT: The user has uploaded file(s). These files contain content they want you to reference, analyze, teach, or explain. Always acknowledge and use the file content in your response when the user asks about it.`
-          : systemPrompt || assistantSystemPrompt;
+        let enhancedSystemPrompt = systemPrompt || assistantSystemPrompt;
+        
+        if (files && files.length > 0) {
+          enhancedSystemPrompt += '\n\n⚠️ IMPORTANT: The user has uploaded file(s). These files contain content they want you to reference, analyze, teach, or explain. Always acknowledge and use the file content in your response when the user asks about it.';
+        }
+        
+        // Add visual aids instruction if visuals are present (dynamic or provided)
+        if (dynamicVisualAids.length > 0) {
+          enhancedSystemPrompt += `\n\n${VISUAL_AID_INSTRUCTION}`;
+        }
 
         const generator = await runAssistantChatStream(chatMessages, {
-          context: [fileContext, contextString, context].filter(Boolean).join('\n\n') || undefined,
+          context: [visualAidsContext, fileContext, contextString, context].filter(Boolean).join('\n\n') || undefined,
           systemPrompt: enhancedSystemPrompt,
         });
 
@@ -465,12 +547,19 @@ aiRouter.post('/assistant/chat', async (req, res) => {
       }
     } else {
       // Add file instruction to system prompt if files are present
-      const enhancedSystemPrompt = files && files.length > 0
-        ? `${systemPrompt || assistantSystemPrompt}\n\n⚠️ IMPORTANT: The user has uploaded file(s). These files contain content they want you to reference, analyze, teach, or explain. Always acknowledge and use the file content in your response when the user asks about it.`
-        : systemPrompt || assistantSystemPrompt;
+      let enhancedSystemPrompt = systemPrompt || assistantSystemPrompt;
+      
+      if (files && files.length > 0) {
+        enhancedSystemPrompt += '\n\n⚠️ IMPORTANT: The user has uploaded file(s). These files contain content they want you to reference, analyze, teach, or explain. Always acknowledge and use the file content in your response when the user asks about it.';
+      }
+      
+      // Add visual aids instruction if visuals are present
+      if (visualAids && visualAids.length > 0) {
+        enhancedSystemPrompt += `\n\n${VISUAL_AID_INSTRUCTION}`;
+      }
 
       const result = await runAssistantChat(chatMessages, {
-        context: [fileContext, contextString, context].filter(Boolean).join('\n\n') || undefined,
+        context: [visualAidsContext, fileContext, contextString, context].filter(Boolean).join('\n\n') || undefined,
         systemPrompt: enhancedSystemPrompt,
       });
 

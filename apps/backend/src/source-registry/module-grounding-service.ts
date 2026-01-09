@@ -358,5 +358,20 @@ export class ModuleGroundingService {
 
     return formatCitationsDisplay(citations);
   }
+
+  /**
+   * Get TOC nodes for a module by their IDs
+   * Used for visual enrichment context
+   */
+  async getTocNodesForModule(
+    sourceAssetId: string,
+    sourceNodeIds: string[]
+  ): Promise<TocNode[]> {
+    if (!sourceAssetId || !sourceNodeIds || sourceNodeIds.length === 0) {
+      return [];
+    }
+
+    return this.getNodesByIds(sourceNodeIds);
+  }
 }
 

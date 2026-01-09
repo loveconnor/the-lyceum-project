@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { ArrowUpIcon,Paperclip, X } from "lucide-react";
+import { ArrowUpIcon,Paperclip, X, ImageIcon, ExternalLink } from "lucide-react";
 import { CopyIcon } from "@radix-ui/react-icons";
 import Lottie from "lottie-react";
 
@@ -91,6 +92,114 @@ export default function AIChatInterface() {
     await navigator.clipboard.writeText(text);
   };
 
+  // Visual display component for illustrative images - integrated into message
+  const ChatVisuals = ({ visuals }: { visuals?: Array<{
+    src: string;
+    fullSrc: string;
+    alt: string;
+    caption?: string;
+    attribution?: string;
+    usageLabel: string;
+  }> }) => {
+    const [selectedVisual, setSelectedVisual] = useState<number | null>(null);
+
+    if (!visuals || visuals.length === 0) {
+      return null;
+    }
+
+    console.log("[ChatVisuals] Rendering", visuals.length, "visuals:", visuals);
+
+    return (
+      <>
+        {/* Integrated visual display */}
+        <div className="not-prose mb-4">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+            <ImageIcon className="size-3.5" />
+            <span>Reference diagram{visuals.length > 1 ? 's' : ''}</span>
+          </div>
+          
+          {/* Visual grid */}
+          <div className="flex flex-wrap gap-2">
+            {visuals.map((visual, idx) => (
+              <button
+                key={idx}
+                onClick={() => setSelectedVisual(idx)}
+                className="group relative overflow-hidden rounded-md border border-border bg-background hover:border-foreground/30 transition-all hover:shadow-sm"
+              >
+                <div className="relative w-36 h-28">
+                  <Image
+                    src={visual.src}
+                    alt={visual.alt}
+                    fill
+                    className="object-contain p-2"
+                    unoptimized
+                  />
+                </div>
+                <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <span className="text-foreground text-xs font-medium bg-secondary px-2 py-1 rounded">Enlarge</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Modal for expanded view */}
+        {selectedVisual !== null && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
+            onClick={() => setSelectedVisual(null)}
+          >
+            <div 
+              className="relative max-w-3xl w-full bg-background border border-border rounded-xl shadow-lg overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setSelectedVisual(null)}
+                className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
+              >
+                <X className="size-5" />
+              </button>
+              
+              <div className="relative aspect-[4/3] bg-secondary">
+                <Image
+                  src={visuals[selectedVisual].fullSrc || visuals[selectedVisual].src}
+                  alt={visuals[selectedVisual].alt}
+                  fill
+                  className="object-contain p-4"
+                  unoptimized
+                />
+              </div>
+              
+              <div className="p-4 border-t border-border">
+                {visuals[selectedVisual].caption && (
+                  <p className="text-sm text-foreground mb-2">{visuals[selectedVisual].caption}</p>
+                )}
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <ImageIcon className="size-3" />
+                    Illustrative reference
+                  </span>
+                  {visuals[selectedVisual].attribution && (
+                    <span>{visuals[selectedVisual].attribution}</span>
+                  )}
+                </div>
+                <a
+                  href={visuals[selectedVisual].fullSrc || visuals[selectedVisual].src}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-foreground/70 hover:text-foreground hover:underline mt-2"
+                >
+                  <ExternalLink className="size-3" />
+                  View source
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
 
   const FileListItem = ({
     file,
@@ -145,6 +254,10 @@ export default function AIChatInterface() {
                       </div>
                     ) : (
                       <div className="bg-muted text-foreground prose rounded-lg border p-4 overflow-x-auto overflow-y-hidden">
+                        {/* Illustrative visuals at top of message */}
+                        {message.visuals && message.visuals.length > 0 && (
+                          <ChatVisuals visuals={message.visuals} />
+                        )}
                         <Markdown key={message.id ?? `msg-${index}`} className={"space-y-4"}>{message.content}</Markdown>
                       </div>
                     )}
