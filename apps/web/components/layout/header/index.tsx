@@ -7,7 +7,6 @@ import Notifications from "./notifications";
 import Search from "@/components/layout/header/search";
 import ThemeSwitch from "./theme-switch";
 import UserMenu from "./user-menu";
-import { ThemeCustomizerPanel } from "../../theme-customizer/panel";
 import { Button } from "@/components/ui/button";
 import { useSidebar } from "@/components/ui/sidebar";
 
@@ -26,7 +25,6 @@ export function SiteHeader() {
         <div className="ml-auto flex items-center gap-2">
           <Notifications />
           <ThemeSwitch />
-          <ThemeCustomizerPanel />
           <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
           <UserMenu />
         </div>
