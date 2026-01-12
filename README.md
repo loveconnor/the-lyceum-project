@@ -1,19 +1,17 @@
 # The Lyceum Project
 
-## Overview
-The Lyceum Project is an AI-powered learning platform designed to bring personalized, interactive education to everyone.  
-It combines adaptive learning technology, intelligent tutoring, and hands-on practice to help learners truly understand subjects rather than just memorize content.
+## What is The Lyceum Project?
+The Lyceum Project is an AI powered learning platform that helps you master any subject. It works like a personal tutor that is available twenty four seven. The goal is to make education personalized and interactive for everyone.
 
-## Vision
-Learning should feel like having a personal tutor—guided, engaging, and always available.  
-The Lyceum Project seeks to redefine how people learn by merging adaptive technology, real-time AI assistance, and interactive practice tools in a single platform.
+## What does it do?
+This app creates custom learning paths based on what you want to learn. It uses artificial intelligence to generate lessons and exercises that fit your skill level.
 
-## What We’re Building
-- A modern web platform built with **Next.js** and **Supabase**
-- Personalized learning paths that adapt to each learner’s goals and skill level
-- Real-time AI tutoring for on-demand help and step-by-step explanations
-- Interactive “lab” exercises where users learn by doing
-- A scalable foundation that supports both individual learners and institutional clients
+Here is how it helps you learn:
+- **Personalized Plans:** You tell the app what you want to learn, and it builds a step by step course just for you.
+- **Smart Tutoring:** If you get stuck, an AI tutor explains concepts in simple terms and answers your questions.
+- **Hands On Practice:** You learn by doing interactive labs and exercises, not just by reading or watching videos.
+- **Trusted Sources:** It uses high quality content from trusted educational sources like MIT OpenCourseWare.
+- **Progress Tracking:** You can see how much you have learned and keep track of your goals on a simple dashboard.
 
 ## Current Features Checklist
 - [x] **AI-Generated Learning Paths:** Create full courses on any topic instantly.
