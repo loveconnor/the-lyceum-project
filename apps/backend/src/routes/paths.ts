@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { getSupabaseAdmin } from "../supabaseAdmin";
 import { updateDashboardActivity } from "../dashboardService";
 import { generatePathOutline, generateModuleContent, generateModuleFromSourceContent } from "../ai-path-generator";
+import { generateLearnByDoingTree } from "../learn-by-doing";
 import { generateRegistryBackedPath } from "../ai-path-generator-registry";
 import { 
   createModuleCompletionNotification, 
@@ -431,7 +432,8 @@ router.post("/generate", async (req: Request, res: Response) => {
       estimatedDuration,
       topics,
       source_asset_id, // Optional - if provided, use this specific asset
-      use_ai_only // Optional - force AI-generated content (skip registry)
+      use_ai_only, // Optional - force AI-generated content (skip registry)
+      learn_by_doing // Optional - generate learn-by-doing modules
     } = req.body;
 
     if (!description || !description.trim()) {
@@ -468,6 +470,14 @@ router.post("/generate", async (req: Request, res: Response) => {
     console.log(`[Generate] Using difficulty level: ${difficulty}`);
     console.log(`[Generate] Description: "${description}"`);
     console.log(`[Generate] Topics: ${topics?.join(', ') || 'none'}`);
+
+    const learnByDoingEnabled = Boolean(learn_by_doing);
+    const buildLearnByDoingPrompt = (moduleOutline: { title: string; description?: string }) => {
+      const base = moduleOutline.description
+        ? `${moduleOutline.title}: ${moduleOutline.description}`
+        : moduleOutline.title;
+      return base.slice(0, 140);
+    };
 
     // ============================================
     // STEP 1: Try to find matching Source Registry content
@@ -755,7 +765,28 @@ router.post("/generate", async (req: Request, res: Response) => {
 
             // Generate module content now if we have source nodes
             let moduleContent = null;
-            if (!contentUnavailable) {
+            const learnByDoingPrompt = buildLearnByDoingPrompt(moduleOutline);
+
+            if (learnByDoingEnabled) {
+              try {
+                const generated = await generateLearnByDoingTree(learnByDoingPrompt);
+                moduleContent = {
+                  prompt: learnByDoingPrompt,
+                  tree: generated.tree,
+                  stream: generated.streamLines
+                };
+              } catch (error) {
+                console.error(`[Generate] Learn-by-doing failed for "${moduleOutline.title}":`, error);
+                moduleContent = { prompt: learnByDoingPrompt };
+              }
+              if (stream) {
+                res.write(`data: ${JSON.stringify({
+                  type: 'module_complete',
+                  title: moduleOutline.title,
+                  chaptersCount: 0
+                })}\n\n`);
+              }
+            } else if (!contentUnavailable) {
               try {
                 if (stream) {
                   res.write(`data: ${JSON.stringify({ 
@@ -826,17 +857,19 @@ router.post("/generate", async (req: Request, res: Response) => {
             // Determine if this module would benefit from visual aids
             // This is a quick heuristic check - actual visuals are fetched during rendering
             let usesVisualAids = false;
-            try {
-              usesVisualAids = await shouldUseVisualAids(
-                moduleOutline.title,
-                moduleOutline.description
-              );
-              if (usesVisualAids) {
-                console.log(`[Generate] Module "${moduleOutline.title}" flagged for visual aids`);
+            if (!learnByDoingEnabled) {
+              try {
+                usesVisualAids = await shouldUseVisualAids(
+                  moduleOutline.title,
+                  moduleOutline.description
+                );
+                if (usesVisualAids) {
+                  console.log(`[Generate] Module "${moduleOutline.title}" flagged for visual aids`);
+                }
+              } catch (visualError) {
+                // Visual check is non-critical - continue without flag
+                console.warn(`[Generate] Visual aids check failed for "${moduleOutline.title}":`, visualError);
               }
-            } catch (visualError) {
-              // Visual check is non-critical - continue without flag
-              console.warn(`[Generate] Visual aids check failed for "${moduleOutline.title}":`, visualError);
             }
 
             allPathItems.push({
@@ -847,10 +880,10 @@ router.post("/generate", async (req: Request, res: Response) => {
               description: moduleOutline.description,
               item_type: 'module',
               status: 'not-started',
-              content_mode: 'registry_backed',
+              content_mode: learnByDoingEnabled ? 'learn_by_doing' : 'registry_backed',
               source_asset_id: asset.id,
               source_node_ids: nodeIds,
-              content_unavailable: contentUnavailable,
+              content_unavailable: learnByDoingEnabled ? false : contentUnavailable,
               last_resolved_at: new Date().toISOString(),
               content_data: moduleContent,
               uses_visual_aids: usesVisualAids  // NEW: Flag for visual enrichment
@@ -989,34 +1022,64 @@ router.post("/generate", async (req: Request, res: Response) => {
       }
 
       try {
-        const content = await generateModuleContent(
-          moduleOutline.title,
-          moduleOutline.description,
-          `${outline.title}: ${outline.description}`,
-          outline.difficulty,
-          i
-        );
+        const learnByDoingPrompt = buildLearnByDoingPrompt(moduleOutline);
 
-        // Check if this module would benefit from visual aids
-        let usesVisualAids = false;
-        try {
-          usesVisualAids = await shouldUseVisualAids(moduleOutline.title, moduleOutline.description);
-        } catch (visualError) {
-          // Non-critical - continue without flag
+        if (learnByDoingEnabled) {
+          let learnByDoingContent: any = { prompt: learnByDoingPrompt };
+
+          try {
+            const generated = await generateLearnByDoingTree(learnByDoingPrompt);
+            learnByDoingContent = {
+              prompt: learnByDoingPrompt,
+              tree: generated.tree,
+              stream: generated.streamLines
+            };
+          } catch (error) {
+            console.error(`[Generate] Learn-by-doing failed for "${moduleOutline.title}":`, error);
+          }
+
+          moduleItems.push({
+            path_id: newPath.id,
+            lab_id: null,
+            order_index: i,
+            title: moduleOutline.title,
+            description: moduleOutline.description,
+            item_type: 'module',
+            status: 'not-started',
+            content_mode: 'learn_by_doing',
+            content_data: learnByDoingContent,
+            uses_visual_aids: false
+          });
+        } else {
+          const content = await generateModuleContent(
+            moduleOutline.title,
+            moduleOutline.description,
+            `${outline.title}: ${outline.description}`,
+            outline.difficulty,
+            i
+          );
+
+          // Check if this module would benefit from visual aids
+          let usesVisualAids = false;
+          try {
+            usesVisualAids = await shouldUseVisualAids(moduleOutline.title, moduleOutline.description);
+          } catch (visualError) {
+            // Non-critical - continue without flag
+          }
+
+          moduleItems.push({
+            path_id: newPath.id,
+            lab_id: null,
+            order_index: i,
+            title: moduleOutline.title,
+            description: moduleOutline.description,
+            item_type: 'module',
+            status: 'not-started',
+            content_mode: 'ai_generated',
+            content_data: content,
+            uses_visual_aids: usesVisualAids
+          });
         }
-
-        moduleItems.push({
-          path_id: newPath.id,
-          lab_id: null,
-          order_index: i,
-          title: moduleOutline.title,
-          description: moduleOutline.description,
-          item_type: 'module',
-          status: 'not-started',
-          content_mode: 'ai_generated',
-          content_data: content,
-          uses_visual_aids: usesVisualAids
-        });
 
         if (stream) {
           res.write(`data: ${JSON.stringify({ type: 'module_complete', title: moduleOutline.title, index: i })}\n\n`);
@@ -1031,8 +1094,8 @@ router.post("/generate", async (req: Request, res: Response) => {
           description: moduleOutline.description,
           item_type: 'module',
           status: 'not-started',
-          content_mode: 'ai_generated',
-          content_data: null
+          content_mode: learnByDoingEnabled ? 'learn_by_doing' : 'ai_generated',
+          content_data: learnByDoingEnabled ? { prompt: buildLearnByDoingPrompt(moduleOutline) } : null
         });
       }
     }
@@ -1823,6 +1886,18 @@ router.get("/:pathId/items/:itemId/render", async (req: Request, res: Response) 
       } else {
         return res.status(404).json({ error: "Module content not available" });
       }
+    }
+
+    if (item.content_mode === 'learn_by_doing') {
+      if (item.content_data) {
+        return res.json({
+          content: item.content_data,
+          content_mode: 'learn_by_doing',
+          citations: [],
+          rendered_at: item.updated_at
+        });
+      }
+      return res.status(404).json({ error: "Learn-by-doing content not available" });
     }
 
     // For registry_backed modules, render on-demand

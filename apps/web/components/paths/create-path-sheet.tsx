@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Shimmer } from "@/components/ui/shimmer";
+import { Switch } from "@/components/ui/switch";
 
 interface CreatePathSheetProps {
   isOpen: boolean;
@@ -33,6 +34,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [isGenerating, setIsGenerating] = React.useState(false);
+  const [useLearnByDoing, setUseLearnByDoing] = React.useState(false);
   const [recommendedTopics, setRecommendedTopics] = React.useState<RecommendedTopic[]>([]);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = React.useState(true);
 
@@ -131,7 +133,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
             toast.success("Your learning path has been updated successfully.");
           } else {
             // Use AI to generate the full path with modules and content
-            await generatePathWithAI(pathData);
+            await generatePathWithAI({ ...pathData, learnByDoing: useLearnByDoing });
             toast.success("Learning path created with modules and content!");
           }
         }
@@ -154,7 +156,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
           toast.success("Your learning path has been updated successfully.");
         } else {
           // Use AI to generate the full path with modules and content
-          await generatePathWithAI(pathData);
+          await generatePathWithAI({ ...pathData, learnByDoing: useLearnByDoing });
           toast.success("Learning path created with modules and content!");
         }
       }
@@ -163,6 +165,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
       setDescription("");
       setSelectedRecommendation(null);
       setContextFiles([]);
+      setUseLearnByDoing(false);
       onClose();
     } catch (error) {
       console.error("Error saving path:", error);
@@ -310,6 +313,20 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                   <p className="text-xs text-muted-foreground mt-1.5">
                     Be specific about topics, skills, and your learning goals. The AI will generate a title, modules, and complete content.
                   </p>
+                </div>
+
+                <div className="rounded-lg border p-3 flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Learn-by-Doing Modules</p>
+                    <p className="text-xs text-muted-foreground">
+                      Turn modules into interactive, step-by-step practice. Labs still stay in the path.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={useLearnByDoing}
+                    onCheckedChange={setUseLearnByDoing}
+                    aria-label="Enable learn-by-doing modules"
+                  />
                 </div>
               </div>
 

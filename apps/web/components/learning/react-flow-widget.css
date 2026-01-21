@@ -1,0 +1,46 @@
+/* Enhanced ReactFlow Styling */
+
+/* Elegant Edge Styling - Ensure visibility */
+.react-flow__edge-path {
+  stroke: var(--foreground) !important;
+  stroke-width: 2px !important;
+  stroke-opacity: 0.8 !important;
+  transition: opacity 0.3s;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 3px !important;
+  stroke-opacity: 1 !important;
+}
+
+/* Markers */
+.react-flow__edge marker path {
+  fill: var(--foreground) !important;
+  stroke: var(--foreground) !important;
+}
+
+/* Elegant Labels - Fix black rectangle issue */
+.react-flow__edge-text {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  fill: var(--foreground) !important;
+}
+
+/* Remove the black rectangle background or style it neutrally */
+.react-flow__edge-textbg {
+  fill: var(--card) !important; 
+  opacity: 1 !important;
+  rx: 4;
+  ry: 4;
+}
+
+/* Default Node reset - Let React Components handle styling */
+.react-flow__node {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  width: auto !important;
+  height: auto !important;
+}

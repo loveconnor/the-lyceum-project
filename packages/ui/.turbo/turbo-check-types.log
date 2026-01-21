@@ -1,0 +1,5 @@
+
+
+> @repo/ui@0.0.0 check-types /Users/connorlove/projects/AI-Json-Renderer/packages/ui
+> tsc --noEmit
+

@@ -10,6 +10,11 @@ import {
 import { createPath, updatePath as updatePathAPI, deletePath as deletePathAPI, generatePath } from "@/lib/api/paths";
 import { markPrimaryFeature, trackEvent } from "@/lib/analytics";
 
+type PathDraft = Omit<
+  LearningPath,
+  "id" | "createdAt" | "comments" | "files" | "modules" | "starred" | "reminderDate"
+> & { learnByDoing?: boolean };
+
 interface PathStore {
   paths: LearningPath[];
   selectedPathId: string | null;
@@ -26,18 +31,8 @@ interface PathStore {
   // Actions
   setPaths: (paths: LearningPath[]) => void;
   setGenerationStatus: (status: string | null) => void;
-  addPath: (
-    path: Omit<
-      LearningPath,
-      "id" | "createdAt" | "comments" | "files" | "modules" | "starred" | "reminderDate"
-    >
-  ) => Promise<void>;
-  generatePathWithAI: (
-    path: Omit<
-      LearningPath,
-      "id" | "createdAt" | "comments" | "files" | "modules" | "starred" | "reminderDate"
-    >
-  ) => Promise<void>;
+  addPath: (path: PathDraft) => Promise<void>;
+  generatePathWithAI: (path: PathDraft) => Promise<void>;
   updatePath: (id: string, updatedPath: Partial<Omit<LearningPath, "id">>) => Promise<void>;
   deletePath: (id: string) => Promise<void>;
   setSelectedPathId: (id: string | null) => void;
@@ -131,6 +126,7 @@ export const usePathStore = create<PathStore>((set) => ({
           description: path.description,
           topics: [],
           difficulty: path.difficulty,
+          learn_by_doing: path.learnByDoing,
         }),
       });
 

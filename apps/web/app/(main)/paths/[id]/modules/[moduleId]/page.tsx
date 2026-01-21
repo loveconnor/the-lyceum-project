@@ -54,6 +54,7 @@ import { fetchPathItem, updatePathItemProgress, fetchPathById, renderRegistryMod
 import { fetchLabById, generateLab } from "@/lib/api/labs";
 import { Lab } from "@/app/(main)/labs/types";
 import LabViewer from "@/components/labs/lab-viewer";
+import { Demo as LearnByDoing } from "@/components/LearnByDoing";
 import { toast } from "sonner";
 import { ShortAnswerWidget, MultipleChoiceWidget, MultiStepWidget, CodeEditorWidget } from "@/components/exercises";
 import { ReflectionModal } from "@/components/reflections";
@@ -74,98 +75,110 @@ interface Chapter {
   }>;
 }
 
+type LearnByDoingContent = {
+  prompt?: string;
+  tree?: { root: string; elements: Record<string, any> };
+  stream?: string[];
+  helperText?: string;
+  promptPrefix?: string;
+  promptSuffix?: string;
+  simulationPrompt?: string;
+};
+
+type ModuleContentData = {
+  overview: string;
+  learning_objectives: string[];
+  chapters?: Chapter[];
+  key_concepts: Array<{
+    concept: string;
+    explanation: string;
+    examples?: string[]; // Legacy support
+    example_sections?: Array<{
+      type: 'code' | 'conceptual' | 'pattern' | 'antipattern' | 'applied' | 'walkthrough';
+      title: string;
+      items: string[];
+    }>;
+  }>;
+  practical_exercises: Array<{
+    title: string;
+    description: string;
+    exercise_type?: 'short_answer' | 'multiple_choice' | 'multi_step';
+    difficulty: string;
+    estimated_time?: string;
+    correct_answer?: string;
+    options?: string[];
+    hints?: string[];
+    worked_example?: string;
+    common_mistakes?: string[];
+  }>;
+  resources: Array<{
+    type: 'reading' | 'video' | 'interactive';
+    title: string;
+    description: string;
+  }>;
+  assessment: {
+    questions: Array<{
+      question: string;
+      type: 'multiple-choice' | 'short-answer' | 'practical';
+      options?: string[];
+      correct_answer?: string;
+      explanation?: string;
+    }>;
+  };
+  visuals?: Array<{
+    title: string;
+    description?: string;
+    nodes: Array<{
+      id: string;
+      position: { x: number; y: number };
+      data: { label: string };
+      type?: 'default' | 'input' | 'output';
+      style?: {
+        background?: string;
+        border?: string;
+        borderRadius?: string;
+        padding?: string;
+        fontSize?: string;
+        fontWeight?: number;
+        width?: number;
+        color?: string;
+      };
+    }>;
+    edges: Array<{
+      id: string;
+      source: string;
+      target: string;
+      label?: string;
+      type?: 'default' | 'straight' | 'step' | 'smoothstep' | 'bezier';
+      animated?: boolean;
+      style?: {
+        stroke?: string;
+        strokeWidth?: number;
+      };
+      labelStyle?: {
+        fontSize?: number;
+        fontWeight?: number;
+      };
+      markerEnd?: {
+        type: 'arrow' | 'arrowclosed';
+        color?: string;
+      };
+    }>;
+  }>;
+};
+
 interface ModuleData {
   id: string;
   title: string;
   description: string;
-  content_mode?: 'ai_generated' | 'registry_backed';
+  content_mode?: 'ai_generated' | 'registry_backed' | 'learn_by_doing';
   source_asset_id?: string | null;
   source_node_ids?: string[];
   content_unavailable?: boolean;
   last_resolved_at?: string | null;
   citation_display?: string;
   progress_data?: any;
-  content_data: {
-    overview: string;
-    learning_objectives: string[];
-    chapters?: Chapter[];
-    key_concepts: Array<{
-      concept: string;
-      explanation: string;
-      examples?: string[]; // Legacy support
-      example_sections?: Array<{
-        type: 'code' | 'conceptual' | 'pattern' | 'antipattern' | 'applied' | 'walkthrough';
-        title: string;
-        items: string[];
-      }>;
-    }>;
-    practical_exercises: Array<{
-      title: string;
-      description: string;
-      exercise_type?: 'short_answer' | 'multiple_choice' | 'multi_step';
-      difficulty: string;
-      estimated_time?: string;
-      correct_answer?: string;
-      options?: string[];
-      hints?: string[];
-      worked_example?: string;
-      common_mistakes?: string[];
-    }>;
-    resources: Array<{
-      type: 'reading' | 'video' | 'interactive';
-      title: string;
-      description: string;
-    }>;
-    assessment: {
-      questions: Array<{
-        question: string;
-        type: 'multiple-choice' | 'short-answer' | 'practical';
-        options?: string[];
-        correct_answer?: string;
-        explanation?: string;
-      }>;
-    };
-    visuals?: Array<{
-      title: string;
-      description?: string;
-      nodes: Array<{
-        id: string;
-        position: { x: number; y: number };
-        data: { label: string };
-        type?: 'default' | 'input' | 'output';
-        style?: {
-          background?: string;
-          border?: string;
-          borderRadius?: string;
-          padding?: string;
-          fontSize?: string;
-          fontWeight?: number;
-          width?: number;
-          color?: string;
-        };
-      }>;
-      edges: Array<{
-        id: string;
-        source: string;
-        target: string;
-        label?: string;
-        type?: 'default' | 'straight' | 'step' | 'smoothstep' | 'bezier';
-        animated?: boolean;
-        style?: {
-          stroke?: string;
-          strokeWidth?: number;
-        };
-        labelStyle?: {
-          fontSize?: number;
-          fontWeight?: number;
-        };
-        markerEnd?: {
-          type: 'arrow' | 'arrowclosed';
-          color?: string;
-        };
-      }>;
-    }>;
-  } | null;
+  content_data: ModuleContentData | LearnByDoingContent | null;
   item_type: string;
   status: string;
 }
@@ -177,6 +190,11 @@ const TABS: { key: ViewMode; label: string; icon: React.ElementType }[] = [
   { key: "examples", label: "Examples", icon: Lightbulb },
   { key: "visuals", label: "Visuals", icon: Eye },
 ];
+
+const LEARN_BY_DOING_API_BASE =
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:3001";
 
 // --- Registry Content Helpers ---
 const estimateReadingDuration = (text: string): string => {
@@ -3017,12 +3035,13 @@ export default function ModulePage() {
         const data = await fetchPathItem(pathId, moduleId);
         const isRegistryModule = data.item_type === 'module' && (
           data.content_mode === 'registry_backed' ||
-          (!!data.source_asset_id && (data.source_node_ids?.length || 0) > 0)
+          (!data.content_mode && !!data.source_asset_id && (data.source_node_ids?.length || 0) > 0)
         );
 
         let moduleData: ModuleData = data;
 
-        const needsRegistryRender = isRegistryModule && (!moduleData.content_data || !moduleData.content_data.chapters?.length);
+        const existingContent = moduleData.content_data as ModuleContentData | null;
+        const needsRegistryRender = isRegistryModule && (!existingContent || !existingContent.chapters?.length);
 
         if (needsRegistryRender) {
           moduleData = await loadRegistryContent(moduleData);
@@ -3175,7 +3194,7 @@ export default function ModulePage() {
 
   // Save progress whenever it changes
   useEffect(() => {
-    if (!module || loading) return;
+    if (!module || loading || module.content_mode === 'learn_by_doing') return;
 
     const saveProgress = async () => {
       try {
@@ -3252,6 +3271,30 @@ export default function ModulePage() {
     }
 
     // Navigate to next module
+    navigateToNext();
+  };
+
+  const handleLearnByDoingComplete = async () => {
+    if (module?.item_type === 'module') {
+      try {
+        await updatePathItem(pathId, moduleId, { status: 'completed' });
+      } catch (error) {
+        console.error('Error marking module as complete:', error);
+      }
+    }
+
+    if (!hasShownReflection) {
+      const shouldReflect = shouldTriggerReflection({
+        event: 'module_completed',
+      });
+
+      if (shouldReflect) {
+        setShowReflection(true);
+        setHasShownReflection(true);
+        return;
+      }
+    }
+
     navigateToNext();
   };
 
@@ -3340,8 +3383,73 @@ export default function ModulePage() {
     );
   }
 
+  if (module?.item_type === 'module' && module.content_mode === 'learn_by_doing') {
+    const learnByDoingData = module.content_data as LearnByDoingContent | null;
+    const initialPrompt =
+      learnByDoingData?.prompt ||
+      (module.description ? `${module.title}: ${module.description}` : module.title);
+    const initialTree = learnByDoingData?.tree?.root ? learnByDoingData.tree : null;
+    const learnByDoingApi = `${LEARN_BY_DOING_API_BASE}/learn-by-doing`;
+
+    return (
+      <div className="space-y-8">
+        <div className="relative py-6">
+          <div className="absolute left-0 top-7 z-10">
+            <Link href={`/paths/${pathId}`}>
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground -ml-2">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Path
+              </Button>
+            </Link>
+          </div>
+          <div className="flex flex-col items-center gap-3">
+            <h1 className="text-3xl md:text-4xl font-display text-center leading-tight max-w-4xl px-6">
+              {module.title}
+            </h1>
+            {module.description && (
+              <p className="text-sm text-muted-foreground text-center max-w-2xl">
+                {module.description}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <LearnByDoing
+          api={learnByDoingApi}
+          initialPrompt={initialPrompt}
+          initialTree={initialTree}
+          autoStart={!initialTree}
+          hideInput
+          layout="full"
+          stepByStep
+          onEndReached={handleLearnByDoingComplete}
+          fallbackStepText={
+            module.description
+              ? module.description
+              : "Use the prompt to reason through this step, then continue to the next activity."
+          }
+          helperText={learnByDoingData?.helperText}
+          promptPrefix={learnByDoingData?.promptPrefix}
+          promptSuffix={learnByDoingData?.promptSuffix}
+          simulationPrompt={learnByDoingData?.simulationPrompt}
+        />
+
+        <ReflectionModal
+          open={showReflection}
+          onOpenChange={setShowReflection}
+          contextType="module"
+          contextId={moduleId}
+          contextTitle={module.title}
+          onComplete={handleReflectionComplete}
+        />
+      </div>
+    );
+  }
+
   // For regular modules, check if content_data exists
-  if (!module || !module.content_data || !module.content_data.chapters) {
+  const moduleContent = module?.content_data as ModuleContentData | null;
+
+  if (!module || !moduleContent || !moduleContent.chapters) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4 max-w-md">
@@ -3374,7 +3482,7 @@ export default function ModulePage() {
     );
   }
 
-  const chapters = module.content_data.chapters;
+  const chapters = moduleContent.chapters;
   
   // Module is complete when: Reading is done AND (Examples OR Visuals viewed)
   const isModuleComplete = isQuizPassed && (isExamplesComplete || isVisualsComplete);
@@ -3504,8 +3612,8 @@ export default function ModulePage() {
           
           <TabsContent value="examples" className="mt-0 focus-visible:outline-none">
             <ExamplesView 
-              keyConcepts={module.content_data.key_concepts || []}
-              practicalExercises={module.content_data.practical_exercises || []}
+              keyConcepts={moduleContent.key_concepts || []}
+              practicalExercises={moduleContent.practical_exercises || []}
               isExamplesComplete={isExamplesComplete} 
               setIsExamplesComplete={setIsExamplesComplete}
               viewedConcepts={viewedConcepts}
@@ -3523,7 +3631,7 @@ export default function ModulePage() {
           
           <TabsContent value="visuals" className="mt-0 focus-visible:outline-none">
             <VisualsView 
-              visuals={module.content_data.visuals || []} 
+              visuals={moduleContent.visuals || []} 
               isVisualsComplete={isVisualsComplete} 
               setIsVisualsComplete={setIsVisualsComplete}
               viewedVisuals={viewedVisuals}

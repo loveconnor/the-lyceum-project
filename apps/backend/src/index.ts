@@ -10,6 +10,7 @@ import pathsRouter from './routes/paths';
 import notificationsRouter from './routes/notifications';
 import waitlistRouter from './routes/waitlist';
 import registryRouter from './routes/registry';
+import learnByDoingRouter from './routes/learn-by-doing';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -33,6 +34,8 @@ app.use('/paths', requireAuth, pathsRouter);
 app.use('/notifications', requireAuth, notificationsRouter);
 // Waitlist (public)
 app.use('/waitlist', waitlistRouter);
+// Learn-by-doing (public streaming endpoint)
+app.use('/learn-by-doing', learnByDoingRouter);
 // Source Registry (no auth - service/admin only in production)
 app.use('/registry', registryRouter);
 

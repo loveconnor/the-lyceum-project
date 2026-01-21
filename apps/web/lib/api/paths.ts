@@ -13,6 +13,7 @@ interface CreatePathPayload {
   difficulty?: string;
   estimated_duration?: number;
   items?: CreatePathItemPayload[];
+  learn_by_doing?: boolean;
 }
 
 interface CreatePathItemPayload {

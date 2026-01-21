@@ -1,0 +1,58 @@
+{
+  "name": "@ai-json-renderer/core",
+  "version": "0.2.0",
+  "license": "Apache-2.0",
+  "description": "Core package for AI JSON Renderer - a generative UI framework powered by LLMs and JSON schemas.",
+  "keywords": [
+    "json",
+    "ui",
+    "react",
+    "ai",
+    "generative-ui",
+    "llm",
+    "schema",
+    "zod",
+    "streaming"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/loveconnor/ai-json-renderer.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/loveconnor/ai-json-renderer#readme",
+  "bugs": {
+    "url": "https://github.com/loveconnor/ai-json-renderer/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "tsup": "^8.0.2",
+    "typescript": "^5.4.5"
+  },
+  "peerDependencies": {
+    "zod": "^4.0.0"
+  }
+}

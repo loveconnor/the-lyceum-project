@@ -52,7 +52,7 @@ export interface PathItem {
   status: 'not-started' | 'in-progress' | 'completed';
   completed_at?: string | null;
   content_data?: any;
-  content_mode?: 'ai_generated' | 'registry_backed';
+  content_mode?: 'ai_generated' | 'registry_backed' | 'learn_by_doing';
   source_asset_id?: string | null;
   source_node_ids?: string[];
   content_unavailable?: boolean;
