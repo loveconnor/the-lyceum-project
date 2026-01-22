@@ -13,7 +13,7 @@ import { markPrimaryFeature, trackEvent } from "@/lib/analytics";
 type PathDraft = Omit<
   LearningPath,
   "id" | "createdAt" | "comments" | "files" | "modules" | "starred" | "reminderDate"
-> & { learnByDoing?: boolean };
+> & { learnByDoing?: boolean; includeLabs?: boolean };
 
 interface PathStore {
   paths: LearningPath[];
@@ -127,6 +127,7 @@ export const usePathStore = create<PathStore>((set) => ({
           topics: [],
           difficulty: path.difficulty,
           learn_by_doing: path.learnByDoing,
+          include_labs: path.includeLabs,
         }),
       });
 

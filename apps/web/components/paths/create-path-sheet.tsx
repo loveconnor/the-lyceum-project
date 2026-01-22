@@ -35,6 +35,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
   const [description, setDescription] = React.useState("");
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [useLearnByDoing, setUseLearnByDoing] = React.useState(false);
+  const [includeLabs, setIncludeLabs] = React.useState(true);
   const [recommendedTopics, setRecommendedTopics] = React.useState<RecommendedTopic[]>([]);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = React.useState(true);
 
@@ -133,7 +134,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
             toast.success("Your learning path has been updated successfully.");
           } else {
             // Use AI to generate the full path with modules and content
-            await generatePathWithAI({ ...pathData, learnByDoing: useLearnByDoing });
+            await generatePathWithAI({ ...pathData, learnByDoing: useLearnByDoing, includeLabs });
             toast.success("Learning path created with modules and content!");
           }
         }
@@ -156,7 +157,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
           toast.success("Your learning path has been updated successfully.");
         } else {
           // Use AI to generate the full path with modules and content
-          await generatePathWithAI({ ...pathData, learnByDoing: useLearnByDoing });
+          await generatePathWithAI({ ...pathData, learnByDoing: useLearnByDoing, includeLabs });
           toast.success("Learning path created with modules and content!");
         }
       }
@@ -166,6 +167,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
       setSelectedRecommendation(null);
       setContextFiles([]);
       setUseLearnByDoing(false);
+      setIncludeLabs(true);
       onClose();
     } catch (error) {
       console.error("Error saving path:", error);
@@ -326,6 +328,20 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                     checked={useLearnByDoing}
                     onCheckedChange={setUseLearnByDoing}
                     aria-label="Enable learn-by-doing modules"
+                  />
+                </div>
+
+                <div className="rounded-lg border p-3 flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Include Labs</p>
+                    <p className="text-xs text-muted-foreground">
+                      Add practice labs between modules.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={includeLabs}
+                    onCheckedChange={setIncludeLabs}
+                    aria-label="Include labs in the path"
                   />
                 </div>
               </div>

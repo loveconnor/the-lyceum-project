@@ -7,7 +7,6 @@ import {
   RefreshCcw,
   HelpCircle,
   AlertCircle,
-  GripVertical,
 } from "lucide-react";
 
 import type { ComponentRenderProps } from "./types";
@@ -317,7 +316,6 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
             onDragStart={(e) => handleDragStart(e, word, "bank", idx)}
             className="cursor-grab active:cursor-grabbing px-2.5 py-1 bg-background border border-border rounded-md shadow-sm hover:border-primary/40 hover:text-primary transition-colors text-xs font-medium flex items-center gap-2 select-none"
           >
-            <GripVertical className="w-3 h-3 text-muted-foreground/60" />
             {word}
           </div>
         ))}
@@ -388,7 +386,7 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
                       type="text"
                       value={inputValue}
                       onChange={(e) => handleInputChange(id, e.target.value)}
-                      placeholder={def.placeholder || "..."}
+                      placeholder={def.placeholder || ""}
                       className="bg-transparent border-none outline-none w-full text-inherit p-0 placeholder:text-muted-foreground/60"
                       autoComplete="off"
                     />

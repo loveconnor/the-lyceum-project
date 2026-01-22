@@ -14,6 +14,7 @@ interface CreatePathPayload {
   estimated_duration?: number;
   items?: CreatePathItemPayload[];
   learn_by_doing?: boolean;
+  include_labs?: boolean;
 }
 
 interface CreatePathItemPayload {

@@ -433,7 +433,8 @@ router.post("/generate", async (req: Request, res: Response) => {
       topics,
       source_asset_id, // Optional - if provided, use this specific asset
       use_ai_only, // Optional - force AI-generated content (skip registry)
-      learn_by_doing // Optional - generate learn-by-doing modules
+      learn_by_doing, // Optional - generate learn-by-doing modules
+      include_labs // Optional - include labs between modules
     } = req.body;
 
     if (!description || !description.trim()) {
@@ -472,6 +473,7 @@ router.post("/generate", async (req: Request, res: Response) => {
     console.log(`[Generate] Topics: ${topics?.join(', ') || 'none'}`);
 
     const learnByDoingEnabled = Boolean(learn_by_doing);
+    const includeLabs = include_labs !== false;
     const buildLearnByDoingPrompt = (moduleOutline: { title: string; description?: string }) => {
       const base = moduleOutline.description
         ? `${moduleOutline.title}: ${moduleOutline.description}`
@@ -890,7 +892,7 @@ router.post("/generate", async (req: Request, res: Response) => {
             });
 
             // Add lab suggestion
-            if (moduleOutline.order_index < outline.modules.length - 1) {
+            if (includeLabs && moduleOutline.order_index < outline.modules.length - 1) {
               allPathItems.push({
                 path_id: newPath.id,
                 lab_id: null,
@@ -1105,7 +1107,7 @@ router.post("/generate", async (req: Request, res: Response) => {
     let orderIndex = 0;
     for (let i = 0; i < moduleItems.length; i++) {
       allPathItems.push({ ...moduleItems[i], order_index: orderIndex++ });
-      if (i < moduleItems.length - 1) {
+      if (includeLabs && i < moduleItems.length - 1) {
         allPathItems.push({
           path_id: newPath.id,
           lab_id: null,

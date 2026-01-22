@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { GripVertical, RotateCcw, Check, X } from "lucide-react";
+import { RotateCcw, Check, X } from "lucide-react";
 
 import type { ComponentRenderProps } from "./types";
 import { baseClass, getCustomClass } from "./utils";
@@ -325,7 +325,6 @@ const MinimalItem = ({
           : "bg-background text-foreground border-border hover:bg-muted/30"
       }`}
     >
-      <GripVertical className="w-3 h-3 opacity-50" />
       <span>{item.label}</span>
       {result !== null && !isSelected ? (
         <span className={`ml-auto inline-flex items-center gap-1 text-[10px] ${result ? "text-emerald-600" : "text-rose-600"}`}>
