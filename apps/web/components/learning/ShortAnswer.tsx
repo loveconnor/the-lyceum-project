@@ -2,6 +2,7 @@
 
 import { useState, type ChangeEvent } from "react";
 import { AlertCircle } from "lucide-react";
+import { Markdown } from "./markdown";
 
 import type { ComponentRenderProps } from "./types";
 import { baseClass, getCustomClass } from "./utils";
@@ -48,7 +49,7 @@ export function ShortAnswer({ element }: ComponentRenderProps) {
           <div className="text-xs font-semibold text-left">{label}</div>
         ) : null}
         {isAtLimit ? (
-          <span className="text-[10px] font-medium text-amber-600 inline-flex items-center gap-1">
+          <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 inline-flex items-center gap-1">
             <AlertCircle className="w-3 h-3" />
             Limit reached
           </span>
@@ -57,12 +58,14 @@ export function ShortAnswer({ element }: ComponentRenderProps) {
 
       {description ? (
         <div className="text-[10px] text-muted-foreground mt-1 text-left">
-          {description}
+          <Markdown>{description}</Markdown>
         </div>
       ) : null}
 
       {question ? (
-        <div className="text-xs font-medium text-left mt-2">{question}</div>
+        <div className="text-xs font-medium text-left mt-2">
+          <Markdown>{question}</Markdown>
+        </div>
       ) : null}
 
       <div className="relative mt-2">
@@ -72,7 +75,7 @@ export function ShortAnswer({ element }: ComponentRenderProps) {
           value={value}
           onChange={handleChange}
           className={`w-full bg-background border border-border rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-foreground/20 resize-y ${
-            isAtLimit ? "border-amber-400 focus:ring-amber-300" : ""
+            isAtLimit ? "border-amber-400 dark:border-amber-600 focus:ring-amber-300 dark:focus:ring-amber-500" : ""
           }`}
         />
 
@@ -81,9 +84,9 @@ export function ShortAnswer({ element }: ComponentRenderProps) {
             <span
               className={
                 isAtLimit
-                  ? "text-amber-600 font-semibold"
+                  ? "text-amber-600 dark:text-amber-400 font-semibold"
                   : isNearLimit
-                    ? "text-orange-500"
+                    ? "text-orange-500 dark:text-orange-400"
                     : "text-muted-foreground"
               }
             >
@@ -101,7 +104,7 @@ export function ShortAnswer({ element }: ComponentRenderProps) {
                 cy="12"
               />
               <circle
-                className={isAtLimit ? "text-amber-500" : "text-foreground"}
+                className={isAtLimit ? "text-amber-500 dark:text-amber-400" : "text-foreground"}
                 strokeWidth="3"
                 strokeDasharray={2 * Math.PI * 10}
                 strokeDashoffset={

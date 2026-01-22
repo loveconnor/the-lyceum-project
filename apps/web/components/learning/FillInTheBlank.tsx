@@ -8,6 +8,7 @@ import {
   HelpCircle,
   AlertCircle,
 } from "lucide-react";
+import { Markdown } from "./markdown";
 
 import type { ComponentRenderProps } from "./types";
 import { baseClass, getCustomClass } from "./utils";
@@ -269,9 +270,9 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
     // Validation States
     if (status === "checked") {
       if (state === "correct")
-        return `${base} border-emerald-500/50 bg-emerald-50 text-emerald-900`;
+        return `${base} border-emerald-500/50 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-900 dark:text-emerald-300`;
       if (state === "incorrect")
-        return `${base} border-rose-500/50 bg-rose-50 text-rose-900`;
+        return `${base} border-rose-500/50 bg-rose-50 dark:bg-rose-900/30 text-rose-900 dark:text-rose-300`;
     }
 
     // Default State
@@ -429,9 +430,9 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
                 {title || "Fill in the Blanks"}
               </div>
               {description && (
-                <p className="text-[10px] text-muted-foreground mt-0.5">
-                  {description}
-                </p>
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  <Markdown>{description}</Markdown>
+                </div>
               )}
             </div>
           </div>

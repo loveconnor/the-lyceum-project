@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { RotateCcw, Check, X } from "lucide-react";
+import { Markdown } from "./markdown";
 
 import type { ComponentRenderProps } from "./types";
 import { baseClass, getCustomClass } from "./utils";
@@ -161,7 +162,7 @@ export function DragDrop({ element }: ComponentRenderProps) {
           <div className="text-sm font-semibold text-left">{title}</div>
           {description ? (
             <div className="text-xs text-muted-foreground mt-1 text-left">
-              {description}
+              <Markdown>{description}</Markdown>
             </div>
           ) : null}
         </div>
@@ -280,8 +281,8 @@ export function DragDrop({ element }: ComponentRenderProps) {
         <div
           className={`mt-3 rounded-md p-3 border text-xs ${
             isCorrect
-              ? "bg-emerald-50/50 border-emerald-100 text-emerald-900"
-              : "bg-rose-50/50 border-rose-100 text-rose-900"
+              ? "bg-emerald-50/50 dark:bg-emerald-900/30 border-emerald-100 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300"
+              : "bg-rose-50/50 dark:bg-rose-900/30 border-rose-100 dark:border-rose-800 text-rose-900 dark:text-rose-300"
           }`}
         >
           <div className="font-semibold">

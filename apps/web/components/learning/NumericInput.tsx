@@ -9,6 +9,7 @@ import {
   Info,
   RotateCcw,
 } from "lucide-react";
+import { Markdown } from "./markdown";
 
 import type { ComponentRenderProps } from "./types";
 import { baseClass, getCustomClass } from "./utils";
@@ -155,15 +156,17 @@ export function NumericInput({ element }: ComponentRenderProps) {
 
   const inputClass =
     status === "error"
-      ? "border-rose-300 focus:ring-rose-200"
+      ? "border-rose-300 dark:border-rose-700 focus:ring-rose-200 dark:focus:ring-rose-800"
       : status === "correct"
-        ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+        ? "border-emerald-300 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-900 dark:text-emerald-300"
         : "";
 
   return (
     <div className={`${baseClass} ${customClass} w-full max-w-md mx-auto`}>
       {label ? (
-        <div className="text-xs font-semibold mb-1 text-left">{label}</div>
+        <div className="text-xs font-semibold mb-1 text-left">
+          <Markdown>{label}</Markdown>
+        </div>
       ) : null}
 
       <div className="flex w-full items-end gap-2">
@@ -214,12 +217,12 @@ export function NumericInput({ element }: ComponentRenderProps) {
             <span
               className={`mt-0.5 ${
                 feedback.type === "success"
-                  ? "text-emerald-600"
+                  ? "text-emerald-600 dark:text-emerald-400"
                   : feedback.type === "warning"
-                    ? "text-amber-600"
+                    ? "text-amber-600 dark:text-amber-400"
                     : feedback.type === "info"
-                      ? "text-blue-600"
-                      : "text-rose-600"
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-rose-600 dark:text-rose-400"
               }`}
             >
               {feedback.icon}

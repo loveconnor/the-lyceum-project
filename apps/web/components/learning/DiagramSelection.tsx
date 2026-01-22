@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import * as d3 from "d3";
+import { Markdown } from "./markdown";
 
 import type { ComponentRenderProps } from "./types";
 import { baseClass, getCustomClass } from "./utils";
@@ -49,14 +50,14 @@ const DefaultDiagram = () => (
         <path
           d="M 40 0 L 0 0 0 40"
           fill="none"
-          stroke="#f1f5f9"
+          className="stroke-slate-100 dark:stroke-slate-800"
           strokeWidth="1"
         />
       </pattern>
     </defs>
-    <rect width="800" height="500" fill="#ffffff" />
+    <rect width="800" height="500" className="fill-white dark:fill-card" />
     <rect width="800" height="500" fill="url(#grid)" />
-    <g stroke="#cbd5e1" strokeWidth="3" fill="none">
+    <g className="stroke-slate-300 dark:stroke-slate-600" strokeWidth="3" fill="none">
       <path d="M 400 80 L 400 150" />
       <path d="M 400 230 L 250 320" />
       <path d="M 400 230 L 550 320" />
@@ -64,10 +65,10 @@ const DefaultDiagram = () => (
       <path d="M 550 400 L 400 480" strokeDasharray="5,5" />
     </g>
     <g transform="translate(400, 50)">
-      <circle r="30" fill="#e0f2fe" stroke="#38bdf8" strokeWidth="2" />
+      <circle r="30" className="fill-sky-100 dark:fill-sky-900 stroke-sky-400 dark:stroke-sky-600" strokeWidth="2" />
       <path
         d="M -15 5 Q 0 15 15 5"
-        stroke="#38bdf8"
+        className="stroke-sky-400 dark:stroke-sky-600"
         strokeWidth="2"
         fill="none"
       />
@@ -75,7 +76,8 @@ const DefaultDiagram = () => (
         x="0"
         y="-40"
         textAnchor="middle"
-        style={{ fontSize: "14px", fontFamily: "sans-serif", fill: "#64748b" }}
+        style={{ fontSize: "14px", fontFamily: "sans-serif" }}
+        className="fill-slate-500 dark:fill-slate-400"
       >
         Internet
       </text>
@@ -85,8 +87,7 @@ const DefaultDiagram = () => (
         width="80"
         height="80"
         rx="8"
-        fill="#f1f5f9"
-        stroke="#94a3b8"
+        className="fill-slate-100 dark:fill-slate-800 stroke-slate-400 dark:stroke-slate-600"
         strokeWidth="2"
       />
       <text
@@ -96,9 +97,9 @@ const DefaultDiagram = () => (
         style={{
           fontSize: "14px",
           fontFamily: "sans-serif",
-          fill: "#334155",
           fontWeight: "bold",
         }}
+        className="fill-slate-700 dark:fill-slate-200"
       >
         LB
       </text>
@@ -108,8 +109,7 @@ const DefaultDiagram = () => (
         width="80"
         height="80"
         rx="8"
-        fill="#f0fdf4"
-        stroke="#4ade80"
+        className="fill-green-50 dark:fill-green-900 stroke-green-400 dark:stroke-green-600"
         strokeWidth="2"
       />
       <text
@@ -119,9 +119,9 @@ const DefaultDiagram = () => (
         style={{
           fontSize: "14px",
           fontFamily: "sans-serif",
-          fill: "#334155",
           fontWeight: "bold",
         }}
+        className="fill-slate-700 dark:fill-slate-200"
       >
         App 1
       </text>
@@ -131,8 +131,7 @@ const DefaultDiagram = () => (
         width="80"
         height="80"
         rx="8"
-        fill="#f0fdf4"
-        stroke="#4ade80"
+        className="fill-green-50 dark:fill-green-900 stroke-green-400 dark:stroke-green-600"
         strokeWidth="2"
       />
       <text
@@ -142,9 +141,9 @@ const DefaultDiagram = () => (
         style={{
           fontSize: "14px",
           fontFamily: "sans-serif",
-          fill: "#334155",
           fontWeight: "bold",
         }}
+        className="fill-slate-700 dark:fill-slate-200"
       >
         App 2
       </text>
@@ -152,20 +151,18 @@ const DefaultDiagram = () => (
     <g transform="translate(360, 440)">
       <path
         d="M0,10 A40,10 0 0,0 80,10 A40,10 0 0,0 0,10"
-        fill="#fef9c3"
-        stroke="#facc15"
+        className="fill-yellow-50 dark:fill-yellow-900 stroke-yellow-400 dark:stroke-yellow-600"
         strokeWidth="2"
       />
       <path
         d="M0,10 L0,50 A40,10 0 0,0 80,50 L80,10"
-        fill="#fef9c3"
-        stroke="#facc15"
+        className="fill-yellow-50 dark:fill-yellow-900 stroke-yellow-400 dark:stroke-yellow-600"
         strokeWidth="2"
       />
       <path
         d="M0,10 A40,10 0 0,1 80,10"
         fill="none"
-        stroke="#facc15"
+        className="stroke-yellow-400 dark:stroke-yellow-600"
         strokeWidth="2"
       />
       <text
@@ -175,9 +172,9 @@ const DefaultDiagram = () => (
         style={{
           fontSize: "14px",
           fontFamily: "sans-serif",
-          fill: "#334155",
           fontWeight: "bold",
         }}
+        className="fill-slate-700 dark:fill-slate-200"
       >
         Primary DB
       </text>
@@ -319,12 +316,12 @@ export function DiagramSelection({ element }: ComponentRenderProps) {
       .append("rect")
       .attr("width", width)
       .attr("height", height)
-      .attr("fill", "#ffffff");
+      .attr("class", "fill-white dark:fill-card");
 
     if (links.length > 0) {
       svg
         .append("g")
-        .attr("stroke", "#cbd5e1")
+        .attr("class", "stroke-slate-300 dark:stroke-slate-600")
         .attr("stroke-width", 2)
         .selectAll("line")
         .data(links)
@@ -350,8 +347,7 @@ export function DiagramSelection({ element }: ComponentRenderProps) {
       .attr("cx", (d: D3Node) => d.x ?? 0)
       .attr("cy", (d: D3Node) => d.y ?? 0)
       .attr("r", radius)
-      .attr("fill", "#f1f5f9")
-      .attr("stroke", "#94a3b8")
+      .attr("class", "fill-slate-100 dark:fill-slate-800 stroke-slate-400 dark:stroke-slate-600")
       .attr("stroke-width", 2);
 
     nodeGroup
@@ -364,7 +360,7 @@ export function DiagramSelection({ element }: ComponentRenderProps) {
       .attr("text-anchor", "middle")
       .attr("font-size", 12)
       .attr("font-family", "sans-serif")
-      .attr("fill", "#334155")
+      .attr("class", "fill-slate-700 dark:fill-slate-300")
       .text((d: D3Node) => d.label ?? d.id);
   }, [computedNodes, d3Diagram, diagramType, d3NodeRadius, height, width]);
 
@@ -395,7 +391,7 @@ export function DiagramSelection({ element }: ComponentRenderProps) {
       ) : null}
       {description ? (
         <div className="text-xs text-muted-foreground text-left mb-3">
-          {description}
+          <Markdown>{description}</Markdown>
         </div>
       ) : null}
 

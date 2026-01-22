@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ChevronRight, Play, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Markdown } from "./markdown";
 
 import type { ComponentRenderProps } from "./types";
 import { baseClass, getCustomClass } from "./utils";
@@ -153,17 +154,17 @@ const highlightSyntax = (text: string) => {
 
   return text.split(regex).map((part, i) => {
     if (!part) return null;
-    let style = "text-gray-700";
+    let style = "text-muted-foreground";
 
-    if (/^['"`]/.test(part)) style = "text-green-600";
-    else if (/^(?:\/\/|#)/.test(part)) style = "text-gray-400 italic";
-    else if (/^\d/.test(part)) style = "text-orange-600";
+    if (/^['"`]/.test(part)) style = "text-green-600 dark:text-green-400";
+    else if (/^(?:\/\/|#)/.test(part)) style = "text-muted-foreground/60 italic";
+    else if (/^\d/.test(part)) style = "text-orange-600 dark:text-orange-400";
     else if (
       /^(def|class|if|else|elif|return|for|while|import|from|as|try|except|finally|raise|async|await|function|const|let|var|new|this|typeof|instanceof|void|delete|null|true|false|undefined|in|of|console)$/.test(
         part,
       )
     )
-      style = "text-purple-600 font-semibold";
+      style = "text-purple-600 dark:text-purple-400 font-semibold";
 
     return (
       <span key={i} className={style}>
@@ -242,27 +243,31 @@ const CodeRenderer = ({
 
           if (isSelected) {
             classes +=
-              " border-blue-500 bg-blue-50 text-blue-700 ring-2 ring-blue-500/20 border-solid";
+              " border-primary bg-primary/10 text-primary ring-2 ring-primary/20 border-solid";
           } else if (filledOption) {
             classes +=
-              " border-gray-300 bg-white text-gray-900 border-solid shadow-sm";
+              " border-border bg-card text-foreground border-solid shadow-sm";
           } else {
             classes +=
-              " border-gray-300 bg-transparent text-gray-400 hover:border-gray-400 hover:bg-white";
+              " border-border bg-transparent text-muted-foreground hover:border-foreground/50 hover:bg-card";
           }
 
           if (isCorrect) {
             classes = classes
-              .replace("border-gray-300", "border-emerald-500")
+              .replace("border-border", "border-emerald-500")
               .replace(
-                "bg-white",
-                "bg-emerald-50 text-emerald-700 border-solid",
-              );
+                "bg-card",
+                "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-solid",
+              )
+              .replace("bg-transparent", "bg-emerald-50 dark:bg-emerald-900/20")
+              .replace("border-primary", "border-emerald-500")
+              .replace("bg-primary/10", "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300");
           }
           if (isError) {
             classes = classes
-              .replace("border-gray-300", "border-rose-500")
-              .replace("bg-white", "bg-rose-50 text-rose-700 border-solid");
+              .replace("border-border", "border-rose-500")
+              .replace("bg-card", "bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 border-solid")
+              .replace("bg-transparent", "bg-rose-50 dark:bg-rose-900/20");
           }
 
           return (
@@ -302,7 +307,7 @@ const OptionBank = ({ options, onSelect }: OptionBankProps) => {
 
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
+      <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">
         Options
       </h3>
       {safeOptions.map((opt) => (
@@ -313,13 +318,13 @@ const OptionBank = ({ options, onSelect }: OptionBankProps) => {
           onClick={() => onSelect(opt)}
           className="
             w-full text-left px-4 py-3
-            bg-white border border-gray-200 rounded-lg shadow-sm
-            hover:border-blue-400 hover:shadow-md
+            bg-card border border-border rounded-lg shadow-sm
+            hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-md
             active:scale-[0.98] transition-all duration-150
             cursor-grab active:cursor-grabbing
           "
         >
-          <span className="font-mono text-sm text-gray-800 pointer-events-none">
+          <span className="font-mono text-sm text-foreground pointer-events-none">
             {opt.label}
           </span>
         </button>
@@ -499,20 +504,20 @@ export function CodeFill({ element, children }: ComponentRenderProps) {
 
   return (
     <div
-      className={`w-full max-w-4xl mx-auto space-y-8 text-gray-900 ${baseClass} ${customClass}`}
+      className={`w-full max-w-4xl mx-auto space-y-8 text-foreground ${baseClass} ${customClass}`}
     >
       {/* INSTRUCTIONS */}
       {showHeader && (
         <div className="space-y-2">
           {(scenario.title || title) && (
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-foreground">
               {scenario.title ?? title}
             </h2>
           )}
           {(scenario.description || description) && (
-            <p className="text-gray-600 text-base">
-              {scenario.description ?? description}
-            </p>
+            <div className="text-muted-foreground text-base">
+              <Markdown>{scenario.description ?? description ?? ""}</Markdown>
+            </div>
           )}
           {headerSlotMode === "append" && slotChildren("header")}
         </div>
@@ -529,8 +534,8 @@ export function CodeFill({ element, children }: ComponentRenderProps) {
         <div className="md:col-span-2">
           <div
             className={`
-              h-full bg-gray-50 rounded-xl p-8 border-2 transition-colors duration-300
-              ${validationState.correct ? "border-emerald-100 bg-emerald-50/20" : "border-gray-100"}
+              h-full bg-muted/30 rounded-xl p-8 border-2 transition-colors duration-300
+              ${validationState.correct ? "border-emerald-100 dark:border-emerald-900 bg-emerald-50/20 dark:bg-emerald-900/20" : "border-border/50"}
             `}
           >
             <CodeRenderer
@@ -567,7 +572,7 @@ export function CodeFill({ element, children }: ComponentRenderProps) {
 
       {/* CONTROLS */}
       {showControls && (
-        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+        <div className="flex items-center justify-between pt-4 border-t border-border">
           {controlsSlotMode !== "replace" ? (
             <Button
               type="button"

@@ -8,6 +8,7 @@ import {
   ArrowRight,
   AlertCircle,
 } from "lucide-react";
+import { Markdown } from "./markdown";
 
 import type { ComponentRenderProps } from "./types";
 import { baseClass, getCustomClass } from "./utils";
@@ -136,11 +137,11 @@ export function OrderSteps({ element }: ComponentRenderProps) {
         <div>
           <div className="text-sm font-semibold text-left">{title}</div>
           <div className="text-xs text-muted-foreground mt-1 text-left">
-            {description}
+            <Markdown>{description}</Markdown>
           </div>
         </div>
         {showStatus && isSubmitted ? (
-          <div className="flex items-center gap-2 px-2 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-medium rounded-full">
+          <div className="flex items-center gap-2 px-2 py-1 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-medium rounded-full">
             <CheckCircle2 className="w-3 h-3" />
             Captured
           </div>
@@ -218,16 +219,16 @@ export function OrderSteps({ element }: ComponentRenderProps) {
         <div
           className={`mt-3 rounded-md p-3 border text-xs ${
             isCorrect
-              ? "bg-emerald-50/50 border-emerald-100 text-emerald-900"
-              : "bg-rose-50/50 border-rose-100 text-rose-900"
+              ? "bg-emerald-50/50 dark:bg-emerald-900/30 border-emerald-100 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300"
+              : "bg-rose-50/50 dark:bg-rose-900/30 border-rose-100 dark:border-rose-800 text-rose-900 dark:text-rose-300"
           }`}
         >
           <div className="flex items-start gap-2">
             <div
               className={`p-1 rounded-full shrink-0 ${
                 isCorrect
-                  ? "bg-emerald-100 text-emerald-600"
-                  : "bg-rose-100 text-rose-600"
+                  ? "bg-emerald-100 dark:bg-emerald-800 text-emerald-600 dark:text-emerald-300"
+                  : "bg-rose-100 dark:bg-rose-800 text-rose-600 dark:text-rose-300"
               }`}
             >
               {isCorrect ? (
@@ -241,7 +242,9 @@ export function OrderSteps({ element }: ComponentRenderProps) {
                 {isCorrect ? "Correct order" : "Incorrect order"}
               </div>
               {explanation ? (
-                <div className="text-muted-foreground mt-1">{explanation}</div>
+                <div className="text-muted-foreground mt-1">
+                  <Markdown>{explanation}</Markdown>
+                </div>
               ) : null}
             </div>
           </div>

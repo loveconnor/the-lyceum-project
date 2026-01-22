@@ -9,6 +9,7 @@ import {
   RefreshCcw,
   ArrowRight,
 } from "lucide-react";
+import { Markdown } from "./markdown";
 
 import type { ComponentRenderProps } from "./types";
 import { baseClass, getCustomClass } from "./utils";
@@ -38,9 +39,9 @@ const ConfidenceCheck = ({
       value: "medium",
       label: "Pretty Sure",
       icon: AlertCircle,
-      color: "text-amber-600",
+      color: "text-amber-600 dark:text-amber-400",
     },
-    { value: "high", label: "Certain", icon: Check, color: "text-emerald-600" },
+    { value: "high", label: "Certain", icon: Check, color: "text-emerald-600 dark:text-emerald-400" },
   ];
 
   return (
@@ -143,8 +144,8 @@ export function TrueFalse({ element }: ComponentRenderProps) {
       if (isSelected) {
         return `${baseStyle} ${
           optionValue === true
-            ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-            : "border-rose-600 bg-rose-50 text-rose-700"
+            ? "border-emerald-600 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
+            : "border-rose-600 dark:border-rose-500 bg-rose-50 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300"
         }`;
       }
       return `${baseStyle} border-border bg-background text-muted-foreground`;
@@ -153,9 +154,9 @@ export function TrueFalse({ element }: ComponentRenderProps) {
     if (isSelected) {
       const isCorrect = answer === correctAnswer;
       if (isCorrect) {
-        return `${baseStyle} border-emerald-500 bg-emerald-100 text-emerald-900 ring-1 ring-emerald-500`;
+        return `${baseStyle} border-emerald-500 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-900 dark:text-emerald-300 ring-1 ring-emerald-500`;
       }
-      return `${baseStyle} border-rose-500 bg-rose-100 text-rose-900 ring-1 ring-rose-500`;
+      return `${baseStyle} border-rose-500 bg-rose-100 dark:bg-rose-900/40 text-rose-900 dark:text-rose-300 ring-1 ring-rose-500`;
     }
 
     return `${baseStyle} opacity-50 border-border bg-muted/30 text-muted-foreground cursor-not-allowed`;
@@ -189,7 +190,9 @@ export function TrueFalse({ element }: ComponentRenderProps) {
 
   return (
     <div className={`${baseClass} ${customClass} w-full max-w-2xl mx-auto`}>
-      <div className="text-sm font-semibold text-left mb-3">{statement}</div>
+      <div className="text-sm font-semibold text-left mb-3">
+        <Markdown>{statement}</Markdown>
+      </div>
 
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
@@ -232,16 +235,16 @@ export function TrueFalse({ element }: ComponentRenderProps) {
           <div
             className={`animate-in fade-in slide-in-from-top-2 duration-500 rounded-md p-3 mt-3 border ${
               answer === correctAnswer
-                ? "bg-emerald-50/50 border-emerald-100"
-                : "bg-rose-50/50 border-rose-100"
+                ? "bg-emerald-50/50 dark:bg-emerald-900/30 border-emerald-100 dark:border-emerald-800"
+                : "bg-rose-50/50 dark:bg-rose-900/30 border-rose-100 dark:border-rose-800"
             }`}
           >
             <div className="flex items-start gap-2">
               <div
                 className={`p-1 rounded-full shrink-0 ${
                   answer === correctAnswer
-                    ? "bg-emerald-100 text-emerald-600"
-                    : "bg-rose-100 text-rose-600"
+                    ? "bg-emerald-100 dark:bg-emerald-800 text-emerald-600 dark:text-emerald-300"
+                    : "bg-rose-100 dark:bg-rose-800 text-rose-600 dark:text-rose-300"
                 }`}
               >
                 {answer === correctAnswer ? (
@@ -254,15 +257,15 @@ export function TrueFalse({ element }: ComponentRenderProps) {
                 <div
                   className={`font-semibold text-xs ${
                     answer === correctAnswer
-                      ? "text-emerald-700"
-                      : "text-rose-700"
+                      ? "text-emerald-700 dark:text-emerald-300"
+                      : "text-rose-700 dark:text-rose-300"
                   }`}
                 >
                   {answer === correctAnswer ? "Correct!" : "Incorrect"}
                 </div>
                 {explanation ? (
                   <div className="text-xs text-muted-foreground mt-1">
-                    {explanation}
+                    <Markdown>{explanation}</Markdown>
                   </div>
                 ) : (
                   <div className="text-xs text-muted-foreground mt-1">

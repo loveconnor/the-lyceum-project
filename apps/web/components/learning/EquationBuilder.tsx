@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Trash2, Copy, Check, Undo2, AlertCircle } from "lucide-react";
+import { Markdown } from "./markdown";
 
 import type { ComponentRenderProps } from "./types";
 import { baseClass, getCustomClass } from "./utils";
@@ -229,7 +230,7 @@ export function EquationBuilder({ element }: ComponentRenderProps) {
           onClick={() => isFilled && handleRemoveToken(i)}
           className={`relative flex items-center justify-center w-8 h-10 rounded text-sm transition-all duration-150 select-none ${
             isFilled
-              ? "bg-muted text-foreground border border-border cursor-pointer hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600"
+              ? "bg-muted text-foreground border border-border cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-900/40 hover:border-rose-200 dark:hover:border-rose-800 hover:text-rose-600 dark:hover:text-rose-300"
               : isActive
                 ? "bg-background border-2 border-foreground shadow-sm z-10"
                 : "bg-muted/40 border border-border"
@@ -255,7 +256,9 @@ export function EquationBuilder({ element }: ComponentRenderProps) {
   return (
     <div className={`${baseClass} ${customClass} w-full max-w-2xl mx-auto`}>
       <div className="flex items-center justify-between gap-3 mb-4 w-full">
-        <div className="text-xs text-muted-foreground">{instructions}</div>
+        <div className="text-xs text-muted-foreground">
+          <Markdown>{instructions}</Markdown>
+        </div>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -293,7 +296,7 @@ export function EquationBuilder({ element }: ComponentRenderProps) {
       </div>
 
       {error ? (
-        <div className="mb-3 text-xs text-rose-700 flex items-center gap-2">
+        <div className="mb-3 text-xs text-rose-700 dark:text-rose-400 flex items-center gap-2">
           <AlertCircle className="w-3.5 h-3.5" />
           {error}
         </div>

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { Check, X, AlertCircle, ArrowRight, RotateCcw } from "lucide-react";
+import { Markdown } from "./markdown";
 
 import type { ComponentRenderProps } from "./types";
 import { baseClass, getCustomClass } from "./utils";
@@ -184,7 +185,7 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
     <div className={`${baseClass} ${customClass} w-full max-w-2xl mx-auto`}>
       {activeQuestionText ? (
         <div className="text-sm font-semibold text-left mb-3">
-          {activeQuestionText}
+          <Markdown>{activeQuestionText}</Markdown>
         </div>
       ) : null}
 
@@ -206,11 +207,11 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
                 activeCorrectIds.includes(option.id)) ||
               option.id === activeCorrectId
             ) {
-              containerClasses += " bg-emerald-50 border-emerald-500";
+              containerClasses += " bg-emerald-50 dark:bg-emerald-900/40 border-emerald-500 dark:border-emerald-600";
               indicatorColor = "border-emerald-500 bg-emerald-500 text-white";
             } else if (isSelected && option.id !== correctOptionId) {
-              containerClasses += " bg-rose-50 border-rose-300";
-              indicatorColor = "border-rose-400 text-rose-500";
+              containerClasses += " bg-rose-50 dark:bg-rose-900/40 border-rose-300 dark:border-rose-600";
+              indicatorColor = "border-rose-400 dark:border-rose-600 text-rose-500 dark:text-rose-400";
             } else {
               containerClasses += " opacity-60";
             }
@@ -268,15 +269,15 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
         <div
           className={`mt-3 text-xs rounded-md p-2 border ${
             feedback.type === "success"
-              ? "bg-emerald-50 text-emerald-900 border-emerald-100"
-              : "bg-amber-50 text-amber-900 border-amber-100"
+              ? "bg-emerald-50 dark:bg-emerald-900/40 text-emerald-900 dark:text-emerald-300 border-emerald-100 dark:border-emerald-800"
+              : "bg-amber-50 dark:bg-amber-900/40 text-amber-900 dark:text-amber-300 border-amber-100 dark:border-amber-800"
           }`}
         >
           <div className="flex items-start gap-2">
             {feedback.type === "success" ? (
-              <Check className="w-4 h-4 mt-0.5 text-emerald-600 shrink-0" />
+              <Check className="w-4 h-4 mt-0.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 mt-0.5 text-amber-600 shrink-0" />
+              <AlertCircle className="w-4 h-4 mt-0.5 text-amber-600 dark:text-amber-400 shrink-0" />
             )}
             <div>
               <div className="font-semibold">
