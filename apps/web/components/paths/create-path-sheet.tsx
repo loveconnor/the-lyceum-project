@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles, TrendingUp, Target, ChevronRight} from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
 import { usePathStore } from "@/app/(main)/paths/store";
@@ -211,117 +211,32 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
           </SheetHeader>
 
           <form onSubmit={onSubmit} className="space-y-6 p-4 pt-0">
-            {/* Recommended Paths Section */}
-            {(isLoadingRecommendations || recommendedPaths.length > 0) && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="text-sm font-medium">Recommended for You</h3>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Based on your current progress and learning goals
+            {/* Custom Path Creation */}
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="description" className="text-sm font-medium">
+                  What do you want to learn? <span className="text-destructive">*</span>
+                </label>
+                <Textarea
+                  id="description"
+                  placeholder="e.g. Java programming, Classical History, Italian Cooking..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={!!selectedRecommendation}
+                  rows={4}
+                  className="mt-1.5 resize-none"
+                />
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Be specific about topics, skills, and your learning goals.
                 </p>
-                
-                {isLoadingRecommendations ? (
-                  <div className="space-y-2">
-                    {[1, 2, 3].map((i) => (
-                      <div key={i} className="rounded-lg border p-3 animate-pulse">
-                        <div className="space-y-2">
-                          <div className="h-4 bg-muted rounded w-3/4"></div>
-                          <div className="h-3 bg-muted rounded w-1/2"></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {recommendedPaths.map((rec) => (
-                    <button
-                      key={rec.id}
-                      type="button"
-                      onClick={() => setSelectedRecommendation(
-                        selectedRecommendation === rec.id ? null : rec.id
-                      )}
-                      className={cn(
-                        "w-full text-left rounded-lg border p-3 transition-all hover:border-primary/50",
-                        selectedRecommendation === rec.id 
-                          ? "border-primary bg-primary/5" 
-                          : "border-border"
-                      )}
-                    >
-                      <div className="space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 space-y-1">
-                            <h4 className="text-sm font-medium leading-tight">{rec.title}</h4>
-                            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                              {rec.description}
-                            </p>
-                          </div>
-                          <ChevronRight className={cn(
-                            "h-4 w-4 text-muted-foreground transition-transform shrink-0 mt-0.5",
-                            selectedRecommendation === rec.id && "rotate-90"
-                          )} />
-                        </div>
-                        
-                        {selectedRecommendation === rec.id && (
-                          <div className="space-y-2 pt-2 border-t">
-                            <div className="flex items-center gap-3 text-xs">
-                              <div className="flex items-center gap-1.5">
-                                <Target className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-muted-foreground">{rec.reason}</span>
-                              </div>
-                              <span className="text-muted-foreground">•</span>
-                              <span className="text-muted-foreground">{rec.estimatedDuration}</span>
-                              <span className="text-muted-foreground">•</span>
-                              <span className="text-muted-foreground">{rec.moduleCount} modules</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-              {/* Divider */}
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    Or create custom
-                  </span>
-                </div>
               </div>
 
-              {/* Custom Path Creation */}
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="description" className="text-sm font-medium">
-                    What do you want to learn? <span className="text-destructive">*</span>
-                  </label>
-                  <Textarea
-                    id="description"
-                    placeholder="Describe what you want to learn"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    disabled={!!selectedRecommendation}
-                    rows={6}
-                    className="mt-1.5"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1.5">
-                    Be specific about topics, skills, and your learning goals. The AI will generate a title, modules, and complete content.
-                  </p>
-                </div>
-
-                <div className="rounded-lg border p-3 flex items-center justify-between gap-4">
-                  <div className="space-y-1">
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
                     <p className="text-sm font-medium">Learn-by-Doing Modules</p>
                     <p className="text-xs text-muted-foreground">
-                      Turn modules into interactive, step-by-step practice. Labs still stay in the path.
+                      Interactive practice steps.
                     </p>
                   </div>
                   <Switch
@@ -331,11 +246,11 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                   />
                 </div>
 
-                <div className="rounded-lg border p-3 flex items-center justify-between gap-4">
-                  <div className="space-y-1">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
                     <p className="text-sm font-medium">Include Labs</p>
                     <p className="text-xs text-muted-foreground">
-                      Add practice labs between modules.
+                      Practice labs between modules.
                     </p>
                   </div>
                   <Switch
@@ -345,8 +260,9 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                   />
                 </div>
               </div>
+            </div>
 
-              <Button 
+            <Button 
                 className={cn(
                   "w-full overflow-hidden transition-all duration-300 relative",
                   isGenerating && "!opacity-100 !bg-primary"
@@ -368,8 +284,8 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                 >
                   <Sparkles className="h-4 w-4" />
                   {selectedRecommendation 
-                    ? "Generate This Path with AI" 
-                    : "Generate Learning Path with AI"}
+                    ? "Generate This Path" 
+                    : "Generate Path"}
                 </motion.div>
                 
                 <motion.div
@@ -386,11 +302,69 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                 >
                   <Sparkles className="h-4 w-4 shrink-0" />
                   <Shimmer className="font-medium truncate max-w-[200px] sm:max-w-none" duration={3.5}>
-                    {generationStatus || "Generating with AI..."}
+                    {generationStatus || "Generating..."}
                   </Shimmer>
                 </motion.div>
               </Button>
-            </form>
+
+            {/* Recommended Paths Section */}
+            {(isLoadingRecommendations || recommendedPaths.length > 0) && (
+              <div className="space-y-4 pt-2">
+                 <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-muted-foreground">
+                      Or try a recommended path
+                    </span>
+                  </div>
+                </div>
+                
+                {isLoadingRecommendations ? (
+                  <div className="grid gap-2">
+                    {[1, 2].map((i) => (
+                      <div key={i} className="rounded-lg border p-3 animate-pulse">
+                        <div className="space-y-2">
+                          <div className="h-4 bg-muted rounded w-3/4"></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid gap-2">
+                    {recommendedPaths.map((rec) => (
+                    <button
+                      key={rec.id}
+                      type="button"
+                      onClick={() => setSelectedRecommendation(
+                        selectedRecommendation === rec.id ? null : rec.id
+                      )}
+                      className={cn(
+                        "w-full text-left rounded-lg border p-3 transition-all hover:border-primary/50",
+                        selectedRecommendation === rec.id 
+                          ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                          : "border-border bg-card/50"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium leading-none mb-1.5">{rec.title}</h4>
+                          <p className="text-xs text-muted-foreground line-clamp-1">
+                            {rec.description}
+                          </p>
+                        </div>
+                        {selectedRecommendation === rec.id && (
+                             <Sparkles className="h-3 w-3 text-primary shrink-0 animate-pulse" />
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          </form>
         </SheetContent>
       </Sheet>
 

@@ -97,7 +97,8 @@ export interface LearningPath {
   learning_path_items?: PathItem[];
   starred: boolean;
   difficulty?: Difficulty;
-  estimatedDuration?: string; // Total path duration (e.g., "8-12 weeks", "40 hours")
+  estimated_duration?: number; // Duration in minutes from database
+  estimatedDuration?: string; // Legacy: Total path duration (e.g., "8-12 weeks", "40 hours")
 }
 
 export interface PathPosition {

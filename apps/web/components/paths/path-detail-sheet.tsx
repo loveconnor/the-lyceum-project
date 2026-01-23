@@ -1,6 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { formatDuration } from "@/lib/duration";
 import { format } from "date-fns";
 import {
   FileIcon,
@@ -109,8 +110,10 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
 
   const statusLabel = pathStatusNamed[path.status as keyof typeof pathStatusNamed] || path.status;
 
-  // Get path data
-  const pathDuration = path.estimatedDuration || "8-12 weeks";
+  // Get path data - calculate duration from estimated_duration (in minutes) or fall back to estimatedDuration string
+  const pathDuration = path.estimated_duration 
+    ? formatDuration(path.estimated_duration)
+    : path.estimatedDuration || "Time varies";
   const difficulty = path.difficulty || "intermediate";
   const totalModules = path.modules?.length || 0;
   const completedModules = path.modules?.filter(m => m.completed).length || 0;

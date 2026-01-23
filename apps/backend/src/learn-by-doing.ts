@@ -54,7 +54,7 @@ Charts:
 
 Interactive:
 - CodeFill: { title?: string, description?: string, codeTemplate?: string, gaps?: Array<{ id: string, expectedId: string }>, options?: Array<{ id: string, label: string, type?: string }>, scenarios?: Array<{ id: string, title?: string, description?: string, codeTemplate: string, gaps: Array<{ id: string, expectedId: string }>, options: Array<{ id: string, label: string, type?: string }> }>, showHeader?: boolean, showOptions?: boolean, showControls?: boolean, showScenarioNavigation?: boolean } - Drag-and-drop code fill activity with optional scenario navigation
-- FillInTheBlank: { title?: string, description: string, textTemplate: string, blanks: Array<{ id: string, correctAnswers: string[], placeholder?: string, hint?: string }>, wordBank: string[], caseSensitive?: boolean } - Drag-and-drop fill-in-the-blank activity. ALWAYS provide description with clear, specific instructions (2-3 sentences) explaining what the user should do, like "Create an int variable called age..." or "Complete the for loop by filling in...". REQUIRED: wordBank must contain all the correct answers plus some distractors (wrong options) to make it a drag-and-drop challenge.
+- FillInTheBlank: { title?: string, description: string, textTemplate: string, blanks: Array<{ id: string, correctAnswers: string[], placeholder?: string, hint?: string }>, wordBank: string[], caseSensitive?: boolean } - Drag-and-drop fill-in-the-blank activity. ALWAYS provide description with clear, specific instructions (2-3 sentences) explaining what the user should do, like "Create an int variable called age..." or "Complete the for loop by filling in...". CRITICAL REQUIREMENT: wordBank is MANDATORY and MUST NEVER be empty. wordBank MUST contain ALL the correct answers from blanks[].correctAnswers PLUS at least 2-3 distractor words (plausible but wrong options). Example: if blanks need ["int", "25"], wordBank should be ["int", "25", "String", "float", "30"] to make it a drag-and-drop challenge.
 - NumericInput: { label?: string, placeholder?: string, unit?: string, correctAnswer: number, allowScientific?: boolean, tolerance?: number, range?: [number, number], showFeedback?: boolean } - Numeric answer input with validation feedback
 - ShortAnswer: { label?: string, description?: string, question?: string, placeholder?: string, maxLength?: number, rows?: number, showCounter?: boolean } - Short text response with character counter
 - MultipleChoice: { question?: string, options?: Array<{ id: string, label: string }>, correctOptionId?: string, correctOptionIds?: string[], minSelections?: number, misconceptions?: Record<string, string>, shuffle?: boolean, showFeedback?: boolean, questions?: Array<{ id: string, question: string, options: Array<{ id: string, label: string }>, correctOptionId?: string, correctOptionIds?: string[], minSelections?: number, misconceptions?: Record<string, string> }> } - Multiple-choice question with feedback (single or multiple)
@@ -160,6 +160,14 @@ Interaction Model:
 CodeFill Requirements:
 - When using CodeFill, ALWAYS set showControls:true, showScenarioNavigation:true, showOptions:true, showFeedback:true, autoAdvance:true.
 - Provide scenarios with at least 2 items so the Next button advances.
+
+FillInTheBlank Requirements (CRITICAL):
+- wordBank is MANDATORY - NEVER create a FillInTheBlank without wordBank
+- wordBank MUST include ALL correct answers from blanks[].correctAnswers
+- wordBank MUST include 2-3 distractor words (plausible but incorrect options)
+- Example: If blanks need ["int", "age"], wordBank must be ["int", "age", "String", "name", "float"]
+- description MUST explain what to do (2-3 sentences): "Complete the variable declaration by dragging the correct type and value..."
+- VALIDATION: Before outputting FillInTheBlank, verify wordBank contains all blanks[].correctAnswers
 
 Lesson Structure Requirements:
 - The goal is to TEACH the user the topic thoroughly with comprehensive explanations and hands-on activities.

@@ -3,6 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { formatDuration } from "@/lib/duration";
 import { Clock, Eye, MoreVertical, RotateCcw, Star, Trash2, BookOpen, FlaskConical } from "lucide-react";
 import { statusClasses, pathStatusNamed } from "@/app/(main)/paths/enum";
 import { LearningPath, PathStatus } from "@/app/(main)/paths/types";
@@ -17,6 +18,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface PathCardProps {
   path: LearningPath;
@@ -38,6 +49,7 @@ const PathCard: React.FC<PathCardProps> = ({
   onDelete
 }) => {
   const router = useRouter();
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
 
   // Calculate items completed (modules + labs)
   const completedItems = path.learning_path_items?.filter((i) => i.status === 'completed').length || 0;
@@ -54,8 +66,10 @@ const PathCard: React.FC<PathCardProps> = ({
   // Get status label from enum
   const statusLabel = pathStatusNamed[path.status as keyof typeof pathStatusNamed] || path.status;
 
-  // Path duration from data model
-  const pathDuration = path.estimatedDuration || "8-12 weeks";
+  // Path duration - calculate from estimated_duration (in minutes) or fall back to estimatedDuration string
+  const pathDuration = path.estimated_duration 
+    ? formatDuration(path.estimated_duration)
+    : path.estimatedDuration || "Time varies";
 
   // Path description for overall goal
   const pathGoal = path.description || "Comprehensive curriculum to build expertise in this domain";
@@ -67,6 +81,7 @@ const PathCard: React.FC<PathCardProps> = ({
 
   if (viewMode === "grid") {
     return (
+      <>
       <Card
         className={cn(
           "flex h-full flex-col transition-shadow hover:shadow-md cursor-pointer"
@@ -127,7 +142,7 @@ const PathCard: React.FC<PathCardProps> = ({
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (onDelete) onDelete(path.id);
+                        setIsDeleteDialogOpen(true);
                       }}
                       className="text-destructive focus:text-destructive"
                     >
@@ -186,10 +201,38 @@ const PathCard: React.FC<PathCardProps> = ({
             </div>
           </CardContent>
         </Card>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Learning Path</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{path.title}"? This action cannot be undone and will remove all modules and progress associated with this path.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={(e) => e.stopPropagation()}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onDelete) onDelete(path.id);
+                setIsDeleteDialogOpen(false);
+              }}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      </>
     );
   }
 
   return (
+    <>
     <Card
       className={cn(
         "transition-shadow hover:shadow-md cursor-pointer"
@@ -251,7 +294,7 @@ const PathCard: React.FC<PathCardProps> = ({
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (onDelete) onDelete(path.id);
+                        setIsDeleteDialogOpen(true);
                       }}
                       className="text-destructive focus:text-destructive"
                     >
@@ -310,6 +353,33 @@ const PathCard: React.FC<PathCardProps> = ({
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Learning Path</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{path.title}"? This action cannot be undone and will remove all modules and progress associated with this path.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={(e) => e.stopPropagation()}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onDelete) onDelete(path.id);
+                setIsDeleteDialogOpen(false);
+              }}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
 
