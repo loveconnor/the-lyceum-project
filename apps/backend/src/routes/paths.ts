@@ -434,7 +434,8 @@ router.post("/generate", async (req: Request, res: Response) => {
       source_asset_id, // Optional - if provided, use this specific asset
       use_ai_only, // Optional - force AI-generated content (skip registry)
       learn_by_doing, // Optional - generate learn-by-doing modules
-      include_labs // Optional - include labs between modules
+      include_labs, // Optional - include labs between modules
+      context_files // Optional - user-uploaded reference materials
     } = req.body;
 
     if (!description || !description.trim()) {
@@ -471,7 +472,12 @@ router.post("/generate", async (req: Request, res: Response) => {
     console.log(`[Generate] Using difficulty level: ${difficulty}`);
     console.log(`[Generate] Description: "${description}"`);
     console.log(`[Generate] Topics: ${topics?.join(', ') || 'none'}`);
-
+    console.log(`[Generate] Context files uploaded: ${context_files?.length || 0}`);
+    if (context_files && context_files.length > 0) {
+      context_files.forEach((file, idx) => {
+        console.log(`[Generate]   [${idx + 1}] ${file.name} (${file.content.length} chars)`);
+      });
+    }
     const learnByDoingEnabled = Boolean(learn_by_doing);
     const includeLabs = include_labs !== false;
     const buildLearnByDoingPrompt = (moduleOutline: { title: string; description?: string }) => {
@@ -983,7 +989,8 @@ router.post("/generate", async (req: Request, res: Response) => {
       description,
       difficulty,
       estimatedDuration,
-      topics
+      topics,
+      context_files
     });
 
     console.log(`[Generate] Outline: ${outline.modules.length} modules`);
@@ -1058,7 +1065,8 @@ router.post("/generate", async (req: Request, res: Response) => {
             moduleOutline.description,
             `${outline.title}: ${outline.description}`,
             outline.difficulty,
-            i
+            i,
+            context_files
           );
 
           // Check if this module would benefit from visual aids

@@ -1,5 +1,5 @@
 import React from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Upload, X, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "motion/react";
 import { usePathStore } from "@/app/(main)/paths/store";
@@ -119,6 +119,18 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
     try {
       setIsGenerating(true);
       
+      // Process uploaded files
+      const contextFilesData = await Promise.all(
+        contextFiles.map(async (file) => {
+          const text = await file.text();
+          return {
+            name: file.name,
+            content: text,
+            type: file.type || 'text/plain'
+          };
+        })
+      );
+      
       if (selectedRecommendation) {
         // Use recommended path data
         const rec = recommendedPaths.find(r => r.id === selectedRecommendation);
@@ -134,7 +146,12 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
             toast.success("Your learning path has been updated successfully.");
           } else {
             // Use AI to generate the full path with modules and content
-            await generatePathWithAI({ ...pathData, learnByDoing: useLearnByDoing, includeLabs });
+            await generatePathWithAI({ 
+              ...pathData, 
+              learnByDoing: useLearnByDoing, 
+              includeLabs,
+              contextFiles: contextFilesData
+            });
             toast.success("Learning path created with modules and content!");
           }
         }
@@ -157,7 +174,12 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
           toast.success("Your learning path has been updated successfully.");
         } else {
           // Use AI to generate the full path with modules and content
-          await generatePathWithAI({ ...pathData, learnByDoing: useLearnByDoing, includeLabs });
+          await generatePathWithAI({ 
+            ...pathData, 
+            learnByDoing: useLearnByDoing, 
+            includeLabs,
+            contextFiles: contextFilesData
+          });
           toast.success("Learning path created with modules and content!");
         }
       }
@@ -229,6 +251,68 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                 <p className="text-xs text-muted-foreground mt-1.5">
                   Be specific about topics, skills, and your learning goals.
                 </p>
+              </div>
+
+              {/* File Upload Section */}
+              <div>
+                <label htmlFor="context-files" className="text-sm font-medium">
+                  Reference Materials <span className="text-muted-foreground">(Optional)</span>
+                </label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Upload notes, textbook pages, or other materials to help AI build your path.
+                </p>
+                
+                <div className="mt-2">
+                  <label htmlFor="file-upload" className="cursor-pointer">
+                    <div className="border-2 border-dashed rounded-lg p-4 hover:border-primary/50 transition-colors">
+                      <div className="flex items-center justify-center gap-2 text-muted-foreground">
+                        <Upload className="h-5 w-5" />
+                        <span className="text-sm">Click to upload or drag and drop</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground text-center mt-1">
+                        PDF, TXT, MD, DOCX (max 10MB each)
+                      </p>
+                    </div>
+                  </label>
+                  <input
+                    id="file-upload"
+                    type="file"
+                    multiple
+                    accept=".pdf,.txt,.md,.docx,.doc"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </div>
+
+                {contextFiles.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {contextFiles.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between gap-2 p-2 bg-muted rounded-md"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm truncate">{file.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(file.size)}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(index)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid gap-3">

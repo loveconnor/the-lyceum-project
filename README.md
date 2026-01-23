@@ -14,6 +14,7 @@ Here is how it helps you learn:
 - **Progress Tracking:** You can see how much you have learned and keep track of your goals on a simple dashboard.
 
 ## Current Features Checklist
+- [x] **Learn-By-Doing:** Interactive step-by-step modules with widgets and activities to practice as you learn.
 - [x] **AI-Generated Learning Paths:** Create full courses on any topic instantly.
 - [x] **Smart AI Tutor:** A personal assistant to answer questions and explain concepts.
 - [x] **Interactive Labs:** Hands-on practice exercises generated for your topics.

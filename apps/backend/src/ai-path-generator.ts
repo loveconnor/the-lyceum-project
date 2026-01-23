@@ -118,6 +118,11 @@ export interface GeneratePathRequest {
   difficulty: 'intro' | 'intermediate' | 'advanced';
   estimatedDuration?: string;
   topics?: string[];
+  context_files?: Array<{
+    name: string;
+    content: string;
+    type: string;
+  }>;
 }
 
 export interface PathOutline {
@@ -241,6 +246,12 @@ export interface GeneratedPathResponse {
 
 const PATH_OUTLINE_PROMPT = `You are an expert curriculum designer for Lyceum, an educational platform. Your job is to create a high-level outline for a learning path.
 
+CRITICAL: When users provide uploaded files with specific instructions:
+- Those instructions are MANDATORY requirements
+- If they say "make X the first module", X must be order_index: 0
+- If they specify a topic order, follow it exactly
+- User requirements override standard curriculum practices
+
 Given a learning path title and description, generate:
 1. Path metadata (refined title, description, difficulty, duration, topics)
 2. A sequence of module titles and descriptions that progressively build knowledge
@@ -268,7 +279,21 @@ Guidelines:
 - Each module should take 2-4 hours to complete
 - Module titles should be clear and descriptive
 - Descriptions should explain what the learner will achieve
-- Ensure proper scaffolding between modules`;
+- Ensure proper scaffolding between modules
+- CRITICAL: If user uploaded files contain instructions like "make X first" or "start with Y", those topics MUST be in the earliest modules (order_index: 0, 1, etc.)
+
+EXAMPLE: If user says "Create a module about abstract classes. Make that first module before everything"
+Then your response MUST have:
+{
+  "modules": [
+    {
+      "title": "Abstract Classes in Java",
+      "description": "...",
+      "order_index": 0
+    },
+    ... other modules after ...
+  ]
+}`;
 
 const MODULE_CONTENT_PROMPT = `You are an expert curriculum designer for Lyceum. Generate detailed content for a single learning module.
 
@@ -704,11 +729,42 @@ export async function generatePathOutline(
       const client = ensureClient();
       const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
 
-      const titleInstruction = request.title 
-        ? `Title: ${request.title}`
-        : `Generate an appropriate title based on the learning goals described below.`;
+      let userPrompt: string;
 
-      const userPrompt = `Generate a comprehensive learning path outline for:
+      if (request.context_files && request.context_files.length > 0) {
+        // When user provides files, those take absolute priority
+        const fileContents = request.context_files.map((file, idx) => 
+          `File ${idx + 1}: ${file.name}\n${file.content.substring(0, 3000)}${file.content.length > 3000 ? '...' : ''}`
+        ).join('\n\n---\n\n');
+
+        userPrompt = `🚨 CRITICAL INSTRUCTIONS FROM USER FILES 🚨
+
+The user has uploaded specific instructions for this learning path. These are MANDATORY requirements, NOT suggestions:
+
+${fileContents}
+
+---
+
+REQUIRED ACTIONS:
+1. Read the user's instructions above carefully
+2. If they specify a topic to cover FIRST, make that the FIRST module (order_index: 0)
+3. If they specify a custom order or structure, follow it EXACTLY
+4. If they mention specific topics to include, create modules for those topics
+5. Only add additional standard curriculum topics AFTER addressing all user requirements
+
+Additional Context:
+- Base Topic: ${request.description || 'Create a structured learning path'}
+- Difficulty: ${request.difficulty}
+${request.topics && request.topics.length > 0 ? `- Focus Areas: ${request.topics.join(', ')}` : ''}
+
+REMEMBER: User instructions in the files above override standard curriculum design. Follow them precisely.`;
+      } else {
+        // Standard generation without custom files
+        const titleInstruction = request.title 
+          ? `Title: ${request.title}`
+          : `Generate an appropriate title based on the learning goals described below.`;
+
+        userPrompt = `Generate a comprehensive learning path outline for:
 
 ${titleInstruction}
 Description: ${request.description || 'Create a structured learning path'}
@@ -717,6 +773,7 @@ ${request.topics && request.topics.length > 0 ? `Focus Topics: ${request.topics.
 
 Note: Determine an appropriate total duration (in hours) based on the content scope and difficulty level.
 Create module titles and descriptions that build on each other progressively.`;
+      }
 
       const completion = await client.chat.completions.create({
         model,
@@ -764,7 +821,8 @@ export async function generateModuleContent(
   moduleDescription: string,
   pathContext: string,
   difficulty: string,
-  orderIndex: number
+  orderIndex: number,
+  contextFiles?: Array<{ name: string; content: string; type: string }>
 ): Promise<GeneratedModule['content']> {
   const maxRetries = 1;
   let lastError: any;
@@ -780,12 +838,18 @@ export async function generateModuleContent(
       const client = ensureClient();
       const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
 
+      const contextFilesSection = contextFiles && contextFiles.length > 0
+        ? `\n\nUser-Provided Reference Materials:\n${contextFiles.map((file, idx) => 
+            `[${idx + 1}] ${file.name}:\n${file.content.substring(0, 2000)}${file.content.length > 2000 ? '...' : ''}`
+          ).join('\n\n')}\n\nUse these materials to inform the content of this module.`
+        : '';
+
       const userPrompt = `Generate detailed content for this learning module:
 
 Module Title: ${moduleTitle}
 Module Description: ${moduleDescription}
 Learning Path Context: ${pathContext}
-Difficulty Level: ${difficulty}
+Difficulty Level: ${difficulty}${contextFilesSection}
 Module Position: ${orderIndex + 1}
 
 Create comprehensive, thorough learning content. Each chapter should be detailed and well-explained (800-1200 words), with clear progression and smooth flow. Use simple language and explain everything clearly. Don't rush through concepts - take the time to explain them properly with examples.`;
