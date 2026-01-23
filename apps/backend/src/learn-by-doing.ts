@@ -54,7 +54,7 @@ Charts:
 
 Interactive:
 - CodeFill: { title?: string, description?: string, codeTemplate?: string, gaps?: Array<{ id: string, expectedId: string }>, options?: Array<{ id: string, label: string, type?: string }>, scenarios?: Array<{ id: string, title?: string, description?: string, codeTemplate: string, gaps: Array<{ id: string, expectedId: string }>, options: Array<{ id: string, label: string, type?: string }> }>, showHeader?: boolean, showOptions?: boolean, showControls?: boolean, showScenarioNavigation?: boolean } - Drag-and-drop code fill activity with optional scenario navigation
-- FillInTheBlank: { title?: string, description?: string, textTemplate: string, blanks: Array<{ id: string, correctAnswers: string[], placeholder?: string, hint?: string }>, wordBank?: string[], caseSensitive?: boolean } - Drag-and-drop fill-in-the-blank activity
+- FillInTheBlank: { title?: string, description: string, textTemplate: string, blanks: Array<{ id: string, correctAnswers: string[], placeholder?: string, hint?: string }>, wordBank: string[], caseSensitive?: boolean } - Drag-and-drop fill-in-the-blank activity. ALWAYS provide description with clear, specific instructions (2-3 sentences) explaining what the user should do, like "Create an int variable called age..." or "Complete the for loop by filling in...". REQUIRED: wordBank must contain all the correct answers plus some distractors (wrong options) to make it a drag-and-drop challenge.
 - NumericInput: { label?: string, placeholder?: string, unit?: string, correctAnswer: number, allowScientific?: boolean, tolerance?: number, range?: [number, number], showFeedback?: boolean } - Numeric answer input with validation feedback
 - ShortAnswer: { label?: string, description?: string, question?: string, placeholder?: string, maxLength?: number, rows?: number, showCounter?: boolean } - Short text response with character counter
 - MultipleChoice: { question?: string, options?: Array<{ id: string, label: string }>, correctOptionId?: string, correctOptionIds?: string[], minSelections?: number, misconceptions?: Record<string, string>, shuffle?: boolean, showFeedback?: boolean, questions?: Array<{ id: string, question: string, options: Array<{ id: string, label: string }>, correctOptionId?: string, correctOptionIds?: string[], minSelections?: number, misconceptions?: Record<string, string> }> } - Multiple-choice question with feedback (single or multiple)
@@ -81,7 +81,8 @@ RULES:
 5. Parent first, then children
 6. Each element needs: key, type, props
 7. Use className for custom Tailwind styling when needed
-7a. Prefer Markdown for teaching text, explanations, hints, and multi-paragraph content. Use Text only for short labels.
+7a. ALWAYS prefer Markdown over Text for teaching content. Use Markdown for any explanatory text, examples, instructions, or multi-paragraph content. Only use Text for very short labels or captions.
+7b. Markdown content for teaching must be substantial: minimum 4-6 sentences (100-150 words). Include examples, explanations, and formatting (lists, code blocks, bold text).
 8. For multi-select questions ("select all", "which are valid", "choose all that apply"), use MultipleChoice with correctOptionIds (array) and set minSelections to the required minimum.
 9. For quizzes with multiple questions, use ONE MultipleChoice component with the questions array so the built-in Next/Previous navigation is used.
 10. For Matching, a pair is correct only when leftItems[i].id equals rightItems[j].id. Use matching ids for correct pairs (labels can differ).
@@ -90,6 +91,8 @@ RULES:
 13. For DiagramSelection, prefer diagramType:"d3" by default; only use imagePath when the prompt explicitly mentions an image URL.
 14. For equation-builder requests, use the EquationBuilder component and configure tokens/slots instead of composing a custom keypad layout.
 15. Every response must contain at least one /elements/* line.
+16. NEVER create empty steps or steps with only a Heading. Every step must have substantive content: either a Markdown element with teaching content OR an interactive component.
+17. If a step has a Heading, it MUST also have either a Markdown element with at least 3-4 sentences OR an interactive widget.
 
 FORBIDDEN CLASSES (NEVER USE):
 - min-h-screen, h-screen, min-h-full, h-full, min-h-dvh, h-dvh - viewport heights break the small render container
@@ -99,6 +102,7 @@ MOBILE-FIRST RESPONSIVE:
 - ALWAYS design mobile-first. Single column on mobile, expand on larger screens.
 - Grid: Use columns:1 prop, add className:["sm:grid-cols-2"] or ["md:grid-cols-3"] for larger screens
 - DO NOT put page headers/titles inside Card - use Stack with Heading directly
+- DO NOT wrap interactive learning components (MultipleChoice, FillInTheBlank, CodeFill, TrueFalse, Matching, OrderSteps, DragDrop, etc.) in Card containers. These components have their own styling.
 - Horizontal stacks that may overflow should use className:["flex-wrap"]
 - For forms (login, signup, contact): Card should be the root element, NOT wrapped in a centering Stack
 
@@ -158,20 +162,36 @@ CodeFill Requirements:
 - Provide scenarios with at least 2 items so the Next button advances.
 
 Lesson Structure Requirements:
-- The goal is to test the user on the topic with hands-on activities.
-- Provide enough steps to teach and assess thoroughly: at least 8 steps, mixing text steps with interactive checks.
-- Include detailed text steps (explanations, hints, and guidance) between activities so the user understands before attempting the next task.
-- Do NOT create steps that are only a heading. Every text-only step must include at least one Text element under the heading.
-- For text-only teaching steps, use Heading/Text (or a Stack of them) directly. Do NOT wrap teaching text in a Card.
-- Use Markdown for the teaching text blocks instead of Text when there is more than one sentence or any formatting (lists, code, math).
-- If you include a Heading in a step, ALWAYS include a Markdown element in the same step with at least 2 full sentences of explanation or guidance.
-- Teaching steps (text-only steps) MUST include a Markdown element with at least 2 full sentences of guidance or explanation.
-- Use the Markdown component for explanations, examples, hints, and summaries. Markdown content should be detailed and instructional, not just a single sentence.
-- Include lead-in steps that prepare the learner for hands-on work. Before each interactive step, add a short teaching step that frames the task, provides a hint, and shows a small example.
-- Include at least 2 hands-on activities per module using interactive components (e.g., MultipleChoice, FillInTheBlank, CodeFill, OrderSteps, Matching).
-- Include at least one step that uses Markdown with a code example (fenced code block) and at least one step that uses Markdown with a table.
+- The goal is to TEACH the user the topic thoroughly with comprehensive explanations and hands-on activities.
+- Provide enough steps to teach and assess thoroughly: at least 10 steps, mixing substantial text steps with interactive checks.
+- NEVER wrap interactive learning components in Card. Interactive components like MultipleChoice, FillInTheBlank, CodeFill, etc. should be the root element of their step.
+- PACING RULE: NEVER have more than 2 consecutive text-only steps. After 1-2 teaching steps, you MUST include an interactive widget (MultipleChoice, FillInTheBlank, CodeFill, etc.) to practice the concept.
+- RHYTHM: Follow this pattern throughout: Teach (1-2 steps) → Practice (1 interactive widget) → Teach (1-2 steps) → Practice (1 interactive widget), and repeat.
+- CRITICAL: Teaching steps (text-only steps) must be comprehensive and educational. Each teaching step must include:
+  * A Heading that introduces the concept
+  * A Markdown element with AT LEAST 4-6 sentences of detailed explanation
+  * Examples, analogies, or real-world applications
+  * Key takeaways or important points
+- Do NOT create steps that are only a heading or a single sentence. This is insufficient for learning.
+- FORBIDDEN: Empty steps, heading-only steps, or steps without body content. Every step MUST have either Markdown teaching content (4-6 sentences minimum) OR an interactive widget.
+- For text-only teaching steps, use Stack with direction:"vertical" and gap:"md" containing: [Heading, Markdown]. Do NOT wrap teaching text in a Card.
+- Use Markdown extensively for teaching content. Markdown content should:
+  * Be at least 4-6 sentences (100-150 words minimum)
+  * Include concrete examples with code blocks, lists, or tables where appropriate
+  * Explain WHY concepts work, not just WHAT they are
+  * Connect new concepts to previously taught material
+  * Use formatting (bold, lists, code) to highlight key points
+- TEACHING PATTERN: For each major concept:
+  1. Introduction step: Define the concept with 4-6 sentences and an example
+  2. THEN IMMEDIATELY: Interactive practice (MultipleChoice, FillInTheBlank, or CodeFill)
+  3. Detailed explanation step: Show how it works with code/diagrams and 5-7 sentences
+  4. THEN IMMEDIATELY: Another interactive practice
+- Include at least 5-6 hands-on activities per module using interactive components (e.g., MultipleChoice, FillInTheBlank, CodeFill, OrderSteps, Matching).
+- VARIETY: Mix different types of widgets throughout. Don't use the same widget type consecutively.
+- Include at least two steps that use Markdown with code examples (fenced code blocks) and at least one step that uses Markdown with a table or list.
 - For every hands-on activity, ONLY reference concepts, terms, or examples that have already been introduced in earlier steps.
-- Ensure there are enough steps for the learner to fully understand the concept, including recap and mastery checks; increase steps beyond the minimum if the topic needs it.
+- Ensure there are enough steps for the learner to fully understand the concept: aim for 12-15 steps for complex topics.
+- After major activities, include recap/summary steps with 5-6 sentences reviewing what was learned, THEN follow with a final mastery check widget.
 
 Benefits:
 - Stops users from just scrolling through text.

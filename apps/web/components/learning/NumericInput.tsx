@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -50,6 +50,32 @@ export function NumericInput({ element }: ComponentRenderProps) {
   const [status, setStatus] = useState<"idle" | "correct" | "error">("idle");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
+  // Restore saved state on mount
+  useEffect(() => {
+    const savedState = typeof (window as any).__getWidgetState === "function" 
+      ? (window as any).__getWidgetState() 
+      : null;
+    
+    if (savedState) {
+      if (typeof savedState.value === 'string') setValue(savedState.value);
+      if (savedState.status) setStatus(savedState.status);
+      if (savedState.feedback) setFeedback(savedState.feedback);
+    }
+  }, []);
+
+  // Save state whenever it changes
+  useEffect(() => {
+    if (value || status !== 'idle' || feedback) {
+      if (typeof (window as any).__saveWidgetState === "function") {
+        (window as any).__saveWidgetState({
+          value,
+          status,
+          feedback
+        });
+      }
+    }
+  }, [value, status, feedback]);
+
   const handleSubmit = () => {
     const raw = value.trim();
     const numericVal = Number(raw);
@@ -98,6 +124,11 @@ export function NumericInput({ element }: ComponentRenderProps) {
         message: "Correct! Good job.",
         icon: <CheckCircle2 className="h-4 w-4" />,
       });
+      
+      // Mark step as complete
+      if (typeof (window as any).__markStepComplete === "function") {
+        (window as any).__markStepComplete();
+      }
     } else {
       setStatus("error");
       generateErrorFeedback(numericVal, correctAnswer);

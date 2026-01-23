@@ -11,7 +11,8 @@ import {
   fallbackComponent,
   useInteractiveState,
 } from "./learning/index";
-import { Markdown as LearningMarkdown } from "./learning/markdown";
+import { Markdown } from "./ui/custom/prompt/markdown";
+import { createClient } from "@/utils/supabase/client";
 
 const SIMULATION_PROMPT = "Create a contact form with name, email, and message";
 
@@ -31,6 +32,7 @@ export type DemoProps = {
   hideInput?: boolean;
   onEndReached?: () => void;
   fallbackStepText?: string;
+  moduleId?: string; // For saving progress
 };
 
 interface SimulationStage {
@@ -202,6 +204,7 @@ export function Demo({
   hideInput = false,
   onEndReached,
   fallbackStepText,
+  moduleId,
 }: DemoProps = {}) {
   const [mode, setMode] = useState<Mode>("simulation");
   const [phase, setPhase] = useState<Phase>("typing");
@@ -214,6 +217,8 @@ export function Demo({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showJson, setShowJson] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const [widgetStates, setWidgetStates] = useState<Record<number, any>>({});
   const inputRef = useRef<HTMLInputElement>(null);
   const autoStartedRef = useRef(false);
   const endReachedRef = useRef(false);
@@ -231,6 +236,85 @@ export function Demo({
 
   // Initialize interactive state for Select components
   useInteractiveState();
+
+  // Load progress from database on mount
+  useEffect(() => {
+    if (!moduleId || !stepByStep) return;
+
+    const loadProgress = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('learn_by_doing_progress')
+          .select('completed_steps, current_step, widget_states')
+          .eq('user_id', user.id)
+          .eq('module_id', moduleId)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error loading progress:', error);
+          return;
+        }
+
+        if (data) {
+          // Restore completed steps
+          const completedArray = Array.isArray(data.completed_steps) ? data.completed_steps : [];
+          setCompletedSteps(new Set(completedArray));
+          
+          // Restore current step
+          if (typeof data.current_step === 'number') {
+            setStepIndex(data.current_step);
+          }
+
+          // Restore widget states
+          if (data.widget_states && typeof data.widget_states === 'object') {
+            setWidgetStates(data.widget_states);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load progress:', err);
+      }
+    };
+
+    loadProgress();
+  }, [moduleId, stepByStep]);
+
+  // Save progress to database whenever it changes
+  useEffect(() => {
+    if (!moduleId || !stepByStep) return;
+
+    const saveProgress = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const completedArray = Array.from(completedSteps);
+
+        await supabase
+          .from('learn_by_doing_progress')
+          .upsert({
+            user_id: user.id,
+            module_id: moduleId,
+            completed_steps: completedArray,
+            current_step: stepIndex,
+            widget_states: widgetStates,
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'user_id,module_id'
+          });
+      } catch (err) {
+        console.error('Failed to save progress:', err);
+      }
+    };
+
+    // Debounce saves to avoid too many database writes
+    const timeoutId = setTimeout(saveProgress, 500);
+    return () => clearTimeout(timeoutId);
+  }, [moduleId, stepByStep, completedSteps, stepIndex, widgetStates]);
 
   const currentSimulationStage =
     stageIndex >= 0 ? SIMULATION_STAGES[stageIndex] : null;
@@ -483,19 +567,88 @@ export function Demo({
     const element = currentTree.elements[stepTreeInfo.activeChildKey];
     if (!element) return false;
 
-    if (element.type === "Text" || element.type === "Heading") return true;
+    const type = element.type;
+    if (type === "Text" || type === "Markdown" || type === "Heading") {
+      return true;
+    }
 
-    if (element.type === "Stack") {
+    if (type === "Stack" || type === "Card") {
       const children = element.children || [];
       if (children.length === 0) return false;
       return children.every((childKey) => {
         const child = currentTree.elements[childKey];
-        return child?.type === "Text" || child?.type === "Heading";
+        return child?.type === "Text" || child?.type === "Heading" || child?.type === "Markdown";
       });
     }
 
     return false;
   })();
+
+  // Check if step has interactive widgets that require completion
+  const stepHasInteractiveWidget = (() => {
+    if (!stepByStep || !currentTree || !stepTreeInfo.activeChildKey) {
+      return false;
+    }
+
+    const element = currentTree.elements[stepTreeInfo.activeChildKey];
+    if (!element) return false;
+
+    const interactiveTypes = [
+      "MultipleChoice", "FillInTheBlank", "CodeFill", "TrueFalse",
+      "Matching", "OrderSteps", "DragDrop", "NumericInput", "DiagramSelection"
+    ];
+
+    if (interactiveTypes.includes(element.type || "")) {
+      return true;
+    }
+
+    if (element.type === "Stack" || element.type === "Card") {
+      const children = element.children || [];
+      return children.some((childKey) => {
+        const child = currentTree.elements[childKey];
+        return interactiveTypes.includes(child?.type || "");
+      });
+    }
+
+    return false;
+  })();
+
+  // Auto-complete text-only steps
+  React.useEffect(() => {
+    if (isTextOnlyStep && !completedSteps.has(stepTreeInfo.active)) {
+      setCompletedSteps(prev => new Set(prev).add(stepTreeInfo.active));
+    }
+  }, [isTextOnlyStep, stepTreeInfo.active, completedSteps]);
+
+  // Expose global function for widgets to mark step complete
+  React.useEffect(() => {
+    const win = window as any;
+    win.__markStepComplete = () => {
+      setCompletedSteps(prev => new Set(prev).add(stepTreeInfo.active));
+    };
+    
+    // Expose function for widgets to save their state
+    win.__saveWidgetState = (state: any) => {
+      setWidgetStates(prev => ({
+        ...prev,
+        [stepTreeInfo.active]: state
+      }));
+    };
+    
+    // Expose function for widgets to get their saved state
+    win.__getWidgetState = () => {
+      return widgetStates[stepTreeInfo.active];
+    };
+    
+    return () => {
+      delete win.__markStepComplete;
+      delete win.__saveWidgetState;
+      delete win.__getWidgetState;
+    };
+  }, [stepTreeInfo.active, widgetStates]);
+
+  // Check if current step can advance
+  const canAdvanceToNext = isTextOnlyStep || completedSteps.has(stepTreeInfo.active);
 
   const stepHasBodyText = (() => {
     if (!stepByStep || !currentTree || !stepTreeInfo.activeChildKey) {
@@ -759,8 +912,9 @@ export function Demo({
                       Math.min(prev + 1, stepTreeInfo.total - 1),
                     )
                   }
-                  disabled={stepTreeInfo.active >= stepTreeInfo.total - 1}
+                  disabled={stepTreeInfo.active >= stepTreeInfo.total - 1 || !canAdvanceToNext}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                  title={!canAdvanceToNext ? "Complete the activity to continue" : ""}
                 >
                   Next
                 </button>
@@ -814,43 +968,7 @@ export function Demo({
           )}
           {stepByStep && isTextOnlyStep && !stepHasBodyText && fallbackStepText && (
             <div className="mt-4 rounded-lg border border-dashed border-border/70 bg-muted/30 p-4">
-              <LearningMarkdown>{fallbackStepText}</LearningMarkdown>
-            </div>
-          )}
-          {stepByStep && stepTreeInfo.total > 1 && (
-            <div className="flex justify-end gap-2">
-              {stepTreeInfo.active > 0 && (
-                <button
-                  onClick={() => setStepIndex((prev) => Math.max(prev - 1, 0))}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Previous
-                </button>
-              )}
-              {stepTreeInfo.active < stepTreeInfo.total - 1 && (
-                <button
-                  onClick={() =>
-                    setStepIndex((prev) =>
-                      Math.min(prev + 1, stepTreeInfo.total - 1),
-                    )
-                  }
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Next
-                </button>
-              )}
-              {stepTreeInfo.active === stepTreeInfo.total - 1 && onEndReached && (
-                <button
-                  onClick={() => {
-                    if (endReachedRef.current) return;
-                    endReachedRef.current = true;
-                    onEndReached();
-                  }}
-                  className="text-xs text-foreground hover:text-foreground transition-colors font-semibold"
-                >
-                  Finish
-                </button>
-              )}
+              <Markdown>{fallbackStepText}</Markdown>
             </div>
           )}
           <Toaster position="bottom-right" />

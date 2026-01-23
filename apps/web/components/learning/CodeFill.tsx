@@ -477,6 +477,11 @@ export function CodeFill({ element, children }: ComponentRenderProps) {
       if (!isCorrect) allCorrect = false;
     });
     setValidationState({ submitted: true, results, correct: allCorrect });
+    
+    // Mark step as complete if all answers are correct
+    if (allCorrect && typeof (window as any).__markStepComplete === "function") {
+      (window as any).__markStepComplete();
+    }
   };
 
   const handleNext = () => {

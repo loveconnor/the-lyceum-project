@@ -87,6 +87,11 @@ export function DragDrop({ element }: ComponentRenderProps) {
         (i) => i.categoryId === i.correctCategoryId,
       );
       setIsCorrect(allCorrect);
+      
+      // Mark step as complete if all items are correctly categorized
+      if (allCorrect && typeof (window as any).__markStepComplete === "function") {
+        (window as any).__markStepComplete();
+      }
     } else {
       setIsCorrect(null);
     }

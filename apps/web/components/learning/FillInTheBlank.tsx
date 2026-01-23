@@ -72,11 +72,38 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
 
   // Initialize/Reset logic
   useEffect(() => {
-    setBankItems([...wordBank]);
-    setInputs({});
-    setResults({});
-    setStatus("idle");
+    // Try to restore saved state first
+    const savedState = typeof (window as any).__getWidgetState === "function" 
+      ? (window as any).__getWidgetState() 
+      : null;
+    
+    if (savedState && savedState.inputs && savedState.bankItems) {
+      setInputs(savedState.inputs);
+      setBankItems(savedState.bankItems);
+      setResults(savedState.results || {});
+      setStatus(savedState.status || "idle");
+    } else {
+      // No saved state, initialize fresh
+      setBankItems([...wordBank]);
+      setInputs({});
+      setResults({});
+      setStatus("idle");
+    }
   }, [wordBank, textTemplate]); // Re-init if props change widely
+
+  // Save state whenever inputs or bank items change
+  useEffect(() => {
+    if (Object.keys(inputs).length > 0 || bankItems.length !== wordBank.length) {
+      if (typeof (window as any).__saveWidgetState === "function") {
+        (window as any).__saveWidgetState({
+          inputs,
+          bankItems,
+          results,
+          status
+        });
+      }
+    }
+  }, [inputs, bankItems, results, status, wordBank.length]);
 
   // Parse the template to identify segments and blank placeholders
   const segments = useMemo<Segment[]>(() => {
@@ -113,18 +140,35 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
   }, [textTemplate, blanks]);
 
   const handleInputChange = (id: string, value: string) => {
-    if (status === "checked") {
-      setStatus("idle");
-      setResults({});
+    // Only allow changes if not checked OR if this specific field is incorrect
+    if (status === "checked" && results[id] === "correct") {
+      return; // Don't allow editing correct answers
     }
+    
     setInputs((prev) => ({ ...prev, [id]: value }));
+    
+    // Auto-validate when all blanks are filled
+    const updatedInputs = { ...inputs, [id]: value };
+    const allFilled = blanks.every(blank => updatedInputs[blank.id]?.trim());
+    if (allFilled) {
+      // Use setTimeout to allow state to update first
+      setTimeout(() => {
+        validateWithInputs(updatedInputs);
+      }, 100);
+    }
   };
 
-  const validate = () => {
+  const validateWithInputs = (inputsToCheck: Record<string, string>) => {
     const newResults: Record<string, "correct" | "incorrect"> = {};
 
     blanks.forEach((blank) => {
-      const userInput = inputs[blank.id] || "";
+      // Don't re-validate already correct answers
+      if (status === "checked" && results[blank.id] === "correct") {
+        newResults[blank.id] = "correct";
+        return;
+      }
+      
+      const userInput = inputsToCheck[blank.id] || "";
       const validAnswers = blank.correctAnswers || [];
 
       const isCorrect = validAnswers.some((answer) => {
@@ -139,6 +183,16 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
 
     setResults(newResults);
     setStatus("checked");
+    
+    // If all answers are correct, mark step as complete
+    const allCorrect = Object.values(newResults).every((r) => r === "correct");
+    if (allCorrect && typeof (window as any).__markStepComplete === "function") {
+      (window as any).__markStepComplete();
+    }
+  };
+
+  const validate = () => {
+    validateWithInputs(inputs);
   };
 
   const reset = () => {
@@ -218,9 +272,19 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
     setBankItems(newBank);
     setInputs(newInputs);
 
-    if (status === "checked") {
-      setStatus("idle");
-      setResults({});
+    // If this field was incorrect and we're in checked mode, clear only this field's result
+    if (status === "checked" && results[targetId] === "incorrect") {
+      setResults((prev) => ({ ...prev, [targetId]: undefined as any }));
+    }
+    
+    // Auto-validate when all blanks are filled
+    const allFilled = blanks.every(blank => 
+      blank.id === targetId ? text : newInputs[blank.id]?.trim()
+    );
+    if (allFilled) {
+      setTimeout(() => {
+        validateWithInputs(newInputs);
+      }, 100);
     }
   };
 
@@ -373,12 +437,16 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
                    */}
                   {hasValue ? (
                     <div
-                      draggable
+                      draggable={!(status === "checked" && results[id] === "correct")}
                       onDragStart={(e) =>
                         handleDragStart(e, inputValue, "input", id)
                       }
-                      className="flex items-center gap-2 px-1 py-0.5 cursor-grab active:cursor-grabbing hover:text-primary w-full"
-                      title="Drag to move or remove"
+                      className={`flex items-center gap-2 px-1 py-0.5 w-full ${
+                        status === "checked" && results[id] === "correct"
+                          ? "cursor-default"
+                          : "cursor-grab active:cursor-grabbing hover:text-primary"
+                      }`}
+                      title={status === "checked" && results[id] === "correct" ? "Correct answer" : "Drag to move or remove"}
                     >
                       <span className="font-semibold">{inputValue}</span>
                     </div>
@@ -390,20 +458,10 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
                       placeholder={def.placeholder || ""}
                       className="bg-transparent border-none outline-none w-full text-inherit p-0 placeholder:text-muted-foreground/60"
                       autoComplete="off"
+                      disabled={status === "checked" && results[id] === "correct"}
                     />
                   )}
                 </div>
-
-                {/* Feedback Icon Overlay */}
-                {status === "checked" && (
-                  <span className="absolute -right-5 top-1/2 -translate-y-1/2 pointer-events-none">
-                    {results[id] === "correct" ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-rose-500" />
-                    )}
-                  </span>
-                )}
               </span>
             );
           }
@@ -419,23 +477,24 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
         showCard ? "border border-border rounded-lg p-3 bg-background" : ""
       }`}
     >
-      {showHeader && (
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-md bg-muted text-foreground">
-              <HelpCircle className="w-4 h-4" />
+      {(title || description) && (
+        <div className="mb-4">
+          {title && (
+            <div className="font-semibold text-sm mb-1">
+              {title}
             </div>
-            <div>
-              <div className="font-semibold text-xs">
-                {title || "Fill in the Blanks"}
-              </div>
-              {description && (
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  <Markdown>{description}</Markdown>
-                </div>
-              )}
+          )}
+          {description && (
+            <div className="text-sm text-muted-foreground prose prose-sm prose-stone dark:prose-invert max-w-none">
+              <Markdown>{description}</Markdown>
             </div>
-          </div>
+          )}
+        </div>
+      )}
+
+      {!title && !description && showHeader && (
+        <div className="font-semibold text-xs mb-3">
+          Fill in the Blanks
         </div>
       )}
 

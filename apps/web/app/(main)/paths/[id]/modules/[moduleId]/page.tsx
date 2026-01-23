@@ -3422,6 +3422,7 @@ export default function ModulePage() {
           hideInput
           layout="full"
           stepByStep
+          moduleId={moduleId}
           onEndReached={handleLearnByDoingComplete}
           fallbackStepText={
             module.description

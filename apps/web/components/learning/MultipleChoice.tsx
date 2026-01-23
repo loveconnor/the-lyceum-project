@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Check, X, AlertCircle, ArrowRight, RotateCcw } from "lucide-react";
 import { Markdown } from "./markdown";
 
@@ -69,6 +69,34 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
   const [feedbackByQuestion, setFeedbackByQuestion] = useState<
     Record<string, { type: "success" | "error"; message: string }>
   >({});
+
+  // Restore saved state on mount
+  useEffect(() => {
+    const savedState = typeof (window as any).__getWidgetState === "function" 
+      ? (window as any).__getWidgetState() 
+      : null;
+    
+    if (savedState) {
+      if (savedState.selections) setSelections(savedState.selections);
+      if (savedState.submitted) setSubmitted(savedState.submitted);
+      if (savedState.feedbackByQuestion) setFeedbackByQuestion(savedState.feedbackByQuestion);
+      if (typeof savedState.currentIndex === 'number') setCurrentIndex(savedState.currentIndex);
+    }
+  }, []);
+
+  // Save state whenever it changes
+  useEffect(() => {
+    if (Object.keys(selections).length > 0 || Object.keys(submitted).length > 0) {
+      if (typeof (window as any).__saveWidgetState === "function") {
+        (window as any).__saveWidgetState({
+          selections,
+          submitted,
+          feedbackByQuestion,
+          currentIndex
+        });
+      }
+    }
+  }, [selections, submitted, feedbackByQuestion, currentIndex]);
 
   const activeQuestion = questions ? questions[currentIndex] : null;
   const activeQuestionId = activeQuestion?.id ?? "single";
@@ -145,6 +173,11 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
           message: "Correct! You've grasped the concept perfectly.",
         },
       }));
+      
+      // Mark step as complete for learn-by-doing navigation
+      if (typeof (window as any).__markStepComplete === "function") {
+        (window as any).__markStepComplete();
+      }
     } else {
       const misconceptionMsg =
         (activeMinSelections > 1

@@ -54,6 +54,32 @@ export function OrderSteps({ element }: ComponentRenderProps) {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
 
+  // Restore saved state on mount
+  useEffect(() => {
+    const savedState = typeof (window as any).__getWidgetState === "function" 
+      ? (window as any).__getWidgetState() 
+      : null;
+    
+    if (savedState) {
+      if (savedState.orderedItems) setOrderedItems(savedState.orderedItems);
+      if (typeof savedState.isSubmitted === 'boolean') setIsSubmitted(savedState.isSubmitted);
+      if (typeof savedState.isCorrect === 'boolean') setIsCorrect(savedState.isCorrect);
+    }
+  }, []);
+
+  // Save state whenever it changes
+  useEffect(() => {
+    if (orderedItems.length > 0 && orderedItems !== items) {
+      if (typeof (window as any).__saveWidgetState === "function") {
+        (window as any).__saveWidgetState({
+          orderedItems,
+          isSubmitted,
+          isCorrect
+        });
+      }
+    }
+  }, [orderedItems, isSubmitted, isCorrect, items]);
+
   // Refs for drag and drop
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
@@ -119,6 +145,11 @@ export function OrderSteps({ element }: ComponentRenderProps) {
         current.length === correctOrder.length &&
         current.every((id, idx) => id === correctOrder[idx]);
       setIsCorrect(matches);
+      
+      // Mark step as complete if order is correct
+      if (matches && typeof (window as any).__markStepComplete === "function") {
+        (window as any).__markStepComplete();
+      }
     }
   };
 

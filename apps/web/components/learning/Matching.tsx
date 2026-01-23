@@ -45,6 +45,34 @@ export function Matching({ element }: ComponentRenderProps) {
   const [mistakes, setMistakes] = useState<Record<string, boolean>>({}); // leftId -> isError
   const [isComplete, setIsComplete] = useState(false);
 
+  // Restore saved state on mount
+  useEffect(() => {
+    const savedState = typeof (window as any).__getWidgetState === "function" 
+      ? (window as any).__getWidgetState() 
+      : null;
+    
+    if (savedState) {
+      if (savedState.matches) setMatches(savedState.matches);
+      if (savedState.mistakes) setMistakes(savedState.mistakes);
+      if (typeof savedState.isComplete === 'boolean') setIsComplete(savedState.isComplete);
+      if (savedState.rightOrder) setRightOrder(savedState.rightOrder);
+    }
+  }, []);
+
+  // Save state whenever it changes
+  useEffect(() => {
+    if (Object.keys(matches).length > 0 || Object.keys(mistakes).length > 0) {
+      if (typeof (window as any).__saveWidgetState === "function") {
+        (window as any).__saveWidgetState({
+          matches,
+          mistakes,
+          isComplete,
+          rightOrder
+        });
+      }
+    }
+  }, [matches, mistakes, isComplete, rightOrder]);
+
   // Refs for calculating line positions
   const containerRef = useRef<HTMLDivElement>(null);
   const leftRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -76,6 +104,11 @@ export function Matching({ element }: ComponentRenderProps) {
 
     if (correctMatchesCount === leftItems.length && leftItems.length > 0) {
       setIsComplete(true);
+      
+      // Mark step as complete for learn-by-doing navigation
+      if (typeof (window as any).__markStepComplete === "function") {
+        (window as any).__markStepComplete();
+      }
     }
   }, [matches, leftItems.length]);
 

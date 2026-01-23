@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Check,
   X,
@@ -115,6 +115,32 @@ export function TrueFalse({ element }: ComponentRenderProps) {
   >(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
+  // Restore saved state on mount
+  useEffect(() => {
+    const savedState = typeof (window as any).__getWidgetState === "function" 
+      ? (window as any).__getWidgetState() 
+      : null;
+    
+    if (savedState) {
+      if (typeof savedState.answer === 'boolean') setAnswer(savedState.answer);
+      if (savedState.confidence) setConfidence(savedState.confidence);
+      if (typeof savedState.isSubmitted === 'boolean') setIsSubmitted(savedState.isSubmitted);
+    }
+  }, []);
+
+  // Save state whenever it changes
+  useEffect(() => {
+    if (answer !== null || confidence !== null || isSubmitted) {
+      if (typeof (window as any).__saveWidgetState === "function") {
+        (window as any).__saveWidgetState({
+          answer,
+          confidence,
+          isSubmitted
+        });
+      }
+    }
+  }, [answer, confidence, isSubmitted]);
+
   const handleReset = () => {
     setAnswer(null);
     setConfidence(null);
@@ -133,6 +159,11 @@ export function TrueFalse({ element }: ComponentRenderProps) {
     if (answer === null) return;
     if (requireConfidence && confidence === null) return;
     setIsSubmitted(true);
+    
+    // Mark step as complete if answer is correct
+    if (answer === correctAnswer && typeof (window as any).__markStepComplete === "function") {
+      (window as any).__markStepComplete();
+    }
   };
 
   const getButtonStyle = (optionValue: boolean) => {
