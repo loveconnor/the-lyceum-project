@@ -210,7 +210,7 @@ Combined Vision:
 Treat mistakes as learning moments, keep users focused and thinking, and create deep understanding, not just memorization.
 `;
 
-const MAX_PROMPT_LENGTH = 2000;
+const MAX_PROMPT_LENGTH = 50000;
 const DEFAULT_OPENAI_MODEL = "gpt-4o";
 const DEFAULT_OLLAMA_MODEL = "llama3.2";
 const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1";

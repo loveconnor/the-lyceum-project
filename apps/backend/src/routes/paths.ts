@@ -4,6 +4,7 @@ import { updateDashboardActivity } from "../dashboardService";
 import { generatePathOutline, generateModuleContent, generateModuleFromSourceContent } from "../ai-path-generator";
 import { generateLearnByDoingTree } from "../learn-by-doing";
 import { generateRegistryBackedPath } from "../ai-path-generator-registry";
+import pdfParse from 'pdf-parse';
 import { 
   createModuleCompletionNotification, 
   createPathCompletionNotification 
@@ -473,17 +474,59 @@ router.post("/generate", async (req: Request, res: Response) => {
     console.log(`[Generate] Description: "${description}"`);
     console.log(`[Generate] Topics: ${topics?.join(', ') || 'none'}`);
     console.log(`[Generate] Context files uploaded: ${context_files?.length || 0}`);
+    
+    // Parse PDF files if they're base64 encoded
     if (context_files && context_files.length > 0) {
-      context_files.forEach((file, idx) => {
-        console.log(`[Generate]   [${idx + 1}] ${file.name} (${file.content.length} chars)`);
-      });
+      for (let idx = 0; idx < context_files.length; idx++) {
+        const file = context_files[idx];
+        console.log(`[Generate]   [${idx + 1}] ${file.name}`);
+        
+        // Check if this is a base64-encoded PDF
+        if (file.content.startsWith('[PDF_BASE64]')) {
+          try {
+            console.log(`[Generate]   Parsing PDF: ${file.name}...`);
+            const base64Data = file.content.substring('[PDF_BASE64]'.length);
+            const buffer = Buffer.from(base64Data, 'base64');
+            const pdfData = await pdfParse(buffer);
+            file.content = pdfData.text;
+            console.log(`[Generate]   ✅ Extracted ${file.content.length} characters from PDF`);
+          } catch (error) {
+            console.error(`[Generate]   ❌ Failed to parse PDF ${file.name}:`, error);
+            file.content = `[PDF parsing failed: ${file.name}]`;
+          }
+        } else {
+          console.log(`[Generate]   Text file: ${file.content.length} chars`);
+        }
+      }
     }
+    
     const learnByDoingEnabled = Boolean(learn_by_doing);
     const includeLabs = include_labs !== false;
     const buildLearnByDoingPrompt = (moduleOutline: { title: string; description?: string }) => {
       const base = moduleOutline.description
         ? `${moduleOutline.title}: ${moduleOutline.description}`
         : moduleOutline.title;
+      
+      // Include context from uploaded files if available
+      if (context_files && context_files.length > 0) {
+        // Combine all file contents - no limit
+        const fullContent = context_files
+          .map(f => f.content)
+          .join('\n\n')
+          .trim();
+        
+        // Create structured prompt for learn-by-doing with full content
+        const instruction = `Create an interactive learn-by-doing lesson on: ${base}
+
+Teach the following content through hands-on activities, examples, and exercises:
+
+${fullContent}
+
+Break down this material into interactive steps that help learners understand and practice each concept. Include code examples, fill-in-the-blank exercises, multiple choice questions, and explanations based on the content above.`;
+        
+        return instruction;
+      }
+      
       return base.slice(0, 140);
     };
 

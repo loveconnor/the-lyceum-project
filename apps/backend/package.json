@@ -25,6 +25,7 @@
     "dotenv": "^16.0.3",
     "express": "^4.18.2",
     "openai": "^4.76.1",
+    "pdf-parse": "^2.4.5",
     "resend": "^6.6.0"
   },
   "devDependencies": {

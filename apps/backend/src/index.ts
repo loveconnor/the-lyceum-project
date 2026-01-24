@@ -16,7 +16,9 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json());
+// Increase body size limit to 50MB for file uploads (PDFs encoded as base64)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 app.get('/', (req, res) => {
   res.json({ message: 'Hello from backend!' });

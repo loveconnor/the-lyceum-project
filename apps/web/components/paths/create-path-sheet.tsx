@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { Sparkles, Upload, X, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -6,6 +8,7 @@ import { usePathStore } from "@/app/(main)/paths/store";
 import { EnumPathStatus } from "@/app/(main)/paths/enum";
 import { toast } from "sonner";
 import { createClient } from "@/utils/supabase/client";
+import { parseFileContent } from "@/lib/fileParser";
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -122,12 +125,18 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
       // Process uploaded files
       const contextFilesData = await Promise.all(
         contextFiles.map(async (file) => {
-          const text = await file.text();
-          return {
-            name: file.name,
-            content: text,
-            type: file.type || 'text/plain'
-          };
+          try {
+            const text = await parseFileContent(file);
+            return {
+              name: file.name,
+              content: text,
+              type: file.type || 'text/plain'
+            };
+          } catch (error) {
+            console.error(`Error parsing file ${file.name}:`, error);
+            toast.error(`Failed to parse ${file.name}: ${(error as Error).message}`);
+            throw error;
+          }
         })
       );
       
@@ -157,15 +166,20 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
         }
       } else {
         // Create custom path from form
-        if (!description.trim()) {
-          toast.error("Please describe what you want to learn");
+        if (!description.trim() && contextFiles.length === 0) {
+          toast.error("Please describe what you want to learn or upload a file");
           setIsGenerating(false);
           return;
         }
         
+        // If files are uploaded without description, use a generic prompt
+        const pathDescription = description.trim() 
+          ? description 
+          : "Based on the uploaded files, create a complete learning path that helps me learn the concepts and skills demonstrated in the material.";
+        
         const pathData = {
           title: "", // AI will generate the title
-          description,
+          description: pathDescription,
           status: EnumPathStatus.NotStarted,
         };
         
@@ -228,7 +242,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
               <SheetTitle>{editPathId ? "Edit Learning Path" : "Generate Learning Path"}</SheetTitle>
             </div>
             <p className="text-sm text-muted-foreground">
-              Describe what you want to learn and AI will create a complete learning path with modules.
+              Describe what you want to learn, upload files and let AI figure it out, or both.
             </p>
           </SheetHeader>
 
@@ -237,11 +251,19 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
             <div className="space-y-4">
               <div>
                 <label htmlFor="description" className="text-sm font-medium">
-                  What do you want to learn? <span className="text-destructive">*</span>
+                  What do you want to learn? 
+                  {contextFiles.length > 0 ? (
+                    <span className="text-muted-foreground font-normal ml-1">(Optional)</span>
+                  ) : (
+                    <span className="text-destructive">*</span>
+                  )}
                 </label>
                 <Textarea
                   id="description"
-                  placeholder="e.g. Java programming, Classical History, Italian Cooking..."
+                  placeholder={contextFiles.length > 0 
+                    ? "Add additional context or leave blank to let AI infer from your files..."
+                    : "e.g. Java programming, Classical History, Italian Cooking..."
+                  }
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   disabled={!!selectedRecommendation}
@@ -249,17 +271,20 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                   className="mt-1.5 resize-none"
                 />
                 <p className="text-xs text-muted-foreground mt-1.5">
-                  Be specific about topics, skills, and your learning goals.
+                  {contextFiles.length > 0 
+                    ? "The AI will analyze your uploaded files to create a personalized learning path. Add text for additional guidance."
+                    : "Be specific about topics, skills, and your learning goals."
+                  }
                 </p>
               </div>
 
               {/* File Upload Section */}
               <div>
                 <label htmlFor="context-files" className="text-sm font-medium">
-                  Reference Materials <span className="text-muted-foreground">(Optional)</span>
+                  Upload Files <span className="text-muted-foreground">(Optional)</span>
                 </label>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Upload notes, textbook pages, or other materials to help AI build your path.
+                  Upload files and AI will infer what you want to learn, or add text above for context.
                 </p>
                 
                 <div className="mt-2">
@@ -352,7 +377,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
                   isGenerating && "!opacity-100 !bg-primary"
                 )}
                 type="submit"
-                disabled={(!selectedRecommendation && !description.trim()) || isGenerating}
+                disabled={(!selectedRecommendation && !description.trim() && contextFiles.length === 0) || isGenerating}
               >
                 <motion.div
                   initial={false}

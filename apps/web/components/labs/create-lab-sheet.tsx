@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import { Sparkles, TrendingUp, Target, ChevronRight, Paperclip, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +30,7 @@ import {
   FormMessage
 } from "@/components/ui/form";
 import { trackEvent } from "@/lib/analytics";
+import { parseMultipleFiles } from "@/lib/fileParser";
 
 interface CreateLabSheetProps {
   isOpen: boolean;
@@ -144,30 +147,38 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
           console.log("📋 [CREATE LAB] Using recommended lab:", rec.title);
         }
       } else {
-        // Use custom description
-        if (!data.description) {
-          console.warn("⚠️ [CREATE LAB] No description provided");
-          toast.error("Please describe what you want to learn");
+        // Use custom description or files
+        if (!data.description && contextFiles.length === 0) {
+          console.warn("⚠️ [CREATE LAB] No description or files provided");
+          toast.error("Please describe what you want to learn or upload a file");
           setIsGenerating(false);
           return;
         }
-        learningGoal = data.description;
-        console.log("✏️ [CREATE LAB] Using custom description");
 
         // Read context files if any
         if (contextFiles.length > 0) {
-          console.log(`📎 [CREATE LAB] Reading ${contextFiles.length} context file(s)`);
-          const fileContents = await Promise.all(
-            contextFiles.map(file => {
-              return new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target?.result as string || "");
-                reader.readAsText(file);
-              });
-            })
-          );
-          contextText = fileContents.join("\n\n---\n\n");
-          console.log(`✅ [CREATE LAB] Files read successfully`);
+          console.log(`📎 [CREATE LAB] Parsing ${contextFiles.length} file(s)`);
+          try {
+            contextText = await parseMultipleFiles(contextFiles);
+            console.log(`✅ [CREATE LAB] Files parsed successfully - ${contextText.length} characters`);
+          } catch (error) {
+            console.error(`❌ [CREATE LAB] Error parsing files:`, error);
+            toast.error(`Failed to parse files: ${(error as Error).message}`);
+            setIsGenerating(false);
+            return;
+          }
+          
+          // If description provided, use it; otherwise let AI infer from files
+          if (data.description) {
+            learningGoal = data.description;
+            console.log("✏️ [CREATE LAB] Using custom description with file context");
+          } else {
+            learningGoal = "Based on the uploaded files, create a lab that helps me learn the concepts and skills demonstrated in the material.";
+            console.log("🤖 [CREATE LAB] Using AI inference from files");
+          }
+        } else {
+          learningGoal = data.description;
+          console.log("✏️ [CREATE LAB] Using custom description only");
         }
       }
 
@@ -227,7 +238,7 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
             <SheetTitle>{editTodoId ? "Edit Lab" : "Create Lab"}</SheetTitle>
           </div>
           <p className="text-sm text-muted-foreground">
-            Select a recommended lab or describe what you want to learn.
+            Select a recommended lab, describe what you want to learn, or upload files and let AI figure it out.
           </p>
         </SheetHeader>
 
@@ -310,10 +321,18 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>What do you want to learn?</FormLabel>
+                  <FormLabel>
+                    What do you want to learn? 
+                    {!selectedRecommendation && contextFiles.length > 0 && (
+                      <span className="text-muted-foreground font-normal ml-1">(Optional)</span>
+                    )}
+                  </FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Describe what you want to build or learn. The AI will generate an appropriate lab structure and title for you."
+                      placeholder={contextFiles.length > 0 
+                        ? "Add additional context or leave blank to let AI infer from your files..."
+                        : "Describe what you want to build or learn. The AI will generate an appropriate lab structure and title for you."
+                      }
                       rows={4}
                       {...field}
                       value={field.value || ""}
@@ -323,7 +342,10 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
                   <FormMessage />
                   {!selectedRecommendation && (
                     <p className="text-xs text-muted-foreground">
-                      The lab title, difficulty, template type, and structure will be automatically generated by AI based on your input.
+                      {contextFiles.length > 0 
+                        ? "The AI will analyze your uploaded files to understand what you want to learn. Add text for additional guidance."
+                        : "The lab title, difficulty, template type, and structure will be automatically generated by AI based on your input."
+                      }
                     </p>
                   )}
                 </FormItem>
@@ -335,9 +357,9 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <FormLabel>Add Context <span className="text-muted-foreground font-normal">(Optional)</span></FormLabel>
+                    <FormLabel>Upload Files <span className="text-muted-foreground font-normal">(Optional)</span></FormLabel>
                     <p className="text-xs text-muted-foreground">
-                      Upload files to help the system understand what you want to learn
+                      Upload files and AI will infer what you want to learn, or add text above for context
                     </p>
                   </div>
                   <div>
@@ -395,11 +417,11 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
             <Button 
               className="w-full" 
               onClick={() => {
-                console.log("🔴 [BUTTON] Clicked! selectedRec:", selectedRecommendation, "description:", form.watch("description"));
-                console.log("🔴 [BUTTON] Disabled?", (!selectedRecommendation && !form.watch("description")) || isGenerating || loading);
+                console.log("🔴 [BUTTON] Clicked! selectedRec:", selectedRecommendation, "description:", form.watch("description"), "files:", contextFiles.length);
+                console.log("🔴 [BUTTON] Disabled?", (!selectedRecommendation && !form.watch("description") && contextFiles.length === 0) || isGenerating || loading);
               }}
               type="submit"
-              disabled={(!selectedRecommendation && !form.watch("description")) || isGenerating || loading}
+              disabled={(!selectedRecommendation && !form.watch("description") && contextFiles.length === 0) || isGenerating || loading}
             >
               {isGenerating ? (
                 <>
