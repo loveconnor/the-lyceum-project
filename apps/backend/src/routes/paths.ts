@@ -516,13 +516,22 @@ router.post("/generate", async (req: Request, res: Response) => {
           .trim();
         
         // Create structured prompt for learn-by-doing with full content
-        const instruction = `Create an interactive learn-by-doing lesson on: ${base}
+        // Add explicit formatting instructions
+        const instruction = `IMPORTANT: You must respond ONLY with JSONL patches in the exact format specified in the system prompt. Do not include explanatory text.
 
-Teach the following content through hands-on activities, examples, and exercises:
+Create an interactive learn-by-doing lesson on: ${base}
 
+Use this content as source material:
 ${fullContent}
 
-Break down this material into interactive steps that help learners understand and practice each concept. Include code examples, fill-in-the-blank exercises, multiple choice questions, and explanations based on the content above.`;
+Generate 10-15 interactive steps that:
+1. Break down the concepts from the source material
+2. Include Markdown explanations (4-6 sentences each)
+3. Add interactive widgets (MultipleChoice, FillInTheBlank, CodeFill) after every 1-2 teaching steps
+4. Use code examples from the source material
+5. Create hands-on practice activities
+
+Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path":"/root","value":"..."}`;
         
         return instruction;
       }

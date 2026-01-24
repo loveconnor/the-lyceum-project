@@ -195,10 +195,18 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
     const sourceText = typeof children === 'string' ? children : (children == null ? '' : String(children));
     
     // Fix common AI LaTeX typos
+    // 0. Fix code block delimiters (''' -> ```) - Fix for AI sometimes using triple quotes
     // 1. Fix \cdotps -> \cdot\,\mathrm{ps} (common unit notation error)
     // 2. Fix \cdotp (invalid command) -> \cdot
     // 3. Fix \cdot followed by letter without space
     let processedText = sourceText
+      // Heuristic: If triple quotes/backticks are followed by text with spaces, 
+      // it's likely meant to be a closing fence + text on new line.
+      .replace(/^''' ?(.*\s.*)$/gm, '```\n$1')
+      .replace(/^``` ?(.*\s.*)$/gm, '```\n$1')
+      .replace(/^'''/gm, '```') // Replace start-of-line triple quotes with backticks
+      .replace(/'''$/gm, '```') // Replace end-of-line triple quotes with backticks (less common but good to catch)
+      .replace(/\n'''/g, '\n```') // Replace triple quotes preceded by newline
       .replace(/\\cdotps/g, '\\cdot\\,\\mathrm{ps}')  // Fix common unit typo
       .replace(/\\cdotp/g, '\\cdot')                    // Remove invalid 'p'
       .replace(/\\cdot([a-zA-Z])/g, '\\cdot\\,\\mathrm{$1}'); // Fix \cdot + letter

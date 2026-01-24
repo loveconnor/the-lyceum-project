@@ -365,6 +365,16 @@ function ensureTwoSentences(text: string) {
 }
 
 function buildFallbackContent(prompt: string, rawText: string) {
+  // Don't show raw JSON patches - they're not useful to learners
+  if (rawText.includes('{"op":') || rawText.includes('"path":')) {
+    return `Let's work through ${prompt} step by step. Focus on the key concepts and practice what you're learning.
+
+This lesson content is being prepared. In the meantime, consider:
+- What are the key concepts you want to learn?
+- What examples would help illustrate these concepts?
+- What hands-on activities would reinforce your understanding?`;
+  }
+  
   const base = rawText.trim() ||
     `Let's work through ${prompt} step by step. Focus on the key idea, then continue to the next activity.`;
   return ensureTwoSentences(base);
@@ -409,15 +419,20 @@ export async function generateLearnByDoingTree(prompt: string) {
   const text = await generateLearnByDoingText(prompt);
   const lines = text.split("\n").filter((line) => line.trim().length > 0);
   let currentTree: UITree = { root: "", elements: {} };
+  let validPatchCount = 0;
 
   for (const line of lines) {
     const patch = parsePatchLine(line);
     if (patch) {
       currentTree = applyPatch(currentTree, patch);
+      validPatchCount++;
     }
   }
 
-  if (!currentTree.root) {
+  // If we didn't get a valid tree with at least 2 patches (root + one element), return fallback
+  if (!currentTree.root || validPatchCount < 2) {
+    console.warn(`[Learn-by-Doing] Generated invalid tree (${validPatchCount} valid patches). Using fallback.`);
+    console.warn(`[Learn-by-Doing] Raw output preview: ${text.slice(0, 500)}...`);
     return buildFallbackTree(prompt, text);
   }
 

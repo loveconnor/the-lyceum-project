@@ -893,34 +893,6 @@ export function Demo({
         </div>
       ) : (
         <div className="space-y-4">
-          {stepByStep && stepTreeInfo.total > 1 && (
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-muted-foreground">
-                Step {stepTreeInfo.active + 1} of {stepTreeInfo.total}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setStepIndex((prev) => Math.max(prev - 1, 0))}
-                  disabled={stepTreeInfo.active === 0}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() =>
-                    setStepIndex((prev) =>
-                      Math.min(prev + 1, stepTreeInfo.total - 1),
-                    )
-                  }
-                  disabled={stepTreeInfo.active >= stepTreeInfo.total - 1 || !canAdvanceToNext}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
-                  title={!canAdvanceToNext ? "Complete the activity to continue" : ""}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
           {showJsonToggle && (
             <div className="flex items-center justify-end">
               <button
@@ -969,6 +941,34 @@ export function Demo({
           {stepByStep && isTextOnlyStep && !stepHasBodyText && fallbackStepText && (
             <div className="mt-4 rounded-lg border border-dashed border-border/70 bg-muted/30 p-4">
               <Markdown>{fallbackStepText}</Markdown>
+            </div>
+          )}
+          {stepByStep && stepTreeInfo.total > 1 && (
+            <div className="flex items-center justify-between pt-6 mt-4 border-t border-border/50 relative">
+              <button
+                onClick={() => setStepIndex((prev) => Math.max(prev - 1, 0))}
+                disabled={stepTreeInfo.active === 0}
+                className="px-3 py-1.5 text-xs font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+
+              <div className="text-xs text-muted-foreground font-medium absolute left-1/2 -translate-x-1/2">
+                Step {stepTreeInfo.active + 1} of {stepTreeInfo.total}
+              </div>
+
+              <button
+                onClick={() =>
+                  setStepIndex((prev) =>
+                    Math.min(prev + 1, stepTreeInfo.total - 1),
+                  )
+                }
+                disabled={stepTreeInfo.active >= stepTreeInfo.total - 1 || !canAdvanceToNext}
+                className="px-3 py-1.5 text-xs font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title={!canAdvanceToNext ? "Complete the activity to continue" : ""}
+              >
+                Next
+              </button>
             </div>
           )}
           <Toaster position="bottom-right" />
