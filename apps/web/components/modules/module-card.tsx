@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Module } from "@/app/(main)/paths/types";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +16,7 @@ import {
   PlayCircle,
   Lock
 } from "lucide-react";
+import { createClient } from "@/utils/supabase/client";
 
 interface ModuleCardProps {
   module: Module;
@@ -78,6 +79,93 @@ export default function ModuleCard({ module, moduleNumber, pathId, isLocked = fa
   const status = getModuleStatus(module);
   const config = statusConfig[status];
 
+  // State for learn-by-doing progress
+  const [lbdProgress, setLbdProgress] = useState<{ currentStep: number; completedSteps: number[] } | null>(null);
+
+  // Check if this is a learn-by-doing module
+  const isLearnByDoing = module.content_mode === 'learn_by_doing';
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('ModuleCard Debug:', {
+      moduleId: module.id,
+      title: module.title,
+      content_mode: module.content_mode,
+      isLearnByDoing,
+      has_content_data: !!module.content_data,
+      status: module.status
+    });
+  }, [module, isLearnByDoing]);
+  
+  // For learn-by-doing: calculate total steps from tree structure
+  const learnByDoingTree = isLearnByDoing ? module.content_data?.tree : null;
+  const totalSteps = (() => {
+    if (!learnByDoingTree?.root || !learnByDoingTree.elements) return 0;
+    
+    const rootElement = learnByDoingTree.elements[learnByDoingTree.root];
+    if (!rootElement?.children) return 0;
+    
+    const children = rootElement.children || [];
+    
+    // Filter out intro/text-only elements (same logic as LearnByDoing component)
+    const isTextOnlyElement = (key: string) => {
+      const element = learnByDoingTree.elements[key];
+      if (!element) return false;
+      if (element.type === "Text" || element.type === "Heading") return true;
+      if (element.type === "Stack") {
+        const stackChildren = element.children || [];
+        if (stackChildren.length === 0) return false;
+        return stackChildren.every((childKey: string) => {
+          const child = learnByDoingTree.elements[childKey];
+          return child?.type === "Text" || child?.type === "Heading";
+        });
+      }
+      return false;
+    };
+    
+    let introCount = 0;
+    for (const childKey of children) {
+      if (isTextOnlyElement(childKey)) {
+        introCount++;
+      } else {
+        break;
+      }
+    }
+    
+    return Math.max(children.length - introCount, 1);
+  })();
+  
+  // Fetch learn-by-doing progress from database
+  useEffect(() => {
+    if (!isLearnByDoing || status === 'not-started') return;
+
+    const fetchLBDProgress = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('learn_by_doing_progress')
+          .select('current_step, completed_steps')
+          .eq('user_id', user.id)
+          .eq('module_id', module.id)
+          .single();
+
+        if (!error && data) {
+          setLbdProgress(data);
+        } else if (error && error.code === 'PGRST116') {
+          // No progress record yet, set defaults
+          setLbdProgress({ current_step: 0, completed_steps: [] });
+        }
+      } catch (err) {
+        console.error('Failed to fetch learn-by-doing progress:', err);
+      }
+    };
+
+    fetchLBDProgress();
+  }, [isLearnByDoing, module.id, status]);
+  
   // Calculate progress from progress_data
   const progressData = module.progress_data || {};
   const completedSections = [
@@ -87,6 +175,11 @@ export default function ModuleCard({ module, moduleNumber, pathId, isLocked = fa
   ].filter(Boolean).length;
   const totalSections = 3; // Reading, Examples, Visuals
   const progressPercentage = totalSections > 0 ? (completedSections / totalSections) * 100 : 0;
+  
+  // Calculate learn-by-doing progress percentage
+  const lbdProgressPercentage = totalSteps > 0 && lbdProgress 
+    ? (lbdProgress.completed_steps.length / totalSteps) * 100 
+    : 0;
 
   // Calculate total content items
   const totalContent =
@@ -174,9 +267,18 @@ export default function ModuleCard({ module, moduleNumber, pathId, isLocked = fa
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Progress</span>
-              <span className="font-medium">{completedSections} of {totalSections} sections</span>
+              {isLearnByDoing && totalSteps > 0 ? (
+                <span className="font-medium">
+                  Step {(lbdProgress?.current_step ?? 0) + 1} of {totalSteps}
+                </span>
+              ) : (
+                <span className="font-medium">{completedSections} of {totalSections} sections</span>
+              )}
             </div>
-            <Progress value={progressPercentage} className="h-1.5" />
+            <Progress 
+              value={isLearnByDoing && totalSteps > 0 ? lbdProgressPercentage : progressPercentage} 
+              className="h-1.5" 
+            />
           </div>
         )}
       </CardContent>

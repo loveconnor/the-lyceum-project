@@ -536,7 +536,8 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
         return instruction;
       }
       
-      return base.slice(0, 140);
+      // Return full prompt for better content generation
+      return base;
     };
 
     // ============================================

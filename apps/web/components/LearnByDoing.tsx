@@ -13,6 +13,8 @@ import {
 } from "./learning/index";
 import { Markdown } from "./ui/custom/prompt/markdown";
 import { createClient } from "@/utils/supabase/client";
+import { useRouter } from "next/navigation";
+import { updatePathItem } from "@/lib/api/paths";
 
 const SIMULATION_PROMPT = "Create a contact form with name, email, and message";
 
@@ -33,6 +35,7 @@ export type DemoProps = {
   onEndReached?: () => void;
   fallbackStepText?: string;
   moduleId?: string; // For saving progress
+  pathId?: string; // For marking module as in-progress
 };
 
 interface SimulationStage {
@@ -205,6 +208,7 @@ export function Demo({
   onEndReached,
   fallbackStepText,
   moduleId,
+  pathId,
 }: DemoProps = {}) {
   const [mode, setMode] = useState<Mode>("simulation");
   const [phase, setPhase] = useState<Phase>("typing");
@@ -222,6 +226,8 @@ export function Demo({
   const inputRef = useRef<HTMLInputElement>(null);
   const autoStartedRef = useRef(false);
   const endReachedRef = useRef(false);
+  const hasMarkedInProgress = useRef(false);
+  const router = useRouter();
 
   // Use the library's useUIStream hook for real API calls
   const {
@@ -315,6 +321,29 @@ export function Demo({
     const timeoutId = setTimeout(saveProgress, 500);
     return () => clearTimeout(timeoutId);
   }, [moduleId, stepByStep, completedSteps, stepIndex, widgetStates]);
+
+  // Mark module as in-progress when user completes the first step (step 0)
+  useEffect(() => {
+    if (!pathId || !moduleId || !stepByStep || hasMarkedInProgress.current) return;
+
+    // Check if user has moved past the first step (completed step 0)
+    const hasCompletedFirstStep = completedSteps.has(0) && stepIndex > 0;
+    
+    if (hasCompletedFirstStep) {
+      const markModuleInProgress = async () => {
+        try {
+          await updatePathItem(pathId, moduleId, { status: 'in-progress' });
+          hasMarkedInProgress.current = true;
+          // Refresh the path page to show updated status
+          router.refresh();
+        } catch (err) {
+          console.error('Failed to mark module as in-progress:', err);
+        }
+      };
+
+      markModuleInProgress();
+    }
+  }, [pathId, moduleId, stepByStep, completedSteps, stepIndex, router]);
 
   const currentSimulationStage =
     stageIndex >= 0 ? SIMULATION_STAGES[stageIndex] : null;
@@ -943,12 +972,12 @@ export function Demo({
               <Markdown>{fallbackStepText}</Markdown>
             </div>
           )}
-          {stepByStep && stepTreeInfo.total > 1 && (
+          {stepByStep && stepTreeInfo.total >= 1 && (
             <div className="flex items-center justify-between pt-6 mt-4 border-t border-border/50 relative">
               <button
                 onClick={() => setStepIndex((prev) => Math.max(prev - 1, 0))}
                 disabled={stepTreeInfo.active === 0}
-                className="px-3 py-1.5 text-xs font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className={`px-3 py-1.5 text-xs font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${stepTreeInfo.total === 1 ? "invisible" : ""}`}
               >
                 Previous
               </button>
@@ -958,16 +987,20 @@ export function Demo({
               </div>
 
               <button
-                onClick={() =>
-                  setStepIndex((prev) =>
-                    Math.min(prev + 1, stepTreeInfo.total - 1),
-                  )
-                }
-                disabled={stepTreeInfo.active >= stepTreeInfo.total - 1 || !canAdvanceToNext}
+                onClick={() => {
+                  if (stepTreeInfo.active >= stepTreeInfo.total - 1) {
+                    onEndReached?.();
+                  } else {
+                    setStepIndex((prev) =>
+                      Math.min(prev + 1, stepTreeInfo.total - 1),
+                    );
+                  }
+                }}
+                disabled={!canAdvanceToNext}
                 className="px-3 py-1.5 text-xs font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title={!canAdvanceToNext ? "Complete the activity to continue" : ""}
               >
-                Next
+                {stepTreeInfo.active >= stepTreeInfo.total - 1 ? "Complete" : "Next"}
               </button>
             </div>
           )}

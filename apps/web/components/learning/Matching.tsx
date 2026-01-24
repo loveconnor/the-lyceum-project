@@ -137,18 +137,21 @@ export function Matching({ element }: ComponentRenderProps) {
           const startX = rawStartX;
           const endX = Math.max(rawEndX, startX + 12);
 
-          // Calculate start (right side of left item) and end (left side of right item) relative to container
-          lines.push({
-            start: {
-              x: startX,
-              y: leftRect.top + leftRect.height / 2 - containerRect.top,
-            },
-            end: {
-              x: endX,
-              y: rightRect.top + rightRect.height / 2 - containerRect.top,
-            },
-            color: leftId === rightId ? "url(#gradient-line)" : "#ef4444",
-          });
+          // Only draw line if there's meaningful horizontal distance (more than 20px gap between items)
+          if (endX - startX > 20) {
+            // Calculate start (right side of left item) and end (left side of right item) relative to container
+            lines.push({
+              start: {
+                x: startX,
+                y: leftRect.top + leftRect.height / 2 - containerRect.top,
+              },
+              end: {
+                x: endX,
+                y: rightRect.top + rightRect.height / 2 - containerRect.top,
+              },
+              color: leftId === rightId ? "url(#gradient-line)" : "#ef4444",
+            });
+          }
         }
       });
       setLineCoordinates(lines);

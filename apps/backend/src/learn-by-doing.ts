@@ -54,22 +54,29 @@ Charts:
 
 Interactive:
 - CodeFill: { title?: string, description?: string, codeTemplate?: string, gaps?: Array<{ id: string, expectedId: string }>, options?: Array<{ id: string, label: string, type?: string }>, scenarios?: Array<{ id: string, title?: string, description?: string, codeTemplate: string, gaps: Array<{ id: string, expectedId: string }>, options: Array<{ id: string, label: string, type?: string }> }>, showHeader?: boolean, showOptions?: boolean, showControls?: boolean, showScenarioNavigation?: boolean } - Drag-and-drop code fill activity with optional scenario navigation
-- FillInTheBlank: { title?: string, description: string, textTemplate: string, blanks: Array<{ id: string, correctAnswers: string[], placeholder?: string, hint?: string }>, wordBank: string[], caseSensitive?: boolean } - Drag-and-drop fill-in-the-blank activity. ALWAYS provide description with clear, specific instructions (2-3 sentences) explaining what the user should do, like "Create an int variable called age..." or "Complete the for loop by filling in...". CRITICAL REQUIREMENT: wordBank is MANDATORY and MUST NEVER be empty. wordBank MUST contain ALL the correct answers from blanks[].correctAnswers PLUS at least 2-3 distractor words (plausible but wrong options). Example: if blanks need ["int", "25"], wordBank should be ["int", "25", "String", "float", "30"] to make it a drag-and-drop challenge.
+- FillInTheBlank: { title?: string, description: string, textTemplate: string, blanks: Array<{ id: string, correctAnswers: string[], placeholder?: string, hint?: string }>, wordBank: string[], caseSensitive?: boolean } - Drag-and-drop fill-in-the-blank activity. CRITICAL: description is REQUIRED and must be 2-4 sentences explaining: (1) what to complete, (2) what types of items are in the word bank (be specific - e.g., "data types like int and String, values like 42"), (3) what concept is being practiced. Example: "Complete the variable declarations by dragging data types (int, String, double) and values (42, true) from the word bank into each blank. This reinforces proper Java syntax." wordBank is MANDATORY and MUST contain ALL correct answers from blanks[].correctAnswers PLUS 2-3 distractor words. Example: if blanks need ["int", "25"], wordBank must be ["int", "25", "String", "float", "30"].
 - NumericInput: { label?: string, placeholder?: string, unit?: string, correctAnswer: number, allowScientific?: boolean, tolerance?: number, range?: [number, number], showFeedback?: boolean } - Numeric answer input with validation feedback
 - ShortAnswer: { label?: string, description?: string, question?: string, placeholder?: string, maxLength?: number, rows?: number, showCounter?: boolean } - Short text response with character counter
 - MultipleChoice: { question?: string, options?: Array<{ id: string, label: string }>, correctOptionId?: string, correctOptionIds?: string[], minSelections?: number, misconceptions?: Record<string, string>, shuffle?: boolean, showFeedback?: boolean, questions?: Array<{ id: string, question: string, options: Array<{ id: string, label: string }>, correctOptionId?: string, correctOptionIds?: string[], minSelections?: number, misconceptions?: Record<string, string> }> } - Multiple-choice question with feedback (single or multiple)
 - TrueFalse: { statement: string, correctAnswer: boolean, explanation?: string, requireConfidence?: boolean, showFeedback?: boolean } - True/False question with optional confidence check
-- Matching: { leftItems: Array<{ id: string, label: string }>, rightItems: Array<{ id: string, label: string }>, shuffleRight?: boolean, title?: string, description?: string, showProgress?: boolean } - Match items from left to right by clicking
+- Matching: { leftItems: Array<{ id: string, label: string }>, rightItems: Array<{ id: string, label: string }>, shuffleRight?: boolean, title?: string, description?: string, showProgress?: boolean } - Match items from left to right by clicking. CRITICAL: (1) For correct pairs, leftItems[].id must EXACTLY EQUAL rightItems[].id. (2) ALWAYS set shuffleRight:true to randomize right items - otherwise answers appear in same order! Example: leftItems:[{id:"a",label:"Var A"}], rightItems:[{id:"a",label:"false"}], shuffleRight:true. If IDs don't match, NO pairs will be correct.
 - OrderSteps: { items: Array<{ id: string, label: string }>, correctOrder?: string[], explanation?: string, title?: string, description?: string, shuffleOnReset?: boolean, showStatus?: boolean, showFeedback?: boolean } - Reorder steps by dragging to the correct sequence
 - DragDrop: { title?: string, description?: string, categories: Array<{ id: string, label: string }>, items: Array<{ id: string, label: string, correctCategoryId?: string }>, showStatus?: boolean, showFeedback?: boolean } - Drag items into categories
 - DiagramSelection: { title?: string, description?: string, imagePath?: string, diagramType?: "default"|"image"|"d3", d3Diagram?: { nodes: Array<{ id: string, label?: string, x?: number, y?: number }>, links?: Array<{ source: string, target: string }> }, width?: number, height?: number, regions: Array<{ id: string, label?: string, x: number, y: number, width: number, height: number, borderRadius?: string | number }>, multiSelect?: boolean, showLabels?: boolean } - Select regions on a diagram image or D3 diagram
 - EquationBuilder: { tokens?: string[], slots?: number, showPreview?: boolean, allowCopy?: boolean } - Build a LaTeX equation from tokens with validation (tokens and slots are configurable)
 
-OUTPUT FORMAT (JSONL):
+OUTPUT FORMAT (JSONL) - CRITICAL:
 {"op":"set","path":"/root","value":"element-key"}
 {"op":"add","path":"/elements/key","value":{"key":"...","type":"...","props":{...},"children":[...]}}
 
-NEVER return a full JSON tree object like {"root":...,"elements":...}. Only JSONL patch lines are allowed.
+CRITICAL FORMATTING RULES:
+- NEVER return a full JSON tree object like {"root":...,"elements":...}
+- ONLY output JSONL patch lines (one JSON object per line)
+- Do NOT include explanatory text before or after the patches
+- Do NOT wrap patches in markdown code blocks
+- FIRST line MUST set /root
+- SECOND line MUST add the root element to /elements
+- Your entire response should be valid JSONL patches only
 
 ALL COMPONENTS support: className?: string[] - array of Tailwind classes for custom styling
 
@@ -85,14 +92,23 @@ RULES:
 7b. Markdown content for teaching must be substantial: minimum 4-6 sentences (100-150 words). Include examples, explanations, and formatting (lists, code blocks, bold text).
 8. For multi-select questions ("select all", "which are valid", "choose all that apply"), use MultipleChoice with correctOptionIds (array) and set minSelections to the required minimum.
 9. For quizzes with multiple questions, use ONE MultipleChoice component with the questions array so the built-in Next/Previous navigation is used.
-10. For Matching, a pair is correct only when leftItems[i].id equals rightItems[j].id. Use matching ids for correct pairs (labels can differ).
+10. CRITICAL - Matching Component: A pair is correct ONLY when leftItems[i].id EXACTLY equals rightItems[j].id. The IDs must match, but labels should be different (left shows the question, right shows the answer).
+    Example CORRECT:
+      leftItems: [{ id: "pair1", label: "Variable A" }, { id: "pair2", label: "Variable B" }]
+      rightItems: [{ id: "pair1", label: "false" }, { id: "pair2", label: "true" }]
+    Example WRONG (will have no correct matches):
+      leftItems: [{ id: "varA", label: "Variable A" }]
+      rightItems: [{ id: "val1", label: "false" }] ← IDs don't match!
+    VALIDATION: Before outputting Matching, verify every leftItems[].id has a matching rightItems[].id.
 11. For DragDrop, every item.correctCategoryId must match one of the categories[].id values.
 12. For DiagramSelection with D3, set diagramType:"d3" and provide d3Diagram.nodes (id, optional label, optional x/y) and links (source/target). If x/y omitted, a simple grid layout is used.
 13. For DiagramSelection, prefer diagramType:"d3" by default; only use imagePath when the prompt explicitly mentions an image URL.
 14. For equation-builder requests, use the EquationBuilder component and configure tokens/slots instead of composing a custom keypad layout.
 15. Every response must contain at least one /elements/* line.
-16. NEVER create empty steps or steps with only a Heading. Every step must have substantive content: either a Markdown element with teaching content OR an interactive component.
-17. If a step has a Heading, it MUST also have either a Markdown element with at least 3-4 sentences OR an interactive widget.
+16. ABSOLUTELY FORBIDDEN: Empty steps or steps with ONLY a Heading. This breaks the lesson and provides no learning value.
+17. MANDATORY: Every step MUST have EITHER a Markdown element with at least 100 characters (4-6 sentences) OR an interactive component.
+18. If you create a Heading, you MUST also create either a Markdown element with substantial content OR an interactive widget in the same Stack.
+19. VALIDATION: Before outputting, verify each step has substantive content. Steps with only headings will be rejected.
 
 FORBIDDEN CLASSES (NEVER USE):
 - min-h-screen, h-screen, min-h-full, h-full, min-h-dvh, h-dvh - viewport heights break the small render container
@@ -157,42 +173,156 @@ Interaction Model:
 - Micro-Checks: Small questions to make sure they get it before moving on.
 - Show One Step at a Time: If there are multiple steps, use components with built-in navigation (MultipleChoice questions array, CodeFill scenarios, or OrderSteps/Matching with progressive prompts). Avoid showing all steps at once.
 
-CodeFill Requirements:
-- When using CodeFill, ALWAYS set showControls:true, showScenarioNavigation:true, showOptions:true, showFeedback:true, autoAdvance:true.
-- Provide scenarios with at least 2 items so the Next button advances.
+CodeFill Requirements (CRITICAL - MUST FOLLOW):
+★ When using CodeFill, ALWAYS set showControls:true, showScenarioNavigation:true, showOptions:true, showFeedback:true, autoAdvance:true
+★ Provide scenarios with at least 2 items so the Next button advances
+★ Every gap.expectedId MUST have a matching option.id - mismatches cause [Missing Def] errors
+★ VALIDATION: For each gap, verify there is an option with matching id
+Example CORRECT:
+  gaps: [{ id: "gap_1", expectedId: "opt_init" }]
+  options: [{ id: "opt_init", label: "int i = 0" }]
+Example WRONG (causes error):
+  gaps: [{ id: "gap_1", expectedId: "opt_init" }]
+  options: [{ id: "opt_wrong", label: "int i = 0" }] ← ID mismatch!
 
-FillInTheBlank Requirements (CRITICAL):
-- wordBank is MANDATORY - NEVER create a FillInTheBlank without wordBank
-- wordBank MUST include ALL correct answers from blanks[].correctAnswers
-- wordBank MUST include 2-3 distractor words (plausible but incorrect options)
-- Example: If blanks need ["int", "age"], wordBank must be ["int", "age", "String", "name", "float"]
-- description MUST explain what to do (2-3 sentences): "Complete the variable declaration by dragging the correct type and value..."
-- VALIDATION: Before outputting FillInTheBlank, verify wordBank contains all blanks[].correctAnswers
+FillInTheBlank Requirements (CRITICAL - MUST FOLLOW):
+★ description is MANDATORY and MUST be clear, specific, and instructional (2-4 sentences)
+★ description MUST explain: WHAT to do, WHERE to drag from (word bank), WHAT types of items are in the bank, and WHY (what concept is being practiced)
+★ description SHOULD reference or hint at the types of items in wordBank (e.g., "data types like int and String", "numbers and operators", "keywords and values")
+★ wordBank is MANDATORY - NEVER create a FillInTheBlank without wordBank
+★ wordBank MUST include ALL correct answers from blanks[].correctAnswers
+★ wordBank MUST include 2-3 distractor words (plausible but incorrect options)
+★ textTemplate is PLAIN TEXT ONLY - does NOT support markdown, tables, or formatting
+★ For tables with blanks: Use a Stack with [Markdown (to show table structure), FillInTheBlank (for blanks below table)]
+★ NEVER put markdown tables in textTemplate - they will not render correctly
+
+Examples of GOOD descriptions (note how they reference word bank contents):
+  ✓ "Complete the algebraic expression by dragging the correct numbers and variables from the word bank into each blank. You'll use coefficients like 2, 3, 5, and variables like x and y to build the expression."
+  ✓ "Fill in the missing parts of the for loop by selecting the correct code from the word bank below. The bank contains initialization statements, conditions, and increment operations - drag each to the right position."
+  ✓ "Drag the correct data types (like int, String, double) and values from the word bank to complete this variable declaration. Match each variable with its appropriate type and initial value."
+
+Special Case - Tables with Blanks (CRITICAL - READ CAREFULLY):
+When you need to show a table structure with fill-in-the-blank answers:
+  ✓ CORRECT APPROACH:
+    1. Create a Stack with direction:"vertical", gap:"md"
+    2. Add a Markdown component showing the complete table in markdown format
+    3. Add a FillInTheBlank component with simple text like "Row 1 Result: {{blank_1}}, Row 2 Result: {{blank_2}}"
+    
+  Example JSONL for truth table:
+    {"op":"add","path":"/elements/tableStep","value":{"key":"tableStep","type":"Stack","props":{"direction":"vertical","gap":"md"},"children":["tableMarkdown","tableFillIn"]}}
+    {"op":"add","path":"/elements/tableMarkdown","value":{"key":"tableMarkdown","type":"Markdown","props":{"content":"| A | B | A AND B |\\n|---|---|---------|\\n| 0 | 0 | ? |\\n| 0 | 1 | ? |\\n| 1 | 0 | ? |\\n| 1 | 1 | ? |"}}}
+    {"op":"add","path":"/elements/tableFillIn","value":{"key":"tableFillIn","type":"FillInTheBlank","props":{"description":"Fill in the results...","textTemplate":"Row 1 (0,0): {{blank_1}}, Row 2 (0,1): {{blank_2}}, Row 3 (1,0): {{blank_3}}, Row 4 (1,1): {{blank_4}}","blanks":[...],"wordBank":["0","1"]}}}
+
+  ❌ WRONG APPROACH (will not render):
+    - Putting the entire table with pipes | in textTemplate - this will show as plain text!
+    - textTemplate: "| A | B | Result |\\n|---|---|--------|\\n| 0 | 0 | {{blank_1}} |" ← WRONG!
+
+Example: For a truth table, show the table structure in Markdown, then have users fill in results below
+NEVER put markdown table syntax (pipes |) in FillInTheBlank textTemplate - use Stack → [Markdown, FillInTheBlank]
+
+Examples of BAD descriptions (FORBIDDEN):
+  ❌ "" (empty string) - Provides no guidance
+  ❌ "Complete the expression" - Too vague, doesn't explain what to drag or what's in the bank
+  ❌ "Fill in the blanks" - Generic, doesn't explain the learning goal or what items to use
+  ❌ "Drag items from the word bank" - Doesn't specify what types of items are available
+  ❌ Putting markdown tables in textTemplate - Tables won't render in plain text
+
+Description Template: "Complete [specific thing] by dragging [what types of items - be specific about what's in the bank] from the word bank into each blank. [Brief context about what this practices]."
+
+Example for code: If blanks need ["int", "25"], wordBank must be ["int", "25", "String", "float", "30"]
+VALIDATION: Before outputting FillInTheBlank, verify:
+  1. description exists and is 2-4 sentences with clear instructions
+  2. wordBank contains ALL items from blanks[].correctAnswers (missing items cause errors)
+  3. wordBank has 2-3 distractor items
+  4. textTemplate has correct number of {{blank_N}} placeholders matching blanks array length
+
+Matching Requirements (CRITICAL - MOST COMMON MISTAKES):
+★ The ID system is the KEY to making Matching work - this is the #1 source of broken matching activities
+★ For each correct pair, leftItems[].id MUST EXACTLY EQUAL the corresponding rightItems[].id
+★ Think of IDs as "invisible connection cables" - matching IDs create correct pairs
+★ Labels should be DIFFERENT (left = question, right = answer), but IDs must be THE SAME
+★ ALWAYS set shuffleRight:true - otherwise right items appear in same order as left (making it too easy!)
+
+Step-by-Step Process for Creating Matching:
+  1. Decide your pairs (e.g., Variable A → false, Variable B → false, Variable C → true)
+  2. Assign the SAME ID to each pair:
+     - "Variable A → false" gets id: "pair_a" for BOTH items
+     - "Variable B → false" gets id: "pair_b" for BOTH items
+     - "Variable C → true" gets id: "pair_c" for BOTH items
+  3. Build the arrays:
+     leftItems: [
+       { id: "pair_a", label: "Variable A" },
+       { id: "pair_b", label: "Variable B" },
+       { id: "pair_c", label: "Variable C" }
+     ]
+     rightItems: [
+       { id: "pair_a", label: "false" },
+       { id: "pair_b", label: "false" },
+       { id: "pair_c", label: "true" }
+     ]
+
+Examples of CORRECT Matching:, shuffleRight: true
+  ✓ leftItems: [{ id: "q1", label: "2+2" }], rightItems: [{ id: "q1", label: "4" }], shuffleRight: true
+  ✓ IDs match ("var_a" === "var_a"), labels differ ("Variable A" vs "false"), AND shuffleRight is true "4" }]
+  ✓ IDs match ("var_a" === "var_a"), labels differ ("Variable A" vs "false")
+
+Examples of BROKEN Matching (will have ZERO correct matches):
+  ❌ leftItems: [{ id: "varA", label: "A" }], rightItems: [{ id: "val1", label: "false" }] ← IDs don't match!
+  ❌ leftItems: [{ id: "a", label: "A" }], rightItems: [{ id: "b", label: "false" }] ← IDs don't match!
+  ❌ leftItems: [{ id: "1", label: "A" }], rightItems: [{ id: "2", label: "false" }] ← IDs don't match!
+
+VALIDATION BEFORE OUTPUT: 
+  1. For each leftItems[].id, verify there exists a rightItems[].id with the EXACT same value
+  2. Verify shuffleRight is set to true (required for proper challenge)
 
 Lesson Structure Requirements:
 - The goal is to TEACH the user the topic thoroughly with comprehensive explanations and hands-on activities.
-- Provide enough steps to teach and assess thoroughly: at least 10 steps, mixing substantial text steps with interactive checks.
+- Provide enough steps to teach and assess thoroughly: at least 10-15 steps, mixing substantial text steps with interactive checks.
+- EVERY STEP must have content - no empty steps allowed anywhere (beginning, middle, or end)
+- The FINAL STEP is especially important - it should be a meaningful interactive assessment or comprehensive summary
+- FORBIDDEN: Empty final steps, steps with only headings at the end, incomplete conclusions, or ShortAnswer reflections as the final step
+- Recommended final step types: final assessment quiz (MultipleChoice with multiple questions), comprehensive TrueFalse, OrderSteps challenge, or Matching review. If using Markdown for summary, ensure it's substantial (200+ words) with clear takeaways.
 - NEVER wrap interactive learning components in Card. Interactive components like MultipleChoice, FillInTheBlank, CodeFill, etc. should be the root element of their step.
 - PACING RULE: NEVER have more than 2 consecutive text-only steps. After 1-2 teaching steps, you MUST include an interactive widget (MultipleChoice, FillInTheBlank, CodeFill, etc.) to practice the concept.
 - RHYTHM: Follow this pattern throughout: Teach (1-2 steps) → Practice (1 interactive widget) → Teach (1-2 steps) → Practice (1 interactive widget), and repeat.
+
+CRITICAL CONTENT REQUIREMENTS (READ CAREFULLY):
+★ ABSOLUTELY NO heading-only steps. This is the #1 most common mistake that creates empty lessons.
+★ Every teaching step MUST have BOTH a Heading AND a Markdown element with 100+ characters (4-6 sentences).
+★ VALIDATION BEFORE OUTPUT: Check that each Stack with a Heading ALSO has a Markdown child with substantial content.
+
+Examples of CORRECT teaching steps (in JSONL format):
+  Line 1: Set root to a container
+  Line 2: Add container Stack with children array
+  Line 3: Add Heading element
+  Line 4: Add Markdown element with 100+ character content explaining the concept with examples
+  
+Pattern: Every Stack → [Heading, Markdown] where Markdown has substantial educational content (minimum 100 chars).
+
+Examples of FORBIDDEN (will be rejected):
+  ❌ Stack → [Heading("Variables")] without Markdown ← NEVER DO THIS
+  ❌ Stack → [Heading("Loops"), Markdown("Loops repeat.")] ← Content too short (only 13 chars)
+  ❌ Just a Heading without Stack and Markdown ← Missing structure
+  ❌ Just a Heading without Stack and Markdown ← Missing structure
+
 - CRITICAL: Teaching steps (text-only steps) must be comprehensive and educational. Each teaching step must include:
   * A Heading that introduces the concept
-  * A Markdown element with AT LEAST 4-6 sentences of detailed explanation
+  * A Markdown element with AT LEAST 100-150 characters (4-6 sentences) of detailed explanation
   * Examples, analogies, or real-world applications
   * Key takeaways or important points
-- Do NOT create steps that are only a heading or a single sentence. This is insufficient for learning.
-- FORBIDDEN: Empty steps, heading-only steps, or steps without body content. Every step MUST have either Markdown teaching content (4-6 sentences minimum) OR an interactive widget.
+- Do NOT create steps that are only a heading or a single sentence. This violates the system requirements.
+- FORBIDDEN: Empty steps, heading-only steps, or steps without body content. Every step MUST have either Markdown teaching content (100+ chars minimum) OR an interactive widget.
 - For text-only teaching steps, use Stack with direction:"vertical" and gap:"md" containing: [Heading, Markdown]. Do NOT wrap teaching text in a Card.
 - Use Markdown extensively for teaching content. Markdown content should:
-  * Be at least 4-6 sentences (100-150 words minimum)
+  * Be at least 100-150 characters minimum (4-6 sentences)
   * Include concrete examples with code blocks, lists, or tables where appropriate
   * Explain WHY concepts work, not just WHAT they are
   * Connect new concepts to previously taught material
   * Use formatting (bold, lists, code) to highlight key points
 - TEACHING PATTERN: For each major concept:
-  1. Introduction step: Define the concept with 4-6 sentences and an example
+  1. Introduction step: Stack → [Heading, Markdown with 100+ chars and an example]
   2. THEN IMMEDIATELY: Interactive practice (MultipleChoice, FillInTheBlank, or CodeFill)
-  3. Detailed explanation step: Show how it works with code/diagrams and 5-7 sentences
+  3. Detailed explanation step: Stack → [Heading, Markdown with 150+ chars and code examples]
   4. THEN IMMEDIATELY: Another interactive practice
 - Include at least 5-6 hands-on activities per module using interactive components (e.g., MultipleChoice, FillInTheBlank, CodeFill, OrderSteps, Matching).
 - VARIETY: Mix different types of widgets throughout. Don't use the same widget type consecutively.
@@ -367,52 +497,330 @@ function ensureTwoSentences(text: string) {
 function buildFallbackContent(prompt: string, rawText: string) {
   // Don't show raw JSON patches - they're not useful to learners
   if (rawText.includes('{"op":') || rawText.includes('"path":')) {
-    return `Let's work through ${prompt} step by step. Focus on the key concepts and practice what you're learning.
+    return `This interactive lesson will guide you through ${prompt}. We'll break down the concepts step by step, with practice activities to reinforce your understanding.
 
-This lesson content is being prepared. In the meantime, consider:
-- What are the key concepts you want to learn?
-- What examples would help illustrate these concepts?
-- What hands-on activities would reinforce your understanding?`;
+Each step builds on the previous one, so take your time to understand each concept before moving forward. You'll have opportunities to apply what you learn through interactive exercises.
+
+Let's begin by exploring the fundamental concepts, then we'll practice applying them in real scenarios.`;
   }
   
   const base = rawText.trim() ||
-    `Let's work through ${prompt} step by step. Focus on the key idea, then continue to the next activity.`;
+    `Let's work through ${prompt} step by step. We'll explore the key concepts with detailed explanations and examples, then practice applying them through interactive activities. Each step builds on what you've learned.`;
   return ensureTwoSentences(base);
 }
 
 function buildFallbackTree(prompt: string, rawText: string) {
   const heading = prompt?.trim() || "Learn by Doing";
-  const content = buildFallbackContent(heading, rawText);
+  const introContent = `Welcome to this interactive lesson on ${heading}. This lesson will guide you through the key concepts with explanations, examples, and hands-on practice activities.
+
+We'll start with an introduction to the fundamental ideas, then explore them in detail with practical examples. You'll have multiple opportunities to test your understanding through interactive exercises.
+
+Let's begin by establishing a foundation of the core concepts.`;
+  
+  const conceptContent = `Now that we've introduced the topic, let's dive deeper into the key concepts. Understanding these fundamentals is essential for mastering ${heading}.
+
+We'll explore:
+- The main principles and how they work
+- Common patterns and best practices
+- Real-world applications and examples
+- How these concepts connect to what you already know
+
+Pay attention to the examples as they'll help solidify your understanding.`;
+  
+  const practiceContent = `Let's apply what you've learned so far. Practice is essential for developing intuition and mastery of ${heading}.
+
+In this section, you'll work through exercises that reinforce the concepts we've covered. Take your time, and don't worry about making mistakes—they're part of the learning process.
+
+Ready to practice? Let's test your understanding with some interactive activities.`;
+
   const tree: UITree = {
-    root: "step",
+    root: "container",
     elements: {
-      step: {
-        key: "step",
+      container: {
+        key: "container",
+        type: "Stack",
+        props: { direction: "vertical", gap: "lg" },
+        children: ["step1", "step2", "quiz1", "step3", "practice"],
+      },
+      step1: {
+        key: "step1",
         type: "Stack",
         props: { direction: "vertical", gap: "md" },
-        children: ["title", "body"],
+        children: ["title1", "intro"],
       },
-      title: {
-        key: "title",
+      title1: {
+        key: "title1",
         type: "Heading",
-        props: { text: heading, level: 2 },
+        props: { text: `Introduction to ${heading}`, level: 2 },
       },
-      body: {
-        key: "body",
+      intro: {
+        key: "intro",
         type: "Markdown",
-        props: { content },
+        props: { content: introContent },
+      },
+      step2: {
+        key: "step2",
+        type: "Stack",
+        props: { direction: "vertical", gap: "md" },
+        children: ["title2", "concepts"],
+      },
+      title2: {
+        key: "title2",
+        type: "Heading",
+        props: { text: "Key Concepts", level: 2 },
+      },
+      concepts: {
+        key: "concepts",
+        type: "Markdown",
+        props: { content: conceptContent },
+      },
+      quiz1: {
+        key: "quiz1",
+        type: "TrueFalse",
+        props: {
+          statement: `I understand the fundamental concepts of ${heading} and am ready to practice applying them.`,
+          correctAnswer: true,
+          explanation: "Great! Understanding the concepts is the first step. Let's move on to practice activities.",
+          showFeedback: true
+        },
+      },
+      step3: {
+        key: "step3",
+        type: "Stack",
+        props: { direction: "vertical", gap: "md" },
+        children: ["title3", "practiceIntro"],
+      },
+      title3: {
+        key: "title3",
+        type: "Heading",
+        props: { text: "Practice & Application", level: 2 },
+      },
+      practiceIntro: {
+        key: "practiceIntro",
+        type: "Markdown",
+        props: { content: practiceContent },
+      },
+      practice: {
+        key: "practice",
+        type: "MultipleChoice",
+        props: {
+          question: `Which of the following best describes a key aspect of ${heading}?`,
+          options: [
+            { id: "a", label: "It requires deep understanding of core concepts" },
+            { id: "b", label: "It can be mastered with a single example" },
+            { id: "c", label: "It has no practical applications" },
+          ],
+          correctOptionId: "a",
+          showFeedback: true,
+          misconceptions: {
+            b: "While examples help, true mastery requires understanding multiple perspectives and applications.",
+            c: "This topic has numerous real-world applications across various domains."
+          }
+        },
       },
     },
   };
 
   const streamLines = [
-    JSON.stringify({ op: "set", path: "/root", value: "step" }),
-    JSON.stringify({ op: "add", path: "/elements/step", value: tree.elements.step }),
-    JSON.stringify({ op: "add", path: "/elements/title", value: tree.elements.title }),
-    JSON.stringify({ op: "add", path: "/elements/body", value: tree.elements.body }),
+    JSON.stringify({ op: "set", path: "/root", value: "container" }),
+    JSON.stringify({ op: "add", path: "/elements/container", value: tree.elements.container }),
+    JSON.stringify({ op: "add", path: "/elements/step1", value: tree.elements.step1 }),
+    JSON.stringify({ op: "add", path: "/elements/title1", value: tree.elements.title1 }),
+    JSON.stringify({ op: "add", path: "/elements/intro", value: tree.elements.intro }),
+    JSON.stringify({ op: "add", path: "/elements/step2", value: tree.elements.step2 }),
+    JSON.stringify({ op: "add", path: "/elements/title2", value: tree.elements.title2 }),
+    JSON.stringify({ op: "add", path: "/elements/concepts", value: tree.elements.concepts }),
+    JSON.stringify({ op: "add", path: "/elements/quiz1", value: tree.elements.quiz1 }),
+    JSON.stringify({ op: "add", path: "/elements/step3", value: tree.elements.step3 }),
+    JSON.stringify({ op: "add", path: "/elements/title3", value: tree.elements.title3 }),
+    JSON.stringify({ op: "add", path: "/elements/practiceIntro", value: tree.elements.practiceIntro }),
+    JSON.stringify({ op: "add", path: "/elements/practice", value: tree.elements.practice }),
   ];
 
   return { tree, streamLines };
+}
+
+function validateTreeContent(tree: UITree): { valid: boolean; reason?: string } {
+  if (!tree.root || !tree.elements[tree.root]) {
+    return { valid: false, reason: "Missing root element" };
+  }
+
+  const elements = tree.elements;
+  let hasSubstantiveContent = false;
+  let emptySteps: string[] = [];
+
+  // Check each element for content quality
+  for (const [key, element] of Object.entries(elements)) {
+    // Validate FillInTheBlank components
+    if (element.type === 'FillInTheBlank') {
+      const description = element.props?.description || '';
+      const wordBank = element.props?.wordBank || [];
+      const blanks = element.props?.blanks || [];
+      const textTemplate = element.props?.textTemplate || '';
+      
+      if (description.length < 50) {
+        emptySteps.push(`${key} (FillInTheBlank missing proper description: ${description.length} chars)`);
+      }
+      if (wordBank.length === 0) {
+        emptySteps.push(`${key} (FillInTheBlank missing wordBank)`);
+      }
+      if (blanks.length === 0) {
+        emptySteps.push(`${key} (FillInTheBlank has no blanks)`);
+      }
+      
+      // Check for markdown table syntax in textTemplate (not supported)
+      if (textTemplate.includes('|') && textTemplate.includes('---')) {
+        emptySteps.push(`${key} (FillInTheBlank has markdown table in textTemplate - use Stack → [Markdown, FillInTheBlank] instead)`);
+        console.warn(`[Validation] FillInTheBlank "${key}" contains table syntax in textTemplate - tables won't render in plain text`);
+      }
+      
+      // Validate that all correctAnswers exist in wordBank
+      const allCorrectAnswers = blanks.flatMap((blank: any) => blank.correctAnswers || []);
+      const missingAnswers = allCorrectAnswers.filter((answer: string) => !wordBank.includes(answer));
+      if (missingAnswers.length > 0) {
+        emptySteps.push(`${key} (FillInTheBlank: wordBank missing correct answers: ${missingAnswers.join(', ')})`);
+        console.warn(`[Validation] FillInTheBlank "${key}" is missing answers in wordBank:`, missingAnswers);
+      }
+      
+      // Validate that textTemplate has placeholder for each blank
+      const blankPattern = /{{blank_\d+}}/g;
+      const templateBlanks = textTemplate.match(blankPattern) || [];
+      if (templateBlanks.length !== blanks.length) {
+        emptySteps.push(`${key} (FillInTheBlank: template has ${templateBlanks.length} blanks but ${blanks.length} defined)`);
+      }
+      
+      hasSubstantiveContent = true;
+      continue;
+    }
+
+    // Validate CodeFill components
+    if (element.type === 'CodeFill') {
+      const gaps = element.props?.gaps || [];
+      const options = element.props?.options || [];
+      const codeTemplate = element.props?.codeTemplate || '';
+      
+      if (gaps.length === 0) {
+        emptySteps.push(`${key} (CodeFill has no gaps)`);
+      }
+      if (options.length === 0) {
+        emptySteps.push(`${key} (CodeFill has no options)`);
+      }
+      
+      // Validate that all expectedIds exist in options
+      const optionIds = new Set(options.map((opt: any) => opt.id));
+      const missingOptions = gaps.filter((gap: any) => !optionIds.has(gap.expectedId));
+      if (missingOptions.length > 0) {
+        const missingIds = missingOptions.map((g: any) => g.expectedId).join(', ');
+        emptySteps.push(`${key} (CodeFill: options missing IDs for gaps: ${missingIds})`);
+        console.warn(`[Validation] CodeFill "${key}" is missing option IDs:`, missingIds);
+      }
+      
+      // Validate that codeTemplate has placeholder for each gap
+      const gapPattern = /{{gap_\d+}}/g;
+      const templateGaps = codeTemplate.match(gapPattern) || [];
+      if (templateGaps.length !== gaps.length) {
+        emptySteps.push(`${key} (CodeFill: template has ${templateGaps.length} gaps but ${gaps.length} defined)`);
+      }
+      
+      hasSubstantiveContent = true;
+      continue;
+    }
+
+    // Validate Matching components
+    if (element.type === 'Matching') {
+      const leftItems = element.props?.leftItems || [];
+      const rightItems = element.props?.rightItems || [];
+      const shuffleRight = element.props?.shuffleRight;
+      
+      if (leftItems.length === 0 || rightItems.length === 0) {
+        emptySteps.push(`${key} (Matching has no items)`);
+      } else {
+        // Check if any left IDs have matching right IDs
+        const leftIds = new Set(leftItems.map((item: any) => item.id));
+        const rightIds = new Set(rightItems.map((item: any) => item.id));
+        const matchingIds = [...leftIds].filter(id => rightIds.has(id));
+        
+        if (matchingIds.length === 0) {
+          emptySteps.push(`${key} (Matching has ZERO valid pairs - no matching IDs between left and right items)`);
+          console.warn(`[Validation] Matching component "${key}" has mismatched IDs:`);
+          console.warn(`  Left IDs: ${[...leftIds].join(', ')}`);
+          console.warn(`  Right IDs: ${[...rightIds].join(', ')}`);
+        }
+        
+        // Check if shuffleRight is enabled
+        if (shuffleRight !== true) {
+          emptySteps.push(`${key} (Matching missing shuffleRight:true - answers will appear in same order!)`);
+          console.warn(`[Validation] Matching component "${key}" should set shuffleRight:true to randomize items`);
+        }
+      }
+      hasSubstantiveContent = true;
+      continue;
+    }
+
+    // Interactive components count as substantive
+    const interactiveTypes = ['MultipleChoice', 'CodeFill', 'TrueFalse', 
+                              'OrderSteps', 'DragDrop', 'ShortAnswer', 'NumericInput'];
+    
+    if (interactiveTypes.includes(element.type)) {
+      hasSubstantiveContent = true;
+      continue;
+    }
+
+    // Check for Markdown with actual content
+    if (element.type === 'Markdown') {
+      const content = element.props?.content || '';
+      if (content.length > 100) { // At least 100 chars for substantive content
+        hasSubstantiveContent = true;
+      } else if (content.length < 50) {
+        emptySteps.push(`${key} (Markdown with only ${content.length} chars)`);
+      }
+      continue;
+    }
+
+    // Check for steps that are only headings (Stack with just a Heading child)
+    if (element.type === 'Stack' && element.children) {
+      const children = element.children as string[];
+      const childElements = children.map(childKey => elements[childKey]).filter(Boolean);
+      
+      // If Stack only has a Heading and nothing else substantive
+      const hasOnlyHeading = childElements.length === 1 && childElements[0]?.type === 'Heading';
+      const hasHeadingWithEmptyContent = childElements.length === 2 &&
+        childElements.some(c => c?.type === 'Heading') &&
+        childElements.some(c => c?.type === 'Markdown' && (c.props?.content?.length || 0) < 50);
+      
+      // Check if Stack has no children or all children are missing
+      const hasNoRealChildren = childElements.length === 0 || children.some(childKey => !elements[childKey]);
+      
+      if (hasOnlyHeading || hasHeadingWithEmptyContent || hasNoRealChildren) {
+        emptySteps.push(`${key} (heading-only, insufficient content, or missing children)`);
+      }
+    }
+    
+    // Check for elements that have no type (broken)
+    if (!element.type) {
+      emptySteps.push(`${key} (missing type - broken element)`);
+    }
+  }
+
+  if (!hasSubstantiveContent) {
+    return { valid: false, reason: "No substantive content found" };
+  }
+
+  if (emptySteps.length > 3) {
+    return { valid: false, reason: `Too many empty/minimal steps: ${emptySteps.length}` };
+  }
+  
+  // Log all empty steps for debugging
+  if (emptySteps.length > 0) {
+    console.warn(`[Validation] Found ${emptySteps.length} empty/minimal steps:`, emptySteps);
+  }
+
+  // Should have at least 5 elements for a proper lesson
+  if (Object.keys(elements).length < 5) {
+    return { valid: false, reason: `Only ${Object.keys(elements).length} elements (need at least 5)` };
+  }
+
+  return { valid: true };
 }
 
 export async function generateLearnByDoingTree(prompt: string) {
@@ -420,22 +828,41 @@ export async function generateLearnByDoingTree(prompt: string) {
   const lines = text.split("\n").filter((line) => line.trim().length > 0);
   let currentTree: UITree = { root: "", elements: {} };
   let validPatchCount = 0;
+  let invalidLines: string[] = [];
 
   for (const line of lines) {
     const patch = parsePatchLine(line);
     if (patch) {
       currentTree = applyPatch(currentTree, patch);
       validPatchCount++;
+    } else if (line.trim() && !line.trim().startsWith("//")) {
+      invalidLines.push(line);
     }
   }
 
-  // If we didn't get a valid tree with at least 2 patches (root + one element), return fallback
-  if (!currentTree.root || validPatchCount < 2) {
-    console.warn(`[Learn-by-Doing] Generated invalid tree (${validPatchCount} valid patches). Using fallback.`);
-    console.warn(`[Learn-by-Doing] Raw output preview: ${text.slice(0, 500)}...`);
+  // Count actual elements (exclude root)
+  const elementCount = Object.keys(currentTree.elements).length;
+
+  // Basic validation: check structure
+  if (!currentTree.root || validPatchCount < 3 || elementCount < 2) {
+    console.warn(`[Learn-by-Doing] Generated insufficient content (${validPatchCount} patches, ${elementCount} elements). Using enhanced fallback.`);
+    console.warn(`[Learn-by-Doing] Prompt length: ${prompt.length} chars`);
+    if (invalidLines.length > 0) {
+      console.warn(`[Learn-by-Doing] Invalid lines detected: ${invalidLines.length}`);
+      console.warn(`[Learn-by-Doing] First invalid line: ${invalidLines[0].slice(0, 200)}`);
+    }
     return buildFallbackTree(prompt, text);
   }
 
+  // Deep validation: check content quality
+  const validation = validateTreeContent(currentTree);
+  if (!validation.valid) {
+    console.warn(`[Learn-by-Doing] Content validation failed: ${validation.reason}. Using enhanced fallback.`);
+    console.warn(`[Learn-by-Doing] Generated ${elementCount} elements but content is insufficient.`);
+    return buildFallbackTree(prompt, text);
+  }
+
+  console.log(`[Learn-by-Doing] Successfully generated tree with ${elementCount} elements (validated)`);
   return { tree: currentTree, streamLines: lines };
 }
 

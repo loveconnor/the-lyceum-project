@@ -26,6 +26,8 @@ export interface Module {
   description?: string;
   completed: boolean;
   status?: 'not-started' | 'in-progress' | 'completed';
+  content_mode?: 'ai_generated' | 'registry_backed' | 'learn_by_doing';
+  content_data?: any;
   progress_data?: {
     reading_completed?: boolean;
     examples_completed?: boolean;

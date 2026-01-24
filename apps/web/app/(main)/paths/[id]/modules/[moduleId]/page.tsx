@@ -3423,6 +3423,7 @@ export default function ModulePage() {
           layout="full"
           stepByStep
           moduleId={moduleId}
+          pathId={pathId}
           onEndReached={handleLearnByDoingComplete}
           fallbackStepText={
             module.description
