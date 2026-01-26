@@ -66,7 +66,7 @@ export const SIDEBAR_ITEMS: SidebarItemDefinition[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "primary", href: "/" },
   { id: "learning_paths", label: "Learning Paths", icon: Compass, group: "primary", href: "/paths" },
   { id: "labs", label: "Labs", icon: FlaskConical, group: "primary", href: "/labs" },
-  { id: "reflections", label: "Reflections", icon: NotebookPen, group: "primary" },
+  { id: "reflections", label: "Reflections", icon: NotebookPen, group: "primary", href: "/reflections" },
   // { id: "planner", label: "Planner / Time Coach", icon: Clock3, group: "primary" },
   // { id: "relevance", label: "Relevance Explorer", icon: Target, group: "primary" },
   // { id: "community", label: "Community", icon: Users, group: "primary" },

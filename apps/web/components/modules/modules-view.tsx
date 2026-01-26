@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import ModuleCard from "./module-card";
 import { cn } from "@/lib/utils";
 import { markPrimaryFeature, trackEvent } from "@/lib/analytics";
+import { Markdown } from "@/components/ui/custom/prompt/markdown";
 
 interface ModulesViewProps {
   path: LearningPath;
@@ -84,9 +85,9 @@ export default function ModulesView({ path }: ModulesViewProps) {
           <div className="flex-1 space-y-2">
             <h1 className="text-3xl font-bold tracking-tight text-center">{path.title}</h1>
             {path.description && (
-              <p className="text-muted-foreground text-lg leading-relaxed max-w-3xl mx-auto text-center">
-                {path.description}
-              </p>
+              <div className="text-muted-foreground text-lg leading-relaxed max-w-3xl mx-auto text-center prose prose-sm dark:prose-invert">
+                <Markdown>{path.description}</Markdown>
+              </div>
             )}
           </div>
         </div>

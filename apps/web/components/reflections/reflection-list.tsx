@@ -8,6 +8,7 @@ import { Calendar, Eye, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Reflection } from '@/types/reflections';
 import { EditorWidgetReadOnly } from '@/components/widgets';
+import Link from 'next/link';
 
 /**
  * ReflectionCard Component
@@ -21,6 +22,8 @@ interface ReflectionCardProps {
   onDelete?: (reflection: Reflection) => void;
   compact?: boolean;
   className?: string;
+  pathTitle?: string;
+  pathId?: string;
 }
 
 export function ReflectionCard({
@@ -29,6 +32,8 @@ export function ReflectionCard({
   onDelete,
   compact = false,
   className,
+  pathTitle,
+  pathId,
 }: ReflectionCardProps) {
   const [expanded, setExpanded] = React.useState(false);
 
@@ -47,6 +52,23 @@ export function ReflectionCard({
     });
   };
 
+  // Determine if we should link to the module
+  const isModule = reflection.context_type === 'module' || reflection.context_type === 'path_item';
+  const hasModuleLink = isModule && pathId && reflection.context_id;
+  const moduleHref = hasModuleLink ? `/paths/${pathId}/modules/${reflection.context_id}` : '#';
+
+  const BadgeComponent = hasModuleLink ? (
+    <Link href={moduleHref} className="hover:opacity-80 transition-opacity">
+      <Badge variant="secondary">
+        {contextTypeLabels[reflection.context_type]}
+      </Badge>
+    </Link>
+  ) : (
+    <Badge variant="secondary">
+      {contextTypeLabels[reflection.context_type]}
+    </Badge>
+  );
+
   if (compact) {
     return (
       <Card className={cn("hover:border-primary/50 transition-colors", className)}>
@@ -54,9 +76,7 @@ export function ReflectionCard({
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1 flex-1">
               <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs">
-                  {contextTypeLabels[reflection.context_type]}
-                </Badge>
+                {BadgeComponent}
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
                   {formatDate(reflection.created_at)}
@@ -65,6 +85,11 @@ export function ReflectionCard({
               <CardTitle className="text-base line-clamp-1">
                 {reflection.context_title}
               </CardTitle>
+              {pathTitle && (
+                <p className="text-xs text-muted-foreground">
+                  {pathTitle}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-1">
               {onView && (
@@ -100,17 +125,22 @@ export function ReflectionCard({
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2 flex-1">
             <div className="flex items-center gap-2">
-              <Badge variant="secondary">
-                {contextTypeLabels[reflection.context_type]}
-              </Badge>
+              {BadgeComponent}
               <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
                 {formatDate(reflection.created_at)}
               </span>
             </div>
-            <CardTitle className="text-lg">
-              {reflection.context_title}
-            </CardTitle>
+            <div className="space-y-1">
+              <CardTitle className="text-lg">
+                {reflection.context_title}
+              </CardTitle>
+              {pathTitle && (
+                <p className="text-sm text-muted-foreground">
+                  {pathTitle}
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-1">
             <Button

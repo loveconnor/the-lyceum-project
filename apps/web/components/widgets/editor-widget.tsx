@@ -1,16 +1,14 @@
-'use client';
-
 import * as React from 'react';
-import { normalizeNodeId, type Value } from 'platejs';
-import { Plate, usePlateEditor } from 'platejs/react';
-import { cn } from '@/lib/utils';
+import { Plate, usePlateEditor, Value } from 'platejs/react';
+import { normalizeNodeId } from 'platejs';
+import { Markdown } from '@/components/ui/custom/prompt/markdown';
+
 import { EditorKit } from '@/components/widgets/editor/editor-kit';
 import { Editor, EditorContainer } from '@/components/ui/editor';
 import { Card, CardContent } from '@/components/ui/card';
-import { Markdown } from '@/components/ui/custom/prompt/markdown';
+import { cn } from '@/lib/utils';
 
-// Helper function to convert literal \n to actual newlines
-const convertNewlines = (text: string | undefined) => {
+const convertNewlines = (text?: string) => {
   if (!text) return "";
   return text.replace(/\\n/g, "\n");
 };
@@ -83,8 +81,18 @@ export function EditorWidget({
   className,
   autoFocus = false,
 }: EditorWidgetProps) {
+  // Filter out toolbars when in read-only mode
+  const plugins = React.useMemo(() => {
+    if (readOnly) {
+      return EditorKit.filter(
+        (p) => p.key !== 'fixed-toolbar' && p.key !== 'floating-toolbar'
+      );
+    }
+    return EditorKit;
+  }, [readOnly]);
+
   const editor = usePlateEditor({
-    plugins: EditorKit,
+    plugins: plugins,
     value: initialValue,
     override: {
       components: {
@@ -148,7 +156,7 @@ export function EditorWidget({
             placeholder={placeholder}
             readOnly={readOnly}
             className={cn(
-              readOnly && 'opacity-100',
+              readOnly && 'opacity-100 min-h-0 pb-0 pt-0 px-0', // Reset padding for read-only
               height && 'h-full'
             )}
           />
@@ -182,10 +190,10 @@ export function EditorWidgetReadOnly(props: Omit<EditorWidgetProps, 'readOnly'>)
  */
 export function EditorWidgetExample(props: EditorWidgetProps) {
   return (
-    <EditorWidget
-      {...props}
-      variant={props.variant || 'default'}
-      showCard={props.showCard ?? true}
+    <EditorWidget 
+      {...props} 
+      showCard 
+      className={cn("bg-muted/30", props.className)}
     />
   );
 }
@@ -195,10 +203,10 @@ export function EditorWidgetExample(props: EditorWidgetProps) {
  */
 export function EditorWidgetAIChat(props: EditorWidgetProps) {
   return (
-    <EditorWidget
-      {...props}
-      variant="aiChat"
-      showCard={props.showCard ?? false}
+    <EditorWidget 
+      {...props} 
+      variant="aiChat" 
+      showCard={props.showCard ?? false} 
     />
   );
 }

@@ -235,14 +235,15 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
           let indicatorColor = "border-border text-transparent";
 
           if (isSubmitted) {
-            if (
-              (activeMinSelections > 1 &&
-                activeCorrectIds.includes(option.id)) ||
-              option.id === activeCorrectId
-            ) {
+            const isCorrectOption = (activeMinSelections > 1 &&
+              activeCorrectIds.includes(option.id)) ||
+              option.id === activeCorrectId;
+
+            // Only highlight correct option if user got it right (feedback is success)
+            if (isCorrectOption && feedback?.type === "success") {
               containerClasses += " bg-emerald-50 dark:bg-emerald-900/40 border-emerald-500 dark:border-emerald-600";
               indicatorColor = "border-emerald-500 bg-emerald-500 text-white";
-            } else if (isSelected && option.id !== correctOptionId) {
+            } else if (isSelected && !isCorrectOption) {
               containerClasses += " bg-rose-50 dark:bg-rose-900/40 border-rose-300 dark:border-rose-600";
               indicatorColor = "border-rose-400 dark:border-rose-600 text-rose-500 dark:text-rose-400";
             } else {
@@ -267,9 +268,10 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
                 className={`flex items-center justify-center w-4 h-4 rounded-full border ${indicatorColor} mr-3 shrink-0 transition-colors`}
               >
                 {isSubmitted &&
+                feedback?.type === "success" &&
                 ((activeMinSelections > 1 &&
                   activeCorrectIds.includes(option.id)) ||
-                  option.id === correctOptionId) ? (
+                  option.id === activeCorrectId) ? (
                   <Check className="w-3 h-3" strokeWidth={3} />
                 ) : isSubmitted && isSelected ? (
                   <X className="w-3 h-3" strokeWidth={3} />
@@ -285,7 +287,7 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
               <div className="flex-1">
                 <span
                   className={`text-sm ${
-                    isSelected || (isSubmitted && option.id === correctOptionId)
+                    isSelected || (isSubmitted && feedback?.type === "success" && option.id === activeCorrectId)
                       ? "font-medium text-foreground"
                       : "text-muted-foreground"
                   }`}
@@ -341,33 +343,35 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
               Previous
             </button>
           ) : null}
-
-          {canGoNext ? (
-            <button
-              type="button"
-              onClick={() =>
-                setCurrentIndex((prev) =>
-                  Math.min(prev + 1, (questions?.length ?? 1) - 1),
-                )
-              }
-              className="h-7 px-2 rounded border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Next
-            </button>
-          ) : null}
         </div>
 
         <div className="flex items-center gap-2">
           {status === "submitted" ? (
-            <button
-              type="button"
-              onClick={handleReset}
-              className="h-7 px-2 rounded border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <span className="inline-flex items-center gap-1">
-                <RotateCcw className="w-3 h-3" /> Try Again
-              </span>
-            </button>
+            feedback?.type === "success" && canGoNext ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentIndex((prev) =>
+                    Math.min(prev + 1, (questions?.length ?? 1) - 1),
+                  )
+                }
+                className="h-7 px-3 rounded bg-foreground text-background text-xs font-medium hover:opacity-90 transition-opacity"
+              >
+                <span className="inline-flex items-center gap-1">
+                  Next <ArrowRight className="w-3 h-3" />
+                </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleReset}
+                className="h-7 px-2 rounded border border-border text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <span className="inline-flex items-center gap-1">
+                  <RotateCcw className="w-3 h-3" /> Try Again
+                </span>
+              </button>
+            )
           ) : (
             <button
               type="button"

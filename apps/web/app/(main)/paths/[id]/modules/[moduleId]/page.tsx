@@ -56,7 +56,8 @@ import { Lab } from "@/app/(main)/labs/types";
 import LabViewer from "@/components/labs/lab-viewer";
 import { Demo as LearnByDoing } from "@/components/LearnByDoing";
 import { toast } from "sonner";
-import { ShortAnswerWidget, MultipleChoiceWidget, MultiStepWidget, CodeEditorWidget } from "@/components/exercises";
+import { ShortAnswerWidget, MultiStepWidget, CodeEditorWidget } from "@/components/exercises";
+import { MultipleChoice } from "@/components/learning/MultipleChoice";
 import { ReflectionModal } from "@/components/reflections";
 import { shouldTriggerReflection } from "@/types/reflections";
 
@@ -497,6 +498,36 @@ const ImmersiveTextView = ({
     }
   };
 
+  // Sync with MultipleChoice widget state to track completion
+  useEffect(() => {
+    const win = window as any;
+    
+    // Override __saveWidgetState to track quiz progress
+    win.__saveWidgetState = (state: any) => {
+      // state contains { selections, submitted, feedbackByQuestion }
+      // Check if all questions for current chapter are answered correctly
+      if (state.feedbackByQuestion) {
+        const currentQuizzes = chapters[currentChapter].quizzes;
+        const allCorrect = currentQuizzes.every((q, i) => {
+          const qId = `q-${currentChapter}-${i}`;
+          const feedback = state.feedbackByQuestion[qId];
+          return feedback && feedback.type === "success";
+        });
+        
+        if (allCorrect) {
+          setIsQuizPassed(true);
+          const newCompletedChapters = new Set(completedChapters);
+          newCompletedChapters.add(currentChapter);
+          setCompletedChapters(newCompletedChapters);
+        }
+      }
+    };
+
+    return () => {
+      delete win.__saveWidgetState;
+    };
+  }, [currentChapter, chapters, completedChapters]);
+
   return (
     <div className="flex h-full gap-8">
       {/* Left Chapter Outline Sidebar */}
@@ -598,150 +629,61 @@ const ImmersiveTextView = ({
             <Card className="border shadow-none">
               <CardContent className="p-6 space-y-5">
                 <div className="space-y-3">
-                  <div className="flex gap-1.5">
-                    {chapters[currentChapter].quizzes.map((_, i) => (
-                      <div 
-                        key={i}
-                        className={cn(
-                          "h-1 flex-1 rounded-full transition-all duration-300",
-                          i < currentQuestionIndex ? "bg-primary" : 
-                          i === currentQuestionIndex ? "bg-primary/40" : "bg-muted"
-                        )}
-                      />
-                    ))}
-                  </div>
-                  <div className="text-base font-medium leading-relaxed">
-                    <Markdown components={{ p: ({ children }) => <>{children}</> }}>
-                      {ensureMathDelimiters(currentQuiz.question)}
-                    </Markdown>
-                  </div>
+                  <MultipleChoice
+                    element={{
+                      type: "MultipleChoice",
+                      props: {
+                        questions: chapters[currentChapter].quizzes.map((q, i) => ({
+                          id: `q-${currentChapter}-${i}`,
+                          question: ensureMathDelimiters(q.question),
+                          options: q.options.map(o => ({ id: o.id, label: ensureMathDelimiters(o.text) })),
+                          correctOptionId: q.correct,
+                          misconceptions: q.explanation ? { [q.correct]: q.explanation } : {}
+                        })),
+                        showFeedback: true,
+                        shuffle: false
+                      }
+                    }}
+                  />
                 </div>
-                
-                <div className="grid gap-2">
-                  {currentQuiz.options.map((option) => (
-                    <button 
-                      key={option.id} 
-                      onClick={() => handleOptionSelect(option.id)}
-                      disabled={isCorrect === true}
-                      className={cn(
-                        "w-full text-left px-3.5 py-3 rounded-lg border transition-all flex items-center gap-3 group relative",
-                        selectedOption === option.id 
-                          ? (isCorrect ? "border-green-500/50 bg-green-500/5" : "border-destructive/50 bg-destructive/5")
-                          : "border-border hover:border-primary/30 hover:bg-accent/30",
-                        isCorrect === true && selectedOption !== option.id && "opacity-40"
-                      )}
-                    >
-                      <div className={cn(
-                        "w-7 h-7 rounded-md flex items-center justify-center text-sm font-semibold transition-all flex-shrink-0",
-                        selectedOption === option.id
-                          ? (isCorrect ? "bg-green-500 text-white" : "bg-destructive text-white")
-                          : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-foreground"
-                      )}>
-                        {option.id}
-                      </div>
-                      <div className="text-sm font-medium flex-1 overflow-x-auto">
-                        <Markdown 
-                          components={{ 
-                            p: ({ children }) => <span className="inline">{children}</span>,
-                            code: ({ children, className }) => {
-                              const isBlock = className?.includes('language-');
-                              if (isBlock) {
-                                return (
-                                  <code className={cn(
-                                    "block my-2 px-3 py-2 rounded bg-muted text-xs font-mono overflow-x-auto",
-                                    className
-                                  )}>
-                                    {children}
-                                  </code>
-                                );
-                              }
-                              return (
-                                <code className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">
-                                  {children}
-                                </code>
-                              );
-                            }
-                          }}
-                        >
-                          {ensureMathDelimiters(option.text)}
-                        </Markdown>
-                      </div>
-                      
-                      {selectedOption === option.id && isCorrect && (
-                        <motion.div 
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="flex-shrink-0"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                        </motion.div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                <AnimatePresence mode="wait">
-                  {isCorrect === true && (
-                    <motion.div 
-                      key="correct-feedback"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      className="space-y-3 pt-1"
-                    >
-                      <div className="px-3 py-2.5 bg-green-500/10 dark:bg-green-500/5 border border-green-500/20 rounded-lg flex items-center gap-2.5">
-                        <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
-                          <CheckCircle2 className="w-3 h-3 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-green-700 dark:text-green-400">
-                            {currentQuestionIndex === chapters[currentChapter].quizzes.length - 1 && currentChapter === chapters.length - 1
-                              ? "Reading completed! Check out the other tabs."
-                              : "Correct"}
-                          </p>
-                          {currentQuiz.explanation && (
-                            <div className="text-xs text-green-600/80 dark:text-green-400/80 mt-1">
-                              <Markdown components={{ p: ({ children }) => <>{children}</> }}>
-                                {currentQuiz.explanation}
-                              </Markdown>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {!(currentQuestionIndex === chapters[currentChapter].quizzes.length - 1 && currentChapter === chapters.length - 1) && (
-                        <Button 
-                          onClick={nextQuestion}
-                          className="w-full font-medium group"
-                        >
-                          {currentQuestionIndex < chapters[currentChapter].quizzes.length - 1 
-                            ? "Next Question" 
-                            : "Next Chapter"}
-                          <ChevronRight className="ml-1.5 w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                        </Button>
-                      )}
-                    </motion.div>
-                  )}
-
-                  {isCorrect === false && (
-                    <motion.div 
-                      key="incorrect-feedback"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      className="px-3 py-2.5 bg-destructive/10 dark:bg-destructive/5 border border-destructive/20 rounded-lg flex items-center gap-2.5 pt-1"
-                    >
-                      <div className="w-5 h-5 rounded-full bg-destructive flex items-center justify-center flex-shrink-0">
-                        <X className="w-3 h-3 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-destructive">Incorrect — try again</p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </CardContent>
             </Card>
+
+            <div className="flex items-center justify-between mt-8">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (currentChapter > 0) {
+                    setCurrentChapter(currentChapter - 1);
+                    setCurrentQuestionIndex(0);
+                    setIsQuizPassed(true);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                }}
+                disabled={currentChapter === 0}
+                className={cn(!currentChapter && "invisible")}
+              >
+                <ChevronLeft className="mr-1.5 w-4 h-4" />
+                Previous Part
+              </Button>
+
+              {currentChapter < chapters.length - 1 && (
+                <Button 
+                  onClick={() => {
+                    setCurrentChapter(currentChapter + 1);
+                    setCurrentQuestionIndex(0);
+                    setCompletedQuestions(new Set());
+                    setIsQuizPassed(false);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  disabled={!isQuizPassed}
+                  className="font-medium group"
+                >
+                  Next Part
+                  <ChevronRight className="ml-1.5 w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                </Button>
+              )}
+            </div>
           </div>
         </motion.div>
       </div>
