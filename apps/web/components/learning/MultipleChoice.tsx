@@ -292,7 +292,7 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
                       : "text-muted-foreground"
                   }`}
                 >
-                  {option.label}
+                  <Markdown>{option.label}</Markdown>
                 </span>
               </div>
             </div>

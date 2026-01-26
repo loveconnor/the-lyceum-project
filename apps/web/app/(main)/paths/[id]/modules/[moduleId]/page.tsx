@@ -621,9 +621,6 @@ const ImmersiveTextView = ({
                 <h2 className="text-xl font-semibold">Check your understanding</h2>
                 <p className="text-sm text-muted-foreground mt-0.5">Complete these questions to proceed to the next section.</p>
               </div>
-              <div className="text-sm text-muted-foreground">
-                {currentQuestionIndex + 1} / {chapters[currentChapter].quizzes.length}
-              </div>
             </div>
 
             <Card className="border shadow-none">
@@ -631,6 +628,7 @@ const ImmersiveTextView = ({
                 <div className="space-y-3">
                   <MultipleChoice
                     element={{
+                      key: `mc-${currentChapter}`,
                       type: "MultipleChoice",
                       props: {
                         questions: chapters[currentChapter].quizzes.map((q, i) => ({
@@ -3454,14 +3452,6 @@ export default function ModulePage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowCompletionNotice(false)}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
                 <Button className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap" onClick={handleContinueToNext}>
                   Continue <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
