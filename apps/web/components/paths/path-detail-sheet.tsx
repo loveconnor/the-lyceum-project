@@ -52,8 +52,10 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
       setIsLoadingPath(true);
       fetchPathById(pathId)
         .then((freshPath) => {
-          // Update the path in the store with fresh data
-          setPaths(paths.map(p => p.id === pathId ? freshPath : p));
+          // Update the path in the store with fresh data using functional update
+          setPaths(currentPaths => 
+            currentPaths.map(p => p.id === pathId ? freshPath : p)
+          );
         })
         .catch((error) => {
           console.error("Error fetching fresh path data:", error);
@@ -62,7 +64,7 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
           setIsLoadingPath(false);
         });
     }
-  }, [isOpen, pathId]);
+  }, [isOpen, pathId, setPaths]);
 
   const path = paths.find((p) => p.id === pathId);
 

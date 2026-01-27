@@ -162,16 +162,8 @@ export function ReflectionsDashboard({ reflections }: ReflectionsDashboardProps)
 
       {/* Results Area */}
       {filteredReflections.length === 0 ? (
-        <div className="flex h-[calc(100vh-12rem)] flex-col items-center justify-center py-12 text-center border rounded-lg border-dashed">
+        <div className="flex h-[calc(100vh-12rem)] flex-col items-center justify-center py-12 text-center">
           <h3 className="text-xl font-medium">No reflections found</h3>
-          <p className="text-muted-foreground mt-2">Try adjusting your filters or search query</p>
-          <Button 
-            variant="link" 
-            onClick={clearFilters}
-            className="mt-4"
-          >
-            Clear all filters
-          </Button>
         </div>
       ) : (
         <div className={cn(

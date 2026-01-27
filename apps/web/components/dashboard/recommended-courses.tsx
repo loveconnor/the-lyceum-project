@@ -147,6 +147,8 @@ export function RecommendedCoursesTable({
   const [isPathSheetOpen, setIsPathSheetOpen] = React.useState(false);
   const [selectedPathId, setSelectedPathId] = React.useState<string | null>(null);
   const [isGeneratingPath, setIsGeneratingPath] = React.useState(false);
+  const isGeneratingPathRef = React.useRef(false);
+  const isRegeneratingRef = React.useRef(false);
 
   React.useEffect(() => {
     setRecommended(topics);
@@ -162,18 +164,22 @@ export function RecommendedCoursesTable({
     });
   }, []);
 
-  const data: Course[] = (recommended || []).map((t, idx) => ({
-    id: idx + 1,
-    name: t.name || "Recommended topic",
-    category: t.category || "General",
-    confidence: t.confidence || "Unknown",
-    progress: t.progress ?? 0,
-    started: false,
-    levelFit: "Fit"
-  }));
+  const data: Course[] = React.useMemo(() => 
+    (recommended || []).map((t, idx) => ({
+      id: idx + 1,
+      name: t.name || "Recommended topic",
+      category: t.category || "General",
+      confidence: t.confidence || "Unknown",
+      progress: t.progress ?? 0,
+      started: false,
+      levelFit: "Fit"
+    })),
+    [recommended]
+  );
 
   const handleViewDetails = React.useCallback(async (course: Course) => {
-    if (isGeneratingPath) return;
+    if (isGeneratingPathRef.current) return;
+    isGeneratingPathRef.current = true;
     setIsGeneratingPath(true);
     try {
       // First, check if a path with this title already exists in store
@@ -230,12 +236,14 @@ export function RecommendedCoursesTable({
       console.error("Error loading path:", error);
       toast.error("Failed to load learning path details");
     } finally {
+      isGeneratingPathRef.current = false;
       setIsGeneratingPath(false);
     }
-  }, [storePaths, setPaths, isGeneratingPath]);
+  }, [storePaths, setPaths]);
 
   const handleStartCourse = React.useCallback(async (course: Course) => {
-    if (isGeneratingPath) return;
+    if (isGeneratingPathRef.current) return;
+    isGeneratingPathRef.current = true;
     setIsGeneratingPath(true);
     try {
       // Generate a new path and navigate to it
@@ -275,9 +283,10 @@ export function RecommendedCoursesTable({
       console.error("Error generating path:", error);
       toast.error("Failed to start course");
     } finally {
+      isGeneratingPathRef.current = false;
       setIsGeneratingPath(false);
     }
-  }, [router, isGeneratingPath]);
+  }, [router]);
 
   const handleClosePathSheet = () => {
     setIsPathSheetOpen(false);
@@ -289,8 +298,9 @@ export function RecommendedCoursesTable({
     [handleViewDetails, handleStartCourse, isGeneratingPath]
   );
 
-  const handleRegenerate = async () => {
-    if (isRegenerating) return;
+  const handleRegenerate = React.useCallback(async () => {
+    if (isRegeneratingRef.current) return;
+    isRegeneratingRef.current = true;
     setIsRegenerating(true);
     setStatus("Requesting new recommendations...");
 
@@ -305,6 +315,7 @@ export function RecommendedCoursesTable({
       const token = session?.access_token;
       if (!token) {
         console.warn("No session found for regenerate");
+        isRegeneratingRef.current = false;
         setIsRegenerating(false);
         setStatus("Sign in required to regenerate.");
         return;
@@ -348,10 +359,11 @@ export function RecommendedCoursesTable({
       );
     } finally {
       clearTimeout(timeout);
+      isRegeneratingRef.current = false;
       setIsRegenerating(false);
       setTimeout(() => setStatus(null), 3000);
     }
-  };
+  }, [topics]);
 
   const table = useReactTable({
     data,
@@ -403,12 +415,6 @@ export function RecommendedCoursesTable({
         </CardAction>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col">
-        {(isRegenerating || isGeneratingPath) && (
-          <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
-            <Loader2 className="size-4 animate-spin" />
-            {isGeneratingPath ? "Loading learning path..." : "Refreshing recommendations..."}
-          </div>
-        )}
         {status && !isRegenerating && !isGeneratingPath && (
           <div className="mb-3 text-sm text-muted-foreground" aria-live="polite">
             {status}
