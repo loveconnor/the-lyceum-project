@@ -12,6 +12,7 @@
  * - This is a supplemental layer - graceful degradation on failure
  */
 
+import * as cheerio from 'cheerio';
 import type {
   VisualIntent,
   VisualAid,
@@ -19,7 +20,7 @@ import type {
   VisualFetchConfig,
 } from './types';
 import { DEFAULT_VISUAL_FETCH_CONFIG, VISUAL_CAPTION_SUFFIX } from './types';
-import { logger } from '../source-registry/logger';
+import { logger } from '../logger';
 
 /**
  * Image search result from an external API
@@ -38,9 +39,13 @@ interface ImageSearchResult {
  */
 export class VisualAidService {
   private config: VisualFetchConfig;
+  private firecrawlBaseUrl: string;
+  private firecrawlApiKey?: string;
 
   constructor(config: Partial<VisualFetchConfig> = {}) {
     this.config = { ...DEFAULT_VISUAL_FETCH_CONFIG, ...config };
+    this.firecrawlBaseUrl = process.env.FIRECRAWL_BASE_URL || 'http://localhost:3002';
+    this.firecrawlApiKey = process.env.FIRECRAWL_API_KEY || undefined;
   }
 
   /**
@@ -211,13 +216,20 @@ export class VisualAidService {
    * Search for images using available APIs.
    * 
    * This implementation uses:
-   * - Wikimedia Commons API (free, CC-licensed educational images)
-   * - Wikipedia article images (contextual educational images)
+   * - Firecrawl local search + scrape (primary)
+   * - Wikimedia Commons API (fallback)
+   * - Wikipedia article images (fallback)
    * 
-   * For MVP, we gracefully degrade if no sources are available.
+   * Gracefully degrades if no sources are available.
    */
   private async searchImages(query: string): Promise<ImageSearchResult[]> {
     try {
+      // Primary: Firecrawl local search + scrape
+      const firecrawlResults = await this.searchFirecrawlImages(query);
+      if (firecrawlResults.length > 0) {
+        return firecrawlResults;
+      }
+
       // Try Wikimedia Commons first (free educational images and diagrams)
       const wikimediaResults = await this.searchWikimediaCommons(query);
       if (wikimediaResults.length > 0) {
@@ -238,6 +250,190 @@ export class VisualAidService {
       logger.warn('visual-aid-service', `Image search failed: ${(error as Error).message}`);
       return [];
     }
+  }
+
+  /**
+   * Search Firecrawl for relevant pages and extract candidate images.
+   * Uses local Firecrawl instance for web crawl/search.
+   */
+  private async searchFirecrawlImages(query: string): Promise<ImageSearchResult[]> {
+    const startTime = Date.now();
+    const searchResults = await this.firecrawlSearch(query, 6);
+
+    if (searchResults.length === 0) {
+      return [];
+    }
+
+    const maxPages = 3;
+    const results: ImageSearchResult[] = [];
+    const seenUrls = new Set<string>();
+
+    for (const result of searchResults.slice(0, maxPages)) {
+      const html = await this.firecrawlScrape(result.url);
+      if (!html) continue;
+
+      const extracted = this.extractImagesFromHtml(html, result.url, result.title);
+      for (const image of extracted) {
+        if (!image.url || seenUrls.has(image.url)) continue;
+        seenUrls.add(image.url);
+        results.push(image);
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    logger.debug('visual-aid-service', `Firecrawl image search complete`, {
+      duration,
+      details: { query, results: results.length },
+    });
+
+    return results;
+  }
+
+  private async firecrawlSearch(query: string, limit: number): Promise<Array<{ url: string; title?: string }>> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.config.timeout_ms);
+
+    try {
+      const response = await fetch(`${this.firecrawlBaseUrl}/v1/search`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.firecrawlApiKey ? { Authorization: `Bearer ${this.firecrawlApiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          query,
+          searchQuery: query,
+          limit,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        logger.debug('visual-aid-service', `Firecrawl search failed: ${response.status}`);
+        return [];
+      }
+
+      const data = await response.json();
+      const rawResults: any[] =
+        (Array.isArray(data?.data) ? data.data : null) ||
+        (Array.isArray(data?.results) ? data.results : null) ||
+        (Array.isArray(data?.items) ? data.items : null) ||
+        [];
+
+      return rawResults
+        .map((item) => ({
+          url: item?.url || item?.link,
+          title: item?.title || item?.name,
+        }))
+        .filter((item) => typeof item.url === 'string' && item.url.length > 0);
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        logger.debug('visual-aid-service', 'Firecrawl search timed out');
+        return [];
+      }
+      logger.debug('visual-aid-service', `Firecrawl search error: ${(error as Error).message}`);
+      return [];
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  private async firecrawlScrape(url: string): Promise<string | null> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.config.timeout_ms);
+
+    try {
+      const response = await fetch(`${this.firecrawlBaseUrl}/v1/scrape`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.firecrawlApiKey ? { Authorization: `Bearer ${this.firecrawlApiKey}` } : {}),
+        },
+        body: JSON.stringify({
+          url,
+          formats: ['html'],
+          onlyMainContent: false,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        logger.debug('visual-aid-service', `Firecrawl scrape failed: ${response.status}`);
+        return null;
+      }
+
+      const data = await response.json();
+      const html = data?.data?.html || data?.html || null;
+      return typeof html === 'string' ? html : null;
+    } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        logger.debug('visual-aid-service', 'Firecrawl scrape timed out');
+        return null;
+      }
+      logger.debug('visual-aid-service', `Firecrawl scrape error: ${(error as Error).message}`);
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  private extractImagesFromHtml(html: string, pageUrl: string, pageTitle?: string): ImageSearchResult[] {
+    const $ = cheerio.load(html);
+    const results: ImageSearchResult[] = [];
+    const title = pageTitle || $('title').first().text().trim() || new URL(pageUrl).hostname;
+
+    const ogImage = $('meta[property="og:image"]').attr('content');
+    if (ogImage) {
+      const url = this.normalizeImageUrl(ogImage, pageUrl);
+      if (url) {
+        results.push({
+          url,
+          title,
+          source: title,
+        });
+      }
+    }
+
+    $('img').each((_, el) => {
+      const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src') || '';
+      const url = this.normalizeImageUrl(src, pageUrl);
+      if (!url) return;
+
+      if (this.config.diagrams_only && !this.isLikelyDiagram(url, $(el).attr('alt') || '')) {
+        return;
+      }
+
+      const width = parseInt($(el).attr('width') || '', 10);
+      const height = parseInt($(el).attr('height') || '', 10);
+      const alt = $(el).attr('alt') || '';
+
+      results.push({
+        url,
+        title: alt || title,
+        source: title,
+        width: Number.isFinite(width) ? width : undefined,
+        height: Number.isFinite(height) ? height : undefined,
+      });
+    });
+
+    return results;
+  }
+
+  private normalizeImageUrl(rawUrl: string, baseUrl: string): string | null {
+    if (!rawUrl) return null;
+    if (rawUrl.startsWith('data:')) return null;
+
+    try {
+      return new URL(rawUrl, baseUrl).href;
+    } catch {
+      return null;
+    }
+  }
+
+  private isLikelyDiagram(url: string, altText: string): boolean {
+    const haystack = `${url} ${altText}`.toLowerCase();
+    return ['diagram', 'illustration', 'chart', 'graph', 'flow', 'schematic', 'plot']
+      .some(term => haystack.includes(term));
   }
 
   /**
@@ -460,6 +656,19 @@ export class VisualAidService {
 
     const filtered = candidates.filter(candidate => {
       const title = candidate.title?.toLowerCase() || '';
+
+      // Treat overly-generic terms as low-signal for accuracy
+      const genericTerms = [
+        'system', 'systems', 'diagram', 'illustration', 'chart', 'graph', 'schematic',
+        'overview', 'introduction', 'basic', 'basics', 'concept', 'concepts'
+      ];
+      const coreRelevantTerms = allRelevantTerms.filter(term => !genericTerms.includes(term));
+      const effectiveTerms = coreRelevantTerms.length > 0 ? coreRelevantTerms : allRelevantTerms;
+
+      if (effectiveTerms.length === 0) {
+        logger.debug('visual-aid-service', `Rejected (no effective relevance terms): "${title}"`);
+        return false;
+      }
       
       // Filter out photos
       const photoTerms = ['photo', 'photograph', 'picture of', 'image of', 'jpg', 'jpeg'];
@@ -527,7 +736,7 @@ export class VisualAidService {
       }
 
       // CRITICAL: Smart matching - prefer multiple terms, but allow 1 term if it's a quality diagram
-      const matchingTerms = allRelevantTerms.filter(term => 
+      const matchingTerms = effectiveTerms.filter(term => 
         term.length >= 3 && title.includes(term)
       );
       
@@ -536,7 +745,7 @@ export class VisualAidService {
       const hasStrongEducationalTerm = strongEducationalTerms.some(term => title.includes(term));
       
       // Accept if: (1) Has multiple matches, OR (2) Has 1 match + strong educational term
-      const minRequiredMatches = hasStrongEducationalTerm ? 1 : 2;
+      const minRequiredMatches = Math.min(2, effectiveTerms.length);
       const hasRelevantTerm = matchingTerms.length >= minRequiredMatches;
       
       if (!hasRelevantTerm) {
@@ -562,7 +771,7 @@ export class VisualAidService {
       const title = candidate.title?.toLowerCase() || '';
       
       // Count how many relevant terms appear in the title
-      const matchCount = allRelevantTerms.filter(term => 
+      const matchCount = effectiveTerms.filter(term => 
         term.length >= 3 && title.includes(term)
       ).length;
       
@@ -587,11 +796,11 @@ export class VisualAidService {
       
       // CRITICAL: Heavy penalty for images that match only minimum requirements
       // If matchCount is less than half of relevant terms, heavily penalize
-      const insufficientMatchPenalty = matchCount < Math.ceil(allRelevantTerms.length / 2) ? -5 : 0;
+      const insufficientMatchPenalty = matchCount < Math.ceil(effectiveTerms.length / 2) ? -5 : 0;
       
       const finalScore = matchCount + highPriorityBonus + strongDiagramBonus + visualTypeBonus + genericPenalty + insufficientMatchPenalty;
       
-      logger.debug('visual-aid-service', `Scored "${title}": ${finalScore} (matches: ${matchCount}/${allRelevantTerms.length}, high-priority: ${highPriorityBonus}, diagram: ${strongDiagramBonus}, type: ${visualTypeBonus}, generic: ${genericPenalty}, insufficient: ${insufficientMatchPenalty})`);
+      logger.debug('visual-aid-service', `Scored "${title}": ${finalScore} (matches: ${matchCount}/${effectiveTerms.length}, high-priority: ${highPriorityBonus}, diagram: ${strongDiagramBonus}, type: ${visualTypeBonus}, generic: ${genericPenalty}, insufficient: ${insufficientMatchPenalty})`);
       
       return {
         candidate,
@@ -616,7 +825,7 @@ export class VisualAidService {
    * Extract key terms from a string for relevance matching
    */
   private extractKeyTerms(text: string): string[] {
-    const stopWords = ['the', 'a', 'an', 'of', 'in', 'on', 'for', 'to', 'and', 'or', 'with', 'how', 'do', 'does', 'what', 'is', 'are', 'calculation', 'calculating', 'diagram', 'illustration', 'educational'];
+    const stopWords = ['the', 'a', 'an', 'of', 'in', 'on', 'for', 'to', 'and', 'or', 'with', 'how', 'do', 'does', 'what', 'is', 'are', 'calculation', 'calculating', 'diagram', 'illustration', 'educational', 'system', 'systems'];
     
     return text
       .toLowerCase()

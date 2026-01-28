@@ -14,7 +14,7 @@ import type {
   TocNodeSummary,
   GenerateRegistryBackedPathRequest 
 } from './source-registry/module-grounding-types';
-import { logger } from './source-registry/logger';
+import { logger } from './logger';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';

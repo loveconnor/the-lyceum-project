@@ -5,11 +5,11 @@
  * 
  * CRITICAL DESIGN PRINCIPLES:
  * 1. Visuals are NOT sources of truth
- * 2. Authoritative knowledge ALWAYS comes from registry-backed text
+ * 2. Authoritative knowledge ALWAYS comes from source text
  * 3. Visuals must never introduce new facts
  * 4. Visuals are clearly labeled as "illustrative"
  * 5. Labs are NOT modified
- * 6. No new source registry is introduced
+ * 6. No new registry dependency is introduced
  * 
  * This layer provides:
  * - VisualIntent generation from module content

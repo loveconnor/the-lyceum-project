@@ -19,7 +19,7 @@ import type {
 import { VISUAL_AID_INSTRUCTION } from './types';
 import { generateVisualIntent } from './visual-intent-generator';
 import { createVisualAidService } from './visual-aid-service';
-import { logger } from '../source-registry/logger';
+import { logger } from '../logger';
 
 /**
  * Result of enriching a module with visuals

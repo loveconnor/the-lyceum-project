@@ -83,6 +83,82 @@ interface ReactFlowWidgetProps {
   onVisualViewed?: (index: number) => void;
 }
 
+type RawVisual = Partial<ReactFlowWidgetData> & {
+  steps?: Array<string | { label?: string; title?: string }>;
+  items?: Array<string | { label?: string; title?: string }>;
+};
+
+const normalizeVisual = (visual: RawVisual): ReactFlowWidgetData => {
+  const base = visual || {};
+  let nodes = Array.isArray(base.nodes) ? [...base.nodes] : [];
+  let edges = Array.isArray(base.edges) ? [...base.edges] : [];
+
+  if (nodes.length === 0) {
+    const steps = Array.isArray(base.steps)
+      ? base.steps
+      : Array.isArray(base.items)
+        ? base.items
+        : [];
+
+    if (steps.length > 0) {
+      nodes = steps.map((step, idx) => {
+        const label =
+          typeof step === "string"
+            ? step
+            : step?.label || step?.title || `Step ${idx + 1}`;
+        return {
+          id: `step-${idx + 1}`,
+          position: { x: 0, y: idx * 120 },
+          data: { label },
+          type:
+            idx === 0
+              ? "input"
+              : idx === steps.length - 1
+                ? "output"
+                : "default",
+        } as ReactFlowWidgetData["nodes"][number];
+      });
+
+      edges = steps.slice(1).map((_, idx) => ({
+        id: `e-${idx + 1}-${idx + 2}`,
+        source: `step-${idx + 1}`,
+        target: `step-${idx + 2}`,
+        type: "smoothstep",
+        animated: true,
+      }));
+    }
+  }
+
+  nodes = nodes.map((node, idx) => {
+    const nodeId = node.id || node.data?.id || `node-${idx + 1}`;
+    const label = node.data?.label || (node as any).label || (node as any).title || nodeId;
+    return {
+      ...node,
+      id: nodeId,
+      data: { ...(node.data || {}), label },
+      position: node.position || { x: 0, y: idx * 120 },
+      type: node.type || "default",
+    };
+  });
+
+  if (edges.length === 0 && nodes.length > 1) {
+    edges = nodes.slice(1).map((node, idx) => ({
+      id: `e-${idx + 1}-${idx + 2}`,
+      source: nodes[idx].id,
+      target: node.id,
+      type: "smoothstep",
+      animated: true,
+    }));
+  }
+
+  return {
+    title: base.title || "Untitled Diagram",
+    description: base.description,
+    nodes,
+    edges,
+  } as ReactFlowWidgetData;
+};
+
 export function ReactFlowWidget({
   visuals,
   height = "500px",
@@ -145,7 +221,7 @@ export function ReactFlowWidget({
   useEffect(() => {
     if (!visuals || visuals.length === 0) return;
 
-    const current = visuals[currentVisualIndex];
+    const current = normalizeVisual(visuals[currentVisualIndex] as RawVisual);
     if (!current) return;
 
     // Apply Layout
@@ -214,13 +290,13 @@ export function ReactFlowWidget({
     );
   }
 
-  const currentVisual = visuals[currentVisualIndex];
+  const currentVisual = normalizeVisual(visuals[currentVisualIndex] as RawVisual);
   if (!currentVisual) {
     return null;
   }
 
   const diagramContent = (
-    <div className="flex flex-col space-y-4">
+    <div className="flex flex-col gap-4" style={{ height: height }}>
       {/* Header */}
       <div className="flex items-start justify-between px-1">
         <div>
@@ -271,8 +347,7 @@ export function ReactFlowWidget({
       </div>
 
       <div
-        className="relative rounded-xl border bg-muted/30 overflow-hidden shadow-inner"
-        style={{ height: height }}
+        className="relative flex-1 min-h-[240px] rounded-xl border bg-muted/30 overflow-hidden shadow-inner"
       >
         <ReactFlow
           nodes={nodes}
@@ -285,7 +360,7 @@ export function ReactFlowWidget({
           fitViewOptions={{ padding: 0.1, minZoom: 0.8, maxZoom: 1.5 }}
           minZoom={0.5}
           maxZoom={2}
-          className="bg-muted/10 react-flow-widget-container"
+          className="bg-muted/10 react-flow-widget-container w-full h-full"
         >
           <Background gap={20} size={1} className="opacity-40" />
           <Controls className="!bg-card !border-border !shadow-sm" />

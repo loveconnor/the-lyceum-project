@@ -14,6 +14,7 @@ import learnByDoingRouter from './routes/learn-by-doing';
 
 const app = express();
 const port = process.env.PORT || 3001;
+const registryEnabled = process.env.ENABLE_SOURCE_REGISTRY === 'true';
 
 app.use(cors());
 // Increase body size limit to 50MB for file uploads (PDFs encoded as base64)
@@ -39,7 +40,9 @@ app.use('/waitlist', waitlistRouter);
 // Learn-by-doing (public streaming endpoint)
 app.use('/learn-by-doing', learnByDoingRouter);
 // Source Registry (no auth - service/admin only in production)
-app.use('/registry', registryRouter);
+if (registryEnabled) {
+  app.use('/registry', registryRouter);
+}
 
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);

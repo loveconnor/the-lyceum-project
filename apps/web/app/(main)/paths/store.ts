@@ -16,6 +16,8 @@ type PathDraft = Omit<
 > & { 
   learnByDoing?: boolean; 
   includeLabs?: boolean;
+  useAiOnly?: boolean;
+  useWebSearch?: boolean;
   contextFiles?: Array<{
     name: string;
     content: string;
@@ -134,6 +136,8 @@ export const usePathStore = create<PathStore>((set) => ({
           description: path.description,
           topics: [],
           difficulty: path.difficulty,
+          use_ai_only: path.useAiOnly,
+          use_web_search: path.useWebSearch,
           learn_by_doing: path.learnByDoing,
           include_labs: path.includeLabs,
           context_files: path.contextFiles,

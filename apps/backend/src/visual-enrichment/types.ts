@@ -2,7 +2,7 @@
  * Visual Enrichment Layer Types
  * 
  * Types for the supplemental visual system that adds illustrative diagrams
- * to modules. Visuals are NON-AUTHORITATIVE aids only - the registry remains
+ * to modules. Visuals are NON-AUTHORITATIVE aids only - source text remains
  * the sole source of truth.
  */
 
@@ -114,11 +114,11 @@ export interface GenerateVisualIntentRequest {
   /** Module title */
   module_title: string;
   
-  /** Registry-backed explanation text */
+  /** Source-backed explanation text */
   explanation_text: string;
   
-  /** Associated registry node titles for context */
-  registry_node_titles: string[];
+  /** Associated source section titles for context */
+  source_section_titles: string[];
   
   /** Learning objectives if available */
   learning_objectives?: string[];
@@ -172,15 +172,14 @@ export interface VisualAidContext {
 /**
  * The standard instruction to include when visuals are present
  */
-export const VISUAL_AID_INSTRUCTION = `VISUAL CONTEXT: Illustrative diagrams are being shown to the user above your response.
+export const VISUAL_AID_INSTRUCTION = `VISUAL CONTEXT: Illustrative diagrams are being shown above your response.
 
-How to use these visuals:
-- Reference them naturally in your explanation (e.g., "As you can see in the diagram above...", "The diagram shows...")
-- Use them to support your explanation and make abstract concepts concrete
-- They are illustrative aids, not authoritative sources - your explanation is the primary content
-- Keep your explanation flowing naturally while incorporating visual references
+IMPORTANT RESPONSE RULES:
+- Do NOT mention, reference, or describe the visuals in your reply.
+- Do NOT point to any "diagram", "image", or "picture".
+- The response should stand alone as if no visuals were provided.
 
-The user can see the diagram(s), so refer to them as if pointing to something visible.`;
+The visuals are supplemental and are NOT authoritative sources.`;
 
 /**
  * Caption suffix to add to all visual displays

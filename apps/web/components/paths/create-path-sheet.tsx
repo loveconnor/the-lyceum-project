@@ -39,6 +39,8 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [useLearnByDoing, setUseLearnByDoing] = React.useState(false);
   const [includeLabs, setIncludeLabs] = React.useState(true);
+  const firecrawlEnabled = process.env.NEXT_PUBLIC_USE_FIRECRAWL === "true";
+  const [useWebSearch, setUseWebSearch] = React.useState(firecrawlEnabled);
   const [recommendedTopics, setRecommendedTopics] = React.useState<RecommendedTopic[]>([]);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = React.useState(true);
 
@@ -159,6 +161,8 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
               ...pathData, 
               learnByDoing: useLearnByDoing, 
               includeLabs,
+              useAiOnly: !(firecrawlEnabled && useWebSearch),
+              useWebSearch: firecrawlEnabled && useWebSearch,
               contextFiles: contextFilesData
             });
             toast.success("Learning path created with modules and content!");
@@ -192,6 +196,8 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
             ...pathData, 
             learnByDoing: useLearnByDoing, 
             includeLabs,
+            useAiOnly: !(firecrawlEnabled && useWebSearch),
+            useWebSearch: firecrawlEnabled && useWebSearch,
             contextFiles: contextFilesData
           });
           toast.success("Learning path created with modules and content!");
@@ -204,6 +210,7 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
       setContextFiles([]);
       setUseLearnByDoing(false);
       setIncludeLabs(true);
+      setUseWebSearch(firecrawlEnabled);
       onClose();
     } catch (error) {
       console.error("Error saving path:", error);
@@ -341,6 +348,33 @@ const CreatePathSheet: React.FC<CreatePathSheetProps> = ({ isOpen, onClose, edit
               </div>
 
               <div className="grid gap-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">Content Source</p>
+                    <p className="text-xs text-muted-foreground">
+                      {firecrawlEnabled
+                        ? useWebSearch
+                          ? "Search the web for sources and ground the path in them."
+                          : "Generate all content fully with AI."
+                        : "Web search is disabled in this environment."}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className={cn(useWebSearch ? "text-foreground font-medium" : "text-muted-foreground")}>
+                      Search Web
+                    </span>
+                    <Switch
+                      checked={useWebSearch}
+                      onCheckedChange={setUseWebSearch}
+                      aria-label="Search the web for grounded content"
+                      disabled={!firecrawlEnabled}
+                    />
+                    <span className={cn(!useWebSearch ? "text-foreground font-medium" : "text-muted-foreground")}>
+                      Fully AI
+                    </span>
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5">
                     <p className="text-sm font-medium">Learn-by-Doing Modules</p>

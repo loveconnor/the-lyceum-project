@@ -386,22 +386,7 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
         // Check for ReactFlow visual marker
         const visualMatch = text.match(/^\[REACTFLOW_VISUAL_(\d+)\]$/);
         if (visualMatch) {
-          const visualIndex = parseInt(visualMatch[1], 10);
-          const visualData = visualComponents[visualIndex];
-          
-          if (visualData) {
-            return (
-              <div className="my-6 not-prose w-full h-[500px]">
-                <ReactFlowWidget
-                  visuals={visualData}
-                  height="100%"
-                  showNavigation={true}
-                  showSidebar={false}
-                  variant="card"
-                />
-              </div>
-            );
-          }
+          return null;
         }
         
         // Check for D3 Charts marker

@@ -2,7 +2,7 @@
  * Visual Intent Generator
  * 
  * Generates structured VisualIntent objects from module content.
- * This function analyzes registry-backed text and determines what
+ * This function analyzes source text and determines what
  * kinds of visuals would help illustrate the concepts.
  * 
  * CRITICAL: This function MUST NOT fetch images. It only generates
@@ -15,7 +15,7 @@ import type {
   VisualIntentResult, 
   GenerateVisualIntentRequest 
 } from './types';
-import { logger } from '../source-registry/logger';
+import { logger } from '../logger';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
@@ -100,7 +100,7 @@ If the content is primarily text-based definitions or abstract theory without vi
 /**
  * Generate visual intents for a module based on its content.
  * 
- * This analyzes the module text and registry context to determine
+ * This analyzes the module text and source context to determine
  * what kinds of visuals would help illustrate the concepts.
  * 
  * @param request - The request containing module content
@@ -113,7 +113,7 @@ export async function generateVisualIntent(
   
   logger.info('visual-intent', `Generating visual intents for module: "${request.module_title}"`, {
     details: {
-      nodeCount: request.registry_node_titles.length,
+      nodeCount: request.source_section_titles.length,
       textLength: request.explanation_text.length,
     },
   });
@@ -204,8 +204,8 @@ function buildUserPrompt(request: GenerateVisualIntentRequest): string {
   parts.push(`## Module Title\n${request.module_title}`);
   parts.push('');
 
-  if (request.registry_node_titles.length > 0) {
-    parts.push(`## Source Sections\n${request.registry_node_titles.join('\n')}`);
+  if (request.source_section_titles.length > 0) {
+    parts.push(`## Source Sections\n${request.source_section_titles.join('\n')}`);
     parts.push('');
   }
 

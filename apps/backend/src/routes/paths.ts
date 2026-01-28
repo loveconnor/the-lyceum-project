@@ -4,12 +4,13 @@ import { updateDashboardActivity } from "../dashboardService";
 import { generatePathOutline, generateModuleContent, generateModuleFromSourceContent } from "../ai-path-generator";
 import { generateLearnByDoingTree } from "../learn-by-doing";
 import { generateRegistryBackedPath } from "../ai-path-generator-registry";
-import pdfParse from 'pdf-parse';
+import pdfParse = require('pdf-parse');
 import { 
   createModuleCompletionNotification, 
   createPathCompletionNotification 
 } from "../notificationService";
-import { ModuleGroundingService, DynamicSourceFetcher, MitOcwFetcher, WebDocsSearcher, logger } from "../source-registry";
+import { ModuleGroundingService, DynamicSourceFetcher, MitOcwFetcher, WebDocsSearcher } from "../source-registry";
+import { logger } from "../logger";
 import { 
   enrichModuleWithVisuals, 
   formatVisualsForFrontend,
@@ -18,6 +19,287 @@ import {
 } from "../visual-enrichment";
 
 const router = Router();
+
+const registryEnabled = process.env.ENABLE_SOURCE_REGISTRY === 'true';
+const firecrawlBaseUrl = process.env.FIRECRAWL_BASE_URL || 'http://localhost:3002';
+const firecrawlAgentBaseUrl = process.env.FIRECRAWL_AGENT_BASE_URL || 'https://api.firecrawl.dev/v2';
+const firecrawlApiKey = process.env.FIRECRAWL_API_KEY || '';
+const firecrawlEnabled = process.env.USE_FIRECRAWL !== 'false' && Boolean(firecrawlApiKey);
+
+const firecrawlLocalSearchUrls = async (query: string): Promise<string[]> => {
+  const limit = process.env.FIRECRAWL_SEARCH_LIMIT
+    ? Number(process.env.FIRECRAWL_SEARCH_LIMIT)
+    : 12;
+
+  try {
+    const response = await fetch(`${firecrawlBaseUrl}/v1/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, searchQuery: query, limit }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.warn('firecrawl', `Local search failed: ${response.status}`, {
+        details: { response: errorText.substring(0, 1000) },
+      });
+      return [];
+    }
+
+    const data = await response.json();
+    const rawResults: any[] =
+      (Array.isArray(data?.data) ? data.data : null) ||
+      (Array.isArray(data?.results) ? data.results : null) ||
+      (Array.isArray(data?.items) ? data.items : null) ||
+      [];
+
+    return rawResults
+      .map((item) => item?.url || item?.link)
+      .filter((url) => typeof url === 'string' && url.length > 0);
+  } catch (error) {
+    logger.warn('firecrawl', `Local search failed: ${(error as Error).message}`);
+    return [];
+  }
+};
+
+const firecrawlAgentSources = async (
+  query: string,
+  limit: number = 5
+): Promise<{ sources: Array<{ name: string; content: string; url?: string }>; error?: string }> => {
+  const controller = new AbortController();
+
+  try {
+    const useLocalSearch = process.env.FIRECRAWL_USE_LOCAL_SEARCH !== 'false';
+    const envUrls = (process.env.FIRECRAWL_AGENT_URLS || '')
+      .split(',')
+      .map((seed) => seed.trim())
+      .filter(Boolean);
+
+    const localUrls = useLocalSearch ? await firecrawlLocalSearchUrls(query) : [];
+    const seedUrls = [...new Set([...envUrls, ...localUrls])];
+
+    logger.info('firecrawl', 'Starting agent request', {
+      details: {
+        baseUrl: firecrawlAgentBaseUrl,
+        model: process.env.FIRECRAWL_AGENT_MODEL || 'spark-1-mini',
+        seedUrlsCount: seedUrls.length,
+      },
+    });
+
+    const agentPrompt = `You are a research agent for a learning platform.
+  Find authoritative sources that teach the topic: "${query}".
+
+  Return a JSON object with a "sources" array. Each source MUST include:
+  - source_type (e.g., Official Tutorial, Official Documentation, Textbook, University Tutorial)
+  - source_type_citation (URL)
+  - source_title (title)
+  - source_title_citation (URL)
+  - source_url (URL)
+  - source_url_citation (URL)
+  - excerpt (multi-paragraph markdown excerpt with code blocks when present; 300-800 words)
+  - excerpt_citation (URL)
+  - key_takeaways (3-7 bullet points summarizing the excerpt)
+
+  Requirements:
+  - Prefer official docs, textbooks, or reputable tutorials
+  - Extract detailed instructional content (not just introductions)
+  - Include code snippets if available
+  - Avoid forums or low-quality content unless no alternatives exist`;
+
+    const maxCredits = process.env.FIRECRAWL_AGENT_MAX_CREDITS
+      ? Number(process.env.FIRECRAWL_AGENT_MAX_CREDITS)
+      : undefined;
+
+    const agentResponse = await fetch(`${firecrawlAgentBaseUrl}/agent`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(firecrawlApiKey ? { Authorization: `Bearer ${firecrawlApiKey}` } : {}),
+      },
+      body: JSON.stringify({
+        urls: seedUrls.length > 0 ? seedUrls : undefined,
+        strictConstrainToURLs: false,
+        prompt: agentPrompt,
+        schema: {
+          type: 'object',
+          properties: {
+            sources: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  source_type: { type: 'string' },
+                  source_type_citation: { type: 'string' },
+                  source_title: { type: 'string' },
+                  source_title_citation: { type: 'string' },
+                  source_url: { type: 'string' },
+                  source_url_citation: { type: 'string' },
+                  excerpt: { type: 'string' },
+                  excerpt_citation: { type: 'string' },
+                  key_takeaways: {
+                    type: 'array',
+                    items: { type: 'string' }
+                  }
+                },
+                required: [
+                  'source_type',
+                  'source_type_citation',
+                  'source_title',
+                  'source_title_citation',
+                  'source_url',
+                  'source_url_citation',
+                  'excerpt',
+                  'excerpt_citation',
+                  'key_takeaways'
+                ]
+              }
+            }
+          },
+          required: ['sources']
+        },
+        ...(Number.isFinite(maxCredits) ? { maxCredits } : {}),
+        model: process.env.FIRECRAWL_AGENT_MODEL || 'spark-1-mini',
+      }),
+      signal: controller.signal,
+    });
+
+    if (!agentResponse.ok) {
+      const errorText = await agentResponse.text();
+      logger.warn('firecrawl', `Agent start failed: ${agentResponse.status}`, {
+        details: { response: errorText.substring(0, 1000) },
+      });
+      return { sources: [], error: `Agent start failed: ${agentResponse.status}` };
+    }
+
+    const agentStart = await agentResponse.json();
+    const agentId = agentStart?.id;
+    const status = agentStart?.status || agentStart?.data?.status;
+    const sources: any[] = agentStart?.data?.sources || agentStart?.sources || [];
+
+    logger.info('firecrawl', 'Agent started', {
+      details: {
+        success: agentStart?.success ?? true,
+        id: agentId,
+        status,
+      },
+    });
+
+    if (sources.length > 0) {
+      logger.info('firecrawl', 'Agent completed with sources', {
+        details: { sources: sources.length },
+      });
+
+      return {
+        sources: sources
+          .filter((source) => typeof source?.excerpt === 'string' && source.excerpt.trim().length > 200)
+          .map((source) => ({
+            name: source?.source_title || source?.source_url || 'Web source',
+            content: source.excerpt.substring(0, 12000),
+            url: source?.source_url,
+          })),
+      };
+    }
+
+    if (!agentId) {
+      logger.warn('firecrawl', 'Agent did not return an id');
+      return { sources: [], error: 'Agent did not return an id' };
+    }
+
+    // Poll for results
+    const pollIntervalMs = 2500;
+
+    let lastStatusError: string | undefined;
+    while (true) {
+      const statusResponse = await fetch(`${firecrawlAgentBaseUrl}/agent/${agentId}`, {
+        method: 'GET',
+        headers: {
+          ...(firecrawlApiKey ? { Authorization: `Bearer ${firecrawlApiKey}` } : {}),
+        },
+        signal: controller.signal,
+      });
+
+      if (!statusResponse.ok) {
+        const errorText = await statusResponse.text();
+        logger.warn('firecrawl', `Agent status failed: ${statusResponse.status}`, {
+          details: { response: errorText.substring(0, 1000) },
+        });
+        return { sources: [], error: `Agent status failed: ${statusResponse.status}` };
+      }
+
+      const statusData = await statusResponse.json();
+      const status = statusData?.status || statusData?.data?.status || statusData?.state;
+      lastStatusError =
+        statusData?.error?.message ||
+        statusData?.message ||
+        statusData?.data?.error ||
+        statusData?.data?.message ||
+        lastStatusError;
+      const sources: any[] =
+        statusData?.data?.result?.sources ||
+        statusData?.result?.sources ||
+        statusData?.data?.sources ||
+        statusData?.sources ||
+        statusData?.data?.output?.sources ||
+        statusData?.output?.sources ||
+        statusData?.data?.data?.sources ||
+        statusData?.data?.data ||
+        statusData?.data ||
+        [];
+
+      logger.debug('firecrawl', 'Agent polling status', {
+        details: {
+          agentId,
+          status,
+          hasSources: sources.length > 0,
+        },
+      });
+
+      if (sources.length > 0) {
+        logger.info('firecrawl', 'Agent results received', {
+          details: { sources: sources.length },
+        });
+
+        return {
+          sources: sources
+            .filter((source) => typeof source?.excerpt === 'string' && source.excerpt.trim().length > 200)
+            .map((source) => ({
+              name: source?.source_title || source?.source_url || 'Web source',
+              content: source.excerpt.substring(0, 12000),
+              url: source?.source_url,
+            })),
+        };
+      }
+
+      if (status === 'failed') {
+        logger.warn('firecrawl', 'Agent failed with status', {
+          details: { agentId, status, error: lastStatusError },
+        });
+        return { sources: [], error: lastStatusError || 'Agent failed' };
+      }
+
+      if (status === 'completed' || status === 'finished' || status === 'done') {
+        logger.warn('firecrawl', 'Agent completed without sources', {
+          details: { agentId },
+        });
+        return { sources: [], error: lastStatusError || 'Agent completed without sources' };
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    }
+
+    logger.warn('firecrawl', 'Agent returned no sources', {
+      details: { query, agentId, error: lastStatusError },
+    });
+    return { sources: [], error: lastStatusError || 'No sources returned' };
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') {
+      logger.warn('firecrawl', 'Agent request aborted');
+      return { sources: [], error: 'Agent request aborted' };
+    }
+    logger.warn('firecrawl', `Agent failed: ${(error as Error).message}`);
+    return { sources: [], error: (error as Error).message };
+  }
+};
 
 // Helper function to calculate path status based on items
 function calculatePathStatus(items: any[]): string {
@@ -45,6 +327,13 @@ function calculatePathStatus(items: any[]): string {
 // Get available source registry assets for path generation
 router.get("/registry-assets", async (req: Request, res: Response) => {
   try {
+    if (!registryEnabled) {
+      return res.status(410).json({
+        error: "Source registry disabled",
+        message: "Registry-backed sources are turned off. Use AI generation with Firecrawl-backed visuals instead.",
+      });
+    }
+
     const supabase = getSupabaseAdmin();
     const userId = (req as any).user?.id;
     
@@ -76,6 +365,13 @@ router.get("/registry-assets", async (req: Request, res: Response) => {
 // Get TOC for a specific registry asset
 router.get("/registry-assets/:assetId/toc", async (req: Request, res: Response) => {
   try {
+    if (!registryEnabled) {
+      return res.status(410).json({
+        error: "Source registry disabled",
+        message: "Registry-backed sources are turned off. Use AI generation with Firecrawl-backed visuals instead.",
+      });
+    }
+
     const supabase = getSupabaseAdmin();
     const userId = (req as any).user?.id;
     
@@ -112,6 +408,13 @@ router.get("/registry-assets/:assetId/toc", async (req: Request, res: Response) 
 // This searches the live OpenStax catalog
 router.get("/registry-assets/search/:query", async (req: Request, res: Response) => {
   try {
+    if (!registryEnabled) {
+      return res.status(410).json({
+        error: "Source registry disabled",
+        message: "Registry-backed sources are turned off. Use AI generation with Firecrawl-backed visuals instead.",
+      });
+    }
+
     const supabase = getSupabaseAdmin();
     const userId = (req as any).user?.id;
     
@@ -152,6 +455,13 @@ router.get("/registry-assets/search/:query", async (req: Request, res: Response)
 // Get OpenStax book by slug and optionally fetch its TOC on-demand
 router.get("/registry-assets/openstax/:slug", async (req: Request, res: Response) => {
   try {
+    if (!registryEnabled) {
+      return res.status(410).json({
+        error: "Source registry disabled",
+        message: "Registry-backed sources are turned off. Use AI generation with Firecrawl-backed visuals instead.",
+      });
+    }
+
     const supabase = getSupabaseAdmin();
     const userId = (req as any).user?.id;
     
@@ -415,7 +725,7 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 // AI-generate learning path with modules and content
-// NOW USES SOURCE REGISTRY BY DEFAULT - falls back to AI-generated if no matching content
+// Optionally uses source registry when enabled - falls back to AI-generated if no matching content
 router.post("/generate", async (req: Request, res: Response) => {
   const stream = req.query.stream === 'true';
 
@@ -434,10 +744,13 @@ router.post("/generate", async (req: Request, res: Response) => {
       topics,
       source_asset_id, // Optional - if provided, use this specific asset
       use_ai_only, // Optional - force AI-generated content (skip registry)
+      use_web_search, // Optional - use Firecrawl web search for grounding
       learn_by_doing, // Optional - generate learn-by-doing modules
       include_labs, // Optional - include labs between modules
-      context_files // Optional - user-uploaded reference materials
+      context_files: context_files_input // Optional - user-uploaded reference materials
     } = req.body;
+
+    let contextFiles = Array.isArray(context_files_input) ? [...context_files_input] : [];
 
     if (!description || !description.trim()) {
       return res.status(400).json({ error: "Description is required" });
@@ -470,15 +783,26 @@ router.post("/generate", async (req: Request, res: Response) => {
     const experience = profile?.onboarding_data?.workPreferences?.experience;
     const difficulty = experience ? (experienceMap[experience] || 'intermediate') : 'intermediate';
 
+    const shouldUseWebSearch = firecrawlEnabled && !use_ai_only && use_web_search === true;
+
     console.log(`[Generate] Using difficulty level: ${difficulty}`);
     console.log(`[Generate] Description: "${description}"`);
     console.log(`[Generate] Topics: ${topics?.join(', ') || 'none'}`);
-    console.log(`[Generate] Context files uploaded: ${context_files?.length || 0}`);
+    console.log(`[Generate] Context files uploaded: ${contextFiles.length}`);
+    console.log(`[Generate] Content source: ${shouldUseWebSearch ? 'web_search' : 'ai_only'}`);
+
+    logger.info('paths', 'Content source selection', {
+      details: {
+        use_ai_only: Boolean(use_ai_only),
+        use_web_search: shouldUseWebSearch,
+        firecrawl_enabled: firecrawlEnabled,
+      },
+    });
     
     // Parse PDF files if they're base64 encoded
-    if (context_files && context_files.length > 0) {
-      for (let idx = 0; idx < context_files.length; idx++) {
-        const file = context_files[idx];
+    if (contextFiles.length > 0) {
+      for (let idx = 0; idx < contextFiles.length; idx++) {
+        const file = contextFiles[idx];
         console.log(`[Generate]   [${idx + 1}] ${file.name}`);
         
         // Check if this is a base64-encoded PDF
@@ -487,7 +811,7 @@ router.post("/generate", async (req: Request, res: Response) => {
             console.log(`[Generate]   Parsing PDF: ${file.name}...`);
             const base64Data = file.content.substring('[PDF_BASE64]'.length);
             const buffer = Buffer.from(base64Data, 'base64');
-            const pdfData = await pdfParse(buffer);
+            const pdfData = await (pdfParse as unknown as (data: Buffer) => Promise<any>)(buffer);
             file.content = pdfData.text;
             console.log(`[Generate]   ✅ Extracted ${file.content.length} characters from PDF`);
           } catch (error) {
@@ -508,9 +832,9 @@ router.post("/generate", async (req: Request, res: Response) => {
         : moduleOutline.title;
       
       // Include context from uploaded files if available
-      if (context_files && context_files.length > 0) {
+      if (contextFiles.length > 0) {
         // Combine all file contents - no limit
-        const fullContent = context_files
+        const fullContent = contextFiles
           .map(f => f.content)
           .join('\n\n')
           .trim();
@@ -530,6 +854,7 @@ Generate 10-15 interactive steps that:
 3. Add interactive widgets (MultipleChoice, FillInTheBlank, CodeFill) after every 1-2 teaching steps
 4. Use code examples from the source material
 5. Create hands-on practice activities
+6. CRITICAL: The FINAL STEP must contain substantive content (an interactive widget or a 200+ word Markdown summary). Never leave the last step empty or heading-only.
 
 Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path":"/root","value":"..."}`;
         
@@ -544,7 +869,7 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
     // STEP 1: Try to find matching Source Registry content
     // ============================================
     
-    if (!use_ai_only) {
+    if (!use_ai_only && registryEnabled && !shouldUseWebSearch) {
       console.log(`[Generate] 🔍 Searching Source Registry for matching content...`);
       
       if (stream) {
@@ -1031,10 +1356,60 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
     // STEP 2: Fall back to AI-generated content
     // ============================================
     
+    if (shouldUseWebSearch) {
+      if (!firecrawlApiKey) {
+        logger.warn('firecrawl', 'FIRECRAWL_API_KEY is not configured. Skipping web search.');
+        if (stream) {
+          res.write(`data: ${JSON.stringify({ type: 'status', message: '⚠️ Web search skipped (missing Firecrawl API key).' })}\n\n`);
+        }
+      }
+      try {
+        const searchQuery = [description, ...(topics || [])].join(' ').trim();
+        if (searchQuery && firecrawlApiKey) {
+          if (stream) {
+            res.write(`data: ${JSON.stringify({ type: 'status', message: 'Running web research agent...' })}\n\n`);
+          }
+
+          logger.info('firecrawl', `Fetching web sources for: ${searchQuery}`);
+          const firecrawlResult = await firecrawlAgentSources(searchQuery, 6);
+
+          if (firecrawlResult.error) {
+            logger.warn('firecrawl', 'Agent returned error', {
+              details: { query: searchQuery, error: firecrawlResult.error },
+            });
+            if (stream) {
+              res.write(`data: ${JSON.stringify({ type: 'status', message: `⚠️ Web search failed: ${firecrawlResult.error}` })}\n\n`);
+            }
+          }
+
+          logger.info('firecrawl', `Web source extraction complete`, {
+            details: { query: searchQuery, sources: firecrawlResult.sources.length },
+          });
+
+          if (firecrawlResult.sources.length > 0) {
+            contextFiles = contextFiles.concat(
+              firecrawlResult.sources.map((source, index) => ({
+                name: `Web source ${index + 1}: ${source.name}`,
+                content: source.content,
+                type: 'text',
+              }))
+            );
+            if (stream) {
+              res.write(`data: ${JSON.stringify({ type: 'status', message: `✅ Found ${firecrawlResult.sources.length} web sources. Generating content...` })}\n\n`);
+            }
+          } else if (stream) {
+            res.write(`data: ${JSON.stringify({ type: 'status', message: '⚠️ No web sources found. Falling back to AI-only.' })}\n\n`);
+          }
+        }
+      } catch (error) {
+        logger.warn('firecrawl', `Failed to fetch web sources: ${(error as Error).message}`);
+      }
+    }
+
     console.log(`[Generate] 🤖 Using AI-GENERATED content (no registry match)`);
     
     if (stream) {
-      res.write(`data: ${JSON.stringify({ type: 'status', message: '🤖 Generating content with AI...' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'status', message: shouldUseWebSearch ? '🤖 Generating content with AI + web sources...' : '🤖 Generating content with AI...' })}\n\n`);
     }
 
     const outline = await generatePathOutline({
@@ -1043,7 +1418,7 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
       difficulty,
       estimatedDuration,
       topics,
-      context_files
+      context_files: contextFiles
     });
 
     console.log(`[Generate] Outline: ${outline.modules.length} modules`);
@@ -1119,7 +1494,7 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
             `${outline.title}: ${outline.description}`,
             outline.difficulty,
             i,
-            context_files
+            contextFiles
           );
 
           // Check if this module would benefit from visual aids
@@ -1240,6 +1615,13 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
   const stream = req.query.stream === 'true';
 
   try {
+    if (!registryEnabled) {
+      return res.status(410).json({
+        error: "Source registry disabled",
+        message: "Registry-backed generation is turned off. Use POST /paths/generate instead.",
+      });
+    }
+
     const supabase = getSupabaseAdmin();
     const userId = (req as any).user?.id;
     
@@ -1965,6 +2347,13 @@ router.get("/:pathId/items/:itemId/render", async (req: Request, res: Response) 
 
     // For registry_backed modules, render on-demand
     if (item.content_mode === 'registry_backed') {
+      if (!registryEnabled) {
+        return res.status(410).json({
+          error: "Source registry disabled",
+          message: "Registry-backed module rendering is disabled. Regenerate the path with AI-only content.",
+        });
+      }
+
       const groundingService = new ModuleGroundingService(supabase);
 
       // Check if content is unavailable
@@ -2024,12 +2413,12 @@ router.get("/:pathId/items/:itemId/render", async (req: Request, res: Response) 
           item.source_node_ids
         );
 
-        // Get registry node titles for visual enrichment
+        // Get source section titles for visual enrichment
         const tocNodes = await groundingService.getTocNodesForModule(
           item.source_asset_id,
           item.source_node_ids
         );
-        const registryNodeTitles = tocNodes.map((n: any) => n.title || '').filter(Boolean);
+        const sourceSectionTitles = tocNodes.map((n: any) => n.title || '').filter(Boolean);
 
         // Enrich with visual aids (non-blocking, graceful degradation)
         let illustrativeVisuals: any[] = [];
@@ -2037,7 +2426,7 @@ router.get("/:pathId/items/:itemId/render", async (req: Request, res: Response) 
           const visualRequest: GenerateVisualIntentRequest = {
             module_title: item.title,
             explanation_text: renderedContent.overview || '',
-            registry_node_titles: registryNodeTitles,
+            source_section_titles: sourceSectionTitles,
             learning_objectives: renderedContent.learning_objectives,
             key_concepts: renderedContent.key_concepts?.map((c: any) => c.concept) || [],
           };
