@@ -24,6 +24,7 @@ export default function UserMenu() {
   const { settings } = useUserSettings();
   const router = useRouter();
   const supabase = createClient();
+  const [mounted, setMounted] = React.useState(false);
   const displayName = settings.account.name || settings.profile.username || user?.name;
   const displayEmail = settings.profile.email || user?.email;
   const avatarSrc = settings.profile.avatarUrl || user?.avatarUrl || "/images/avatars/01.png";
@@ -33,6 +34,19 @@ export default function UserMenu() {
     router.push("/login");
     router.refresh();
   };
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <Avatar>
+        <AvatarImage src={avatarSrc} alt={displayName ?? "User avatar"} />
+        <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+      </Avatar>
+    );
+  }
 
   return (
     <DropdownMenu>

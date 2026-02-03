@@ -19,12 +19,14 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
 import { useUserSettings } from "@/components/providers/settings-provider";
+import { useEffect, useState } from "react";
 export function NavUser() {
   const { isMobile } = useSidebar();
   const user = useUserProfile();
   const { settings } = useUserSettings();
   const router = useRouter();
   const supabase = createClient();
+  const [mounted, setMounted] = useState(false);
   const displayName = settings.account.name || settings.profile.username || user?.name;
   const displayEmail = settings.profile.email || user?.email;
   const avatarSrc =
@@ -35,6 +37,32 @@ export function NavUser() {
     router.push("/login");
     router.refresh();
   };
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            size="lg"
+            className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
+            <Avatar className="rounded-full">
+              <AvatarImage src={avatarSrc} alt={displayName ?? "User avatar"} />
+              <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="grid flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-medium">{displayName}</span>
+              <span className="text-muted-foreground truncate text-xs">{displayEmail}</span>
+            </div>
+            <MoreVerticalIcon className="ml-auto size-4" />
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
 
   return (
     <SidebarMenu>

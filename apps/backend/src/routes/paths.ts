@@ -26,6 +26,113 @@ const firecrawlAgentBaseUrl = process.env.FIRECRAWL_AGENT_BASE_URL || 'https://a
 const firecrawlApiKey = process.env.FIRECRAWL_API_KEY || '';
 const firecrawlEnabled = process.env.USE_FIRECRAWL !== 'false' && Boolean(firecrawlApiKey);
 
+type WebSource = {
+  name: string;
+  url?: string;
+  logo_url?: string;
+  source_type?: string;
+};
+
+type FirecrawlSource = WebSource & {
+  content: string;
+};
+
+const extractFirecrawlSources = (payload: any): any[] => {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  if (typeof payload === 'string') {
+    const raw = payload.trim();
+    const stripFence = (value: string) => {
+      if (!value.startsWith('```')) return value;
+      const lines = value.split('\n');
+      if (lines.length <= 2) return value;
+      return lines.slice(1, -1).join('\n').trim();
+    };
+
+    const tryParse = (value: string) => {
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        return null;
+      }
+    };
+
+    const cleaned = stripFence(raw);
+    const direct = tryParse(cleaned);
+    if (direct) return extractFirecrawlSources(direct);
+
+    const objectMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (objectMatch) {
+      const parsed = tryParse(objectMatch[0]);
+      if (parsed) return extractFirecrawlSources(parsed);
+    }
+
+    const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+      const parsed = tryParse(arrayMatch[0]);
+      if (parsed) return extractFirecrawlSources(parsed);
+    }
+
+    return [];
+  }
+  if (typeof payload === 'object') {
+    if (Array.isArray((payload as any).sources)) return (payload as any).sources;
+    if (Array.isArray((payload as any).data)) return (payload as any).data;
+    if ((payload as any).data) return extractFirecrawlSources((payload as any).data);
+    if ((payload as any).result) return extractFirecrawlSources((payload as any).result);
+    if ((payload as any).output) return extractFirecrawlSources((payload as any).output);
+  }
+  return [];
+};
+
+const buildSourceLogoUrl = (url?: string): string | undefined => {
+  if (!url) return undefined;
+  try {
+    const hostname = new URL(url).hostname;
+    if (!hostname) return undefined;
+    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
+  } catch (error) {
+    return undefined;
+  }
+};
+
+const normalizeFirecrawlSource = (source: any): FirecrawlSource | null => {
+  const rawExcerpt =
+    (typeof source?.excerpt === 'string' && source.excerpt) ||
+    (typeof source?.content === 'string' && source.content) ||
+    (typeof source?.text === 'string' && source.text) ||
+    '';
+  const excerpt = rawExcerpt.trim();
+
+  const url =
+    (typeof source?.source_url === 'string' && source.source_url) ||
+    (typeof source?.url === 'string' && source.url) ||
+    (typeof source?.link === 'string' && source.link) ||
+    undefined;
+  const name =
+    typeof source?.source_title === 'string' && source.source_title.trim().length > 0
+      ? source.source_title.trim()
+      : typeof source?.title === 'string' && source.title.trim().length > 0
+        ? source.title.trim()
+        : url || 'Web source';
+  const sourceType =
+    typeof source?.source_type === 'string' && source.source_type.trim().length > 0
+      ? source.source_type.trim()
+      : typeof source?.type === 'string' && source.type.trim().length > 0
+        ? source.type.trim()
+        : undefined;
+
+  if (!name && !url && excerpt.length === 0) return null;
+
+  return {
+    name,
+    content: excerpt.substring(0, 12000),
+    url,
+    source_type: sourceType,
+    logo_url: buildSourceLogoUrl(url),
+  };
+};
+
 const firecrawlLocalSearchUrls = async (query: string): Promise<string[]> => {
   const limit = process.env.FIRECRAWL_SEARCH_LIMIT
     ? Number(process.env.FIRECRAWL_SEARCH_LIMIT)
@@ -65,7 +172,7 @@ const firecrawlLocalSearchUrls = async (query: string): Promise<string[]> => {
 const firecrawlAgentSources = async (
   query: string,
   limit: number = 5
-): Promise<{ sources: Array<{ name: string; content: string; url?: string }>; error?: string }> => {
+): Promise<{ sources: FirecrawlSource[]; error?: string }> => {
   const controller = new AbortController();
 
   try {
@@ -174,7 +281,7 @@ const firecrawlAgentSources = async (
     const agentStart = await agentResponse.json();
     const agentId = agentStart?.id;
     const status = agentStart?.status || agentStart?.data?.status;
-    const sources: any[] = agentStart?.data?.sources || agentStart?.sources || [];
+    const sources: any[] = extractFirecrawlSources(agentStart?.data ?? agentStart);
 
     logger.info('firecrawl', 'Agent started', {
       details: {
@@ -191,12 +298,8 @@ const firecrawlAgentSources = async (
 
       return {
         sources: sources
-          .filter((source) => typeof source?.excerpt === 'string' && source.excerpt.trim().length > 200)
-          .map((source) => ({
-            name: source?.source_title || source?.source_url || 'Web source',
-            content: source.excerpt.substring(0, 12000),
-            url: source?.source_url,
-          })),
+          .map((source) => normalizeFirecrawlSource(source))
+          .filter((source): source is FirecrawlSource => Boolean(source)),
       };
     }
 
@@ -234,17 +337,7 @@ const firecrawlAgentSources = async (
         statusData?.data?.error ||
         statusData?.data?.message ||
         lastStatusError;
-      const sources: any[] =
-        statusData?.data?.result?.sources ||
-        statusData?.result?.sources ||
-        statusData?.data?.sources ||
-        statusData?.sources ||
-        statusData?.data?.output?.sources ||
-        statusData?.output?.sources ||
-        statusData?.data?.data?.sources ||
-        statusData?.data?.data ||
-        statusData?.data ||
-        [];
+      const sources: any[] = extractFirecrawlSources(statusData?.data ?? statusData);
 
       logger.debug('firecrawl', 'Agent polling status', {
         details: {
@@ -261,12 +354,8 @@ const firecrawlAgentSources = async (
 
         return {
           sources: sources
-            .filter((source) => typeof source?.excerpt === 'string' && source.excerpt.trim().length > 200)
-            .map((source) => ({
-              name: source?.source_title || source?.source_url || 'Web source',
-              content: source.excerpt.substring(0, 12000),
-              url: source?.source_url,
-            })),
+            .map((source) => normalizeFirecrawlSource(source))
+            .filter((source): source is FirecrawlSource => Boolean(source)),
         };
       }
 
@@ -751,6 +840,7 @@ router.post("/generate", async (req: Request, res: Response) => {
     } = req.body;
 
     let contextFiles = Array.isArray(context_files_input) ? [...context_files_input] : [];
+    let webSources: WebSource[] = [];
 
     if (!description || !description.trim()) {
       return res.status(400).json({ error: "Description is required" });
@@ -1387,13 +1477,24 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
           });
 
           if (firecrawlResult.sources.length > 0) {
-            contextFiles = contextFiles.concat(
-              firecrawlResult.sources.map((source, index) => ({
-                name: `Web source ${index + 1}: ${source.name}`,
-                content: source.content,
-                type: 'text',
-              }))
+            const sourcesWithContent = firecrawlResult.sources.filter(
+              (source) => typeof source.content === 'string' && source.content.trim().length > 0
             );
+            if (sourcesWithContent.length > 0) {
+              contextFiles = contextFiles.concat(
+                sourcesWithContent.map((source, index) => ({
+                  name: `Web source ${index + 1}: ${source.name}`,
+                  content: source.content,
+                  type: 'text',
+                }))
+              );
+            }
+            webSources = firecrawlResult.sources.map((source) => ({
+              name: source.name,
+              url: source.url,
+              logo_url: source.logo_url,
+              source_type: source.source_type,
+            }));
             if (stream) {
               res.write(`data: ${JSON.stringify({ type: 'status', message: `✅ Found ${firecrawlResult.sources.length} web sources. Generating content...` })}\n\n`);
             }
@@ -1437,7 +1538,8 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
         difficulty: outline.difficulty,
         estimated_duration: outline.estimated_duration * 60,
         status: "not-started",
-        progress: 0
+        progress: 0,
+        web_sources: webSources
       }])
       .select()
       .single();
@@ -1588,12 +1690,12 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
       .single();
 
     if (stream) {
-      res.write(`data: ${JSON.stringify({ type: 'completed', path: completePath, content_mode: 'ai_generated' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'completed', path: completePath, content_mode: 'ai_generated', web_sources: webSources })}\n\n`);
       res.end();
       return;
     }
 
-    return res.status(201).json({ ...completePath, content_mode: 'ai_generated' });
+    return res.status(201).json({ ...completePath, content_mode: 'ai_generated', web_sources: webSources });
 
   } catch (error) {
     console.error("[Generate] Error:", error);

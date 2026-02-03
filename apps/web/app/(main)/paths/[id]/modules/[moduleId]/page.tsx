@@ -56,7 +56,7 @@ import { Lab } from "@/app/(main)/labs/types";
 import LabViewer from "@/components/labs/lab-viewer";
 import { Demo as LearnByDoing } from "@/components/LearnByDoing";
 import { toast } from "sonner";
-import { ShortAnswerWidget, MultiStepWidget, CodeEditorWidget } from "@/components/exercises";
+import { ShortAnswerWidget, CodeEditorWidget, MultipleChoiceWidget } from "@/components/exercises";
 import { MultipleChoice } from "@/components/learning/MultipleChoice";
 import { ReflectionModal } from "@/components/reflections";
 import { shouldTriggerReflection } from "@/types/reflections";
@@ -103,7 +103,7 @@ type ModuleContentData = {
   practical_exercises: Array<{
     title: string;
     description: string;
-    exercise_type?: 'short_answer' | 'multiple_choice' | 'multi_step';
+    exercise_type?: 'short_answer' | 'multiple_choice' | 'code_editor';
     difficulty: string;
     estimated_time?: string;
     correct_answer?: string;
@@ -880,7 +880,7 @@ const ExercisesSubView = ({
   practicalExercises: Array<{
     title: string;
     description: string;
-    exercise_type?: 'short_answer' | 'multiple_choice' | 'multi_step';
+    exercise_type?: 'short_answer' | 'multiple_choice' | 'code_editor';
     difficulty: string;
     estimated_time?: string;
     correct_answer?: string;
@@ -900,7 +900,6 @@ const ExercisesSubView = ({
 }) => {
   // Support section state
   const [showHints, setShowHints] = useState(false);
-  const [showWorkedExample, setShowWorkedExample] = useState(false);
   const [showCommonMistakes, setShowCommonMistakes] = useState(false);
   const [hintsRevealed, setHintsRevealed] = useState(0);
   
@@ -921,8 +920,11 @@ const ExercisesSubView = ({
   
   // Determine widget type from exercise data (AI-selected) or fallback detection
   const detectWidgetType = () => {
-    // If AI explicitly set the type, use it
+    // If AI explicitly set the type, use it (map legacy multi_step to short_answer)
     if (currentExercise?.exercise_type) {
+      if (currentExercise.exercise_type === 'multi_step') {
+        return 'short_answer';
+      }
       return currentExercise.exercise_type;
     }
     
@@ -965,8 +967,8 @@ const ExercisesSubView = ({
       return 'short_answer';
     }
     
-    // Default to multi-step for math/derivation problems
-    return 'multi_step';
+    // Default to short answer for non-coding problems
+    return 'short_answer';
   };
   
   const widgetType = detectWidgetType();
@@ -974,7 +976,6 @@ const ExercisesSubView = ({
   // Reset support states when changing exercises
   useEffect(() => {
     setShowHints(false);
-    setShowWorkedExample(false);
     setShowCommonMistakes(false);
     setHintsRevealed(0);
   }, [currentIndex]);
@@ -997,7 +998,6 @@ const ExercisesSubView = ({
 
   const hints = currentExercise.hints || [];
   const hasHints = hints.length > 0;
-  const hasWorkedExample = !!currentExercise.worked_example;
   const hasCommonMistakes = currentExercise.common_mistakes && currentExercise.common_mistakes.length > 0;
 
   return (
@@ -1082,18 +1082,25 @@ const ExercisesSubView = ({
           selectedOption={currentAnswer?.selected || null}
           onOptionChange={(selected) => updateAnswer({ selected })}
         />
-      ) : (
-        <MultiStepWidget
+      ) : currentExercise.correct_answer ? (
+        <ShortAnswerWidget
+          correctAnswer={currentExercise.correct_answer}
+          isCompleted={isCompleted}
+          onComplete={() => setCompletedExercises(prev => new Set(prev).add(currentIndex))}
           onAttempt={markAttempted}
-          hasWorkedExample={hasWorkedExample}
-          onShowWorkedExample={() => setShowWorkedExample(true)}
-          steps={currentAnswer?.steps || [{ id: crypto.randomUUID(), content: '', label: '' }]}
-          onStepsChange={(steps) => updateAnswer({ steps })}
+          initialAnswer={currentAnswer?.answer || ""}
+          onAnswerChange={(answer) => updateAnswer({ answer })}
         />
+      ) : (
+        <Card className="border-2 border-dashed">
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            This exercise is missing a supported answer format.
+          </CardContent>
+        </Card>
       )}
 
       {/* Progressive Support Section - Secondary, collapsed by default */}
-      {(hasHints || hasWorkedExample || hasCommonMistakes) && (
+      {(hasHints || hasCommonMistakes) && (
         <div className="space-y-3 pt-4 border-t">
           <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Support</p>
           
@@ -1168,46 +1175,6 @@ const ExercisesSubView = ({
             </div>
           )}
           
-          {/* Worked Example - Only after attempt */}
-          {hasWorkedExample && (
-            <div className="space-y-2">
-              <button
-                onClick={() => {
-                  markAttempted();
-                  setShowWorkedExample(!showWorkedExample);
-                }}
-                className={cn(
-                  "flex items-center gap-2 text-sm transition-colors",
-                  hasAttempted 
-                    ? "text-muted-foreground hover:text-foreground" 
-                    : "text-muted-foreground/50"
-                )}
-              >
-                <ChevronDown className={cn("w-4 h-4 transition-transform", !showWorkedExample && "-rotate-90")} />
-                <BookOpen className="w-4 h-4" />
-                <span>Worked Example</span>
-                {!hasAttempted && (
-                  <span className="text-xs text-muted-foreground/50">(try first)</span>
-                )}
-              </button>
-              
-              {showWorkedExample && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="ml-6"
-                >
-                  <Card className="border shadow-none bg-muted/30">
-                    <CardContent className="p-4">
-                      <div className="prose prose-sm prose-stone dark:prose-invert max-w-none break-words overflow-hidden [&>*:first-child]:mt-0">
-                        <Markdown>{currentExercise.worked_example}</Markdown>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )}
-            </div>
-          )}
         </div>
       )}
 

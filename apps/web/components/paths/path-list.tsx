@@ -52,8 +52,10 @@ export default function PathList({ activeTab, onSelectPath, onAddPathClick }: Pa
     setActiveTab(tab);
   };
 
+  const safePaths = Array.isArray(paths) ? paths : [];
+
   // Apply all filters
-  const filteredPaths = paths.filter((path) => {
+  const filteredPaths = safePaths.filter((path) => {
     // Tab filter
     if (activeTab !== "all" && path.status !== activeTab) return false;
 
@@ -110,7 +112,7 @@ export default function PathList({ activeTab, onSelectPath, onAddPathClick }: Pa
     try {
       await updatePath(id, { status: "not-started" as PathStatus });
       // Reset all modules to incomplete
-      const path = paths.find(p => p.id === id);
+      const path = safePaths.find(p => p.id === id);
       if (path?.modules) {
         const resetModules = path.modules.map(m => ({ ...m, completed: false }));
         await updatePath(id, { modules: resetModules });

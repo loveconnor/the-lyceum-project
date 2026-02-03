@@ -349,7 +349,7 @@ Respond with JSON only in this structure:
       {
         "title": "Short descriptive title for the problem",
         "description": "The actual problem to solve (e.g., 'Solve: $2x + 5 = 13$' or 'Fill in the blank: 4, 5, _, 7, 8')",
-        "exercise_type": "short_answer" | "multiple_choice" | "multi_step" | "code_editor",
+        "exercise_type": "short_answer" | "multiple_choice" | "code_editor",
         "difficulty": "beginner" | "intermediate" | "advanced",
         "estimated_time": "5-15 min",
         "correct_answer": "The correct answer (e.g., '4' or 'x = 7')",
@@ -358,7 +358,6 @@ Respond with JSON only in this structure:
           "First hint - a small nudge in the right direction",
           "Second hint - more specific guidance"
         ],
-        "worked_example": "Complete step-by-step solution with explanation",
         "common_mistakes": [
           "Common mistake 1 and why it's wrong"
         ]
@@ -532,7 +531,6 @@ EXERCISE TYPES - Choose the right type for each problem:
 
 CRITICAL RULE FOR PROGRAMMING EXERCISES:
 - If the exercise asks the learner to WRITE ANY CODE (methods, functions, classes, programs), use "code_editor" type
-- "multi_step" is ONLY for mathematical/logical problems, NOT for programming
 - Examples that require "code_editor": "Write a method...", "Implement a function...", "Create a program...", "Write code that..."
 
 1. "short_answer" - Simple problems with a single answer
@@ -550,16 +548,7 @@ CRITICAL RULE FOR PROGRAMMING EXERCISES:
    Use when: Testing recognition, or when there are natural distractor options
    MUST include "options" array with 3-4 choices
 
-3. "multi_step" - Complex NON-CODING problems requiring multiple mathematical/logical steps
-   Examples:
-   - "Factor completely: $x^2 + 7x + 12$" → correct_answer: "(x + 3)(x + 4)"
-   - "Find the derivative of $f(x) = 3x^4 - 2x^2 + 5$"
-   - "Prove that the sum of two even numbers is even"
-   Use when: Mathematical derivations, proofs, or logical reasoning requiring work shown
-   DO NOT use for programming/coding exercises
-   Include detailed worked_example showing all steps
-
-4. "code_editor" - ANY exercise requiring writing/implementing CODE (THIS IS THE PRIMARY TYPE FOR PROGRAMMING)
+3. "code_editor" - ANY exercise requiring writing/implementing CODE (THIS IS THE PRIMARY TYPE FOR PROGRAMMING)
    Examples:
    - "Write a Java method that returns the sum of two integers"
    - "Implement a Python function to reverse a string"
@@ -569,16 +558,15 @@ CRITICAL RULE FOR PROGRAMMING EXERCISES:
    - "Create a function to find the maximum value in an array"
    CRITICAL: Use "code_editor" for ANY exercise where the learner needs to WRITE CODE in a programming language
    This includes: methods, functions, classes, complete programs, implementing algorithms
-   Include starter_code (optional), test_cases (optional), and worked_example with complete working code solution
+   Include starter_code (optional) and test_cases (optional). Provide correct_answer as complete working code.
    Language can be: Java, Python, JavaScript, TypeScript, C++, or any programming language
 
 For ALL exercise types, you MUST include:
 - title: Short descriptive name
 - description: The ACTUAL PROBLEM with specific numbers/expressions
-- exercise_type: One of "short_answer", "multiple_choice", "multi_step", or "code_editor"
+- exercise_type: One of "short_answer", "multiple_choice", or "code_editor"
 - correct_answer: The exact correct answer for validation (for code_editor, include complete working code)
 - hints: 1-2 hints that guide without giving the answer
-- worked_example: Step-by-step solution
 
 ✗ WRONG exercise description examples (DO NOT DO THIS):
   - "Students will practice solving equations" (no specific problem)

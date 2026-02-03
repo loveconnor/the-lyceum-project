@@ -10,7 +10,8 @@ import {
   Clock,
   Star,
   BookOpen,
-  AlertCircle
+  AlertCircle,
+  ShieldCheck
 } from "lucide-react";
 import { usePathStore } from "@/app/(main)/paths/store";
 import { statusClasses, pathStatusNamed } from "@/app/(main)/paths/enum";
@@ -22,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface PathDetailSheetProps {
   isOpen: boolean;
@@ -53,9 +55,16 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
       fetchPathById(pathId)
         .then((freshPath) => {
           // Update the path in the store with fresh data using functional update
-          setPaths(currentPaths => 
-            currentPaths.map(p => p.id === pathId ? freshPath : p)
-          );
+          setPaths((currentPaths) => {
+            const existingPath = currentPaths.find((p) => p.id === pathId);
+            const mergedWebSources = Array.isArray((freshPath as any)?.web_sources)
+              ? (freshPath as any).web_sources
+              : existingPath?.web_sources;
+            const mergedPath = mergedWebSources
+              ? { ...freshPath, web_sources: mergedWebSources }
+              : freshPath;
+            return currentPaths.map((p) => (p.id === pathId ? mergedPath : p));
+          });
         })
         .catch((error) => {
           console.error("Error fetching fresh path data:", error);
@@ -110,6 +119,15 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
     return (bytes / 1048576).toFixed(1) + " MB";
   };
 
+  const getSourceHost = (url?: string) => {
+    if (!url) return "";
+    try {
+      return new URL(url).hostname.replace(/^www\./, "");
+    } catch (error) {
+      return "";
+    }
+  };
+
   const statusLabel = pathStatusNamed[path.status as keyof typeof pathStatusNamed] || path.status;
 
   // Get path data - calculate duration from estimated_duration (in minutes) or fall back to estimatedDuration string
@@ -119,6 +137,21 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
   const difficulty = path.difficulty || "intermediate";
   const totalModules = path.modules?.length || 0;
   const completedModules = path.modules?.filter(m => m.completed).length || 0;
+  const parseWebSources = (value: unknown) => {
+    if (Array.isArray(value)) return value;
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+    return [];
+  };
+  const webSources = parseWebSources(path.web_sources);
+  const comments = Array.isArray(path.comments) ? path.comments : [];
+  const files = Array.isArray(path.files) ? path.files : [];
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -173,6 +206,66 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
             </div>
             <p className="text-sm">{completedModules} / {totalModules} modules completed</p>
           </div>
+
+          {webSources.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <ShieldCheck className="h-4 w-4" />
+                <h4 className="text-sm font-medium text-foreground">Sources</h4>
+                <span className="text-xs text-muted-foreground">
+                  {webSources.length} sources
+                </span>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3 overflow-hidden">
+                <div className="grid gap-2">
+                  {webSources.map((source, index) => {
+                    const label = source.name || source.url || "Web source";
+                    const hostname = getSourceHost(source.url);
+                    const content = (
+                      <div className="flex items-center gap-3">
+                        <Avatar className="size-7 border bg-background/80">
+                          <AvatarImage src={source.logo_url} alt={`${label} logo`} />
+                          <AvatarFallback className="text-[10px] font-medium">
+                            {label.slice(0, 1).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-foreground truncate">{label}</p>
+                          {hostname && (
+                            <p className="text-[11px] text-muted-foreground truncate">{hostname}</p>
+                          )}
+                        </div>
+                        {source.source_type && (
+                          <Badge variant="secondary" className="text-[10px] font-normal">
+                            {source.source_type}
+                          </Badge>
+                        )}
+                      </div>
+                    );
+
+                    return source.url ? (
+                      <Link
+                        key={`${source.url}-${index}`}
+                        href={source.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block w-full rounded-md border border-transparent bg-background/60 p-2 transition hover:border-primary/30 hover:bg-background"
+                      >
+                        {content}
+                      </Link>
+                    ) : (
+                      <div
+                        key={`${label}-${index}`}
+                        className="w-full rounded-md border border-transparent bg-background/60 p-2"
+                      >
+                        {content}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <Separator />
@@ -301,9 +394,9 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
             </div>
           </div>
 
-          {path.files && path.files.length > 0 ? (
+          {files.length > 0 ? (
             <div className="space-y-2">
-              {path.files.map((file) => (
+              {files.map((file) => (
                 <div
                   key={file.id}
                   className="bg-muted flex items-center justify-between rounded-md p-3 transition-colors hover:bg-muted/80">
@@ -350,14 +443,14 @@ const PathDetailSheet: React.FC<PathDetailSheetProps> = ({
             </p>
           </div>
 
-          {path.comments.length === 0 && (
+          {comments.length === 0 && (
             <div className="bg-muted text-muted-foreground rounded-md p-4 text-center text-sm">
               No reflections yet. Start documenting your learning journey.
             </div>
           )}
 
           <div className="space-y-3">
-            {path.comments.map((reflection) => (
+            {comments.map((reflection) => (
               <div key={reflection.id} className="bg-muted group relative space-y-2 rounded-md p-3">
                 <p className="text-sm leading-relaxed">{reflection.text}</p>
                 <div className="text-muted-foreground flex justify-between text-xs">

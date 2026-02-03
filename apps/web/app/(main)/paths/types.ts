@@ -20,6 +20,13 @@ export interface PathFile {
   uploadedAt: Date;
 }
 
+export interface WebSource {
+  name: string;
+  url?: string;
+  logo_url?: string;
+  source_type?: string;
+}
+
 export interface Module {
   id: string;
   title: string;
@@ -101,6 +108,7 @@ export interface LearningPath {
   difficulty?: Difficulty;
   estimated_duration?: number; // Duration in minutes from database
   estimatedDuration?: string; // Legacy: Total path duration (e.g., "8-12 weeks", "40 hours")
+  web_sources?: WebSource[];
 }
 
 export interface PathPosition {

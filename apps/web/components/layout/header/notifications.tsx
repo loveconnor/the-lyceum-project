@@ -22,7 +22,12 @@ const Notifications = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const supabase = createClient();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     loadNotifications();
@@ -95,6 +100,14 @@ const Notifications = () => {
   }
 
   const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  if (!mounted) {
+    return (
+      <Button size="icon" variant="ghost" className="relative">
+        <BellIcon />
+      </Button>
+    );
+  }
 
   return (
     <DropdownMenu onOpenChange={setIsOpen}>

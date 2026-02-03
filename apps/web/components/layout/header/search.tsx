@@ -56,8 +56,13 @@ export default function Search() {
   const [labs, setLabs] = useState<SearchItem[]>([]);
   const [chats, setChats] = useState<SearchItem[]>([]);
   const [isMac, setIsMac] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     // Detect if user is on Mac
@@ -225,58 +230,60 @@ export default function Search() {
           <SearchIcon />
         </Button>
       </div>
-      <CommandDialog open={open} onOpenChange={setOpen}>
-        <VisuallyHidden>
-          <DialogHeader>
-            <DialogTitle>Search</DialogTitle>
-          </DialogHeader>
-        </VisuallyHidden>
-        <CommandInput 
-          placeholder="Search paths, labs, chats, settings..." 
-          value={searchQuery}
-          onValueChange={setSearchQuery}
-        />
-        <CommandList>
-          {loading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : searchGroups.length === 0 ? (
-            <CommandEmpty>No results found.</CommandEmpty>
-          ) : (
-            searchGroups.map((group, groupIndex) => (
-              <React.Fragment key={group.title}>
-                <CommandGroup heading={group.title}>
-                  {group.items.map((item) => (
-                    <CommandItem
-                      key={item.href}
-                      onSelect={() => {
-                        setOpen(false);
-                        setSearchQuery("");
-                        router.push(item.href);
-                      }}
-                      className="flex items-start gap-2 py-3"
-                    >
-                      {item.icon && <item.icon className="mt-0.5 h-4 w-4 shrink-0" />}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{item.label}</span>
+      {mounted && (
+        <CommandDialog open={open} onOpenChange={setOpen}>
+          <VisuallyHidden>
+            <DialogHeader>
+              <DialogTitle>Search</DialogTitle>
+            </DialogHeader>
+          </VisuallyHidden>
+          <CommandInput 
+            placeholder="Search paths, labs, chats, settings..." 
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+          />
+          <CommandList>
+            {loading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : searchGroups.length === 0 ? (
+              <CommandEmpty>No results found.</CommandEmpty>
+            ) : (
+              searchGroups.map((group, groupIndex) => (
+                <React.Fragment key={group.title}>
+                  <CommandGroup heading={group.title}>
+                    {group.items.map((item) => (
+                      <CommandItem
+                        key={item.href}
+                        onSelect={() => {
+                          setOpen(false);
+                          setSearchQuery("");
+                          router.push(item.href);
+                        }}
+                        className="flex items-start gap-2 py-3"
+                      >
+                        {item.icon && <item.icon className="mt-0.5 h-4 w-4 shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{item.label}</span>
+                          </div>
+                          {item.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                              {item.description}
+                            </p>
+                          )}
                         </div>
-                        {item.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                            {item.description}
-                          </p>
-                        )}
-                      </div>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-                {groupIndex < searchGroups.length - 1 && <CommandSeparator />}
-              </React.Fragment>
-            ))
-          )}
-        </CommandList>
-      </CommandDialog>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  {groupIndex < searchGroups.length - 1 && <CommandSeparator />}
+                </React.Fragment>
+              ))
+            )}
+          </CommandList>
+        </CommandDialog>
+      )}
     </div>
   );
 }

@@ -104,12 +104,11 @@ OUTPUT FORMAT - Respond with JSON only:
     {
       "title": "Exercise title",
       "description": "Problem based on source material",
-      "exercise_type": "short_answer",
+      "exercise_type": "short_answer" | "multiple_choice" | "code_editor",
       "difficulty": "beginner" | "intermediate" | "advanced",
       "estimated_time": "5-15 min",
       "correct_answer": "The answer",
-      "hints": ["Hint 1", "Hint 2"],
-      "worked_example": "Step-by-step solution"
+      "hints": ["Hint 1", "Hint 2"]
     }
   ],
   "assessment": {
@@ -410,4 +409,3 @@ export async function renderModuleOnDemand(
     difficulty
   );
 }
-

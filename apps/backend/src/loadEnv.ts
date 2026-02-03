@@ -17,7 +17,7 @@ let loaded = false;
 for (const envPath of possibleEnvPaths) {
   if (fs.existsSync(envPath)) {
     console.log(`Loading environment from: ${envPath}`);
-    dotenv.config({ path: envPath });
+    dotenv.config({ path: envPath, override: true });
     loaded = true;
     break;
   }

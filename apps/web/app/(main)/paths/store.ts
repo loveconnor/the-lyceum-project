@@ -39,7 +39,7 @@ interface PathStore {
   generationStatus: string | null;
 
   // Actions
-  setPaths: (paths: LearningPath[]) => void;
+  setPaths: (paths: LearningPath[] | ((paths: LearningPath[]) => LearningPath[])) => void;
   setGenerationStatus: (status: string | null) => void;
   addPath: (path: PathDraft) => Promise<void>;
   generatePathWithAI: (path: PathDraft) => Promise<void>;
@@ -78,10 +78,14 @@ export const usePathStore = create<PathStore>((set) => ({
   searchQuery: "",
   generationStatus: null,
 
-  setPaths: (paths) =>
-    set(() => ({
-      paths: paths
-    })),
+  setPaths: (pathsOrUpdater) =>
+    set((state) => {
+      if (typeof pathsOrUpdater === "function") {
+        const nextPaths = pathsOrUpdater(state.paths);
+        return { paths: Array.isArray(nextPaths) ? nextPaths : state.paths };
+      }
+      return { paths: Array.isArray(pathsOrUpdater) ? pathsOrUpdater : [] };
+    }),
 
   setGenerationStatus: (status) => set({ generationStatus: status }),
     
@@ -173,7 +177,10 @@ export const usePathStore = create<PathStore>((set) => ({
             } else if (data.type === "module_complete") {
               set({ generationStatus: `Finished module: ${data.title}` });
             } else if (data.type === "completed") {
-              const newPath = data.path;
+              const newPath =
+                Array.isArray(data.web_sources) && data.web_sources.length > 0
+                  ? { ...data.path, web_sources: data.web_sources }
+                  : data.path;
               trackEvent("learning_path_created", {
                 path_id: newPath.id,
                 generated_by_ai: true,
