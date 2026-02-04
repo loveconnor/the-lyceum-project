@@ -10,6 +10,7 @@ import {
   Target,
   Users
 } from "lucide-react";
+import type { MessageKey } from "@/lib/i18n";
 
 export type SidebarItemId =
   | "ai_assistant"
@@ -55,24 +56,24 @@ export type UserSettings = {
 
 export type SidebarItemDefinition = {
   id: SidebarItemId;
-  label: string;
+  labelKey: MessageKey;
   icon: any;
   href?: string;
   group: "primary" | "quick_links";
 };
 // Commented out items are for after MVP
 export const SIDEBAR_ITEMS: SidebarItemDefinition[] = [
-  { id: "ai_assistant", label: "AI Assistant", icon: Sparkles, group: "primary", href: "/assistant" },
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "primary", href: "/" },
-  { id: "learning_paths", label: "Learning Paths", icon: Compass, group: "primary", href: "/paths" },
-  { id: "labs", label: "Labs", icon: FlaskConical, group: "primary", href: "/labs" },
-  { id: "reflections", label: "Reflections", icon: NotebookPen, group: "primary", href: "/reflections" },
+  { id: "ai_assistant", labelKey: "nav.aiAssistant", icon: Sparkles, group: "primary", href: "/assistant" },
+  { id: "dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard, group: "primary", href: "/" },
+  { id: "learning_paths", labelKey: "nav.learningPaths", icon: Compass, group: "primary", href: "/paths" },
+  { id: "labs", labelKey: "nav.labs", icon: FlaskConical, group: "primary", href: "/labs" },
+  { id: "reflections", labelKey: "nav.reflections", icon: NotebookPen, group: "primary", href: "/reflections" },
   // { id: "planner", label: "Planner / Time Coach", icon: Clock3, group: "primary" },
   // { id: "relevance", label: "Relevance Explorer", icon: Target, group: "primary" },
   // { id: "community", label: "Community", icon: Users, group: "primary" },
   // { id: "notifications", label: "Notifications", icon: Bell, group: "primary", href: "/settings/notifications" },
-  { id: "start_lab", label: "Start New Lab", icon: LinkIcon, group: "quick_links" },
-  { id: "continue_reflection", label: "Continue Reflection", icon: LinkIcon, group: "quick_links" },
+  { id: "start_lab", labelKey: "nav.startLab", icon: LinkIcon, group: "quick_links" },
+  { id: "continue_reflection", labelKey: "nav.continueReflection", icon: LinkIcon, group: "quick_links" },
   // { id: "view_goals", label: "View Goals", icon: LinkIcon, group: "quick_links" }
 ];
 

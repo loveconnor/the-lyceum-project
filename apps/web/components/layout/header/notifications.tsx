@@ -16,9 +16,11 @@ import { Notification, getNotificationIcon, getNotificationColor } from "@/types
 import { createClient } from "@/utils/supabase/client";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 const Notifications = () => {
   const isMobile = useIsMobile();
+  const { t } = useI18n();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
@@ -127,10 +129,10 @@ const Notifications = () => {
       <DropdownMenuContent align={isMobile ? "center" : "end"} className="ms-4 w-96 p-0">
         <DropdownMenuLabel className="bg-background dark:bg-muted sticky top-0 z-10 p-0">
           <div className="flex items-center justify-between border-b px-6 py-4">
-            <div className="font-medium">Learning Updates</div>
+            <div className="font-medium">{t("notifications.dropdown.title")}</div>
             {unreadCount > 0 && (
               <span className="text-muted-foreground text-xs">
-                {unreadCount} unread
+                {t("notifications.dropdown.unread", { count: unreadCount })}
               </span>
             )}
           </div>
@@ -139,14 +141,14 @@ const Notifications = () => {
         <ScrollArea className="h-[400px]">
           {loading ? (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
-              Loading notifications...
+              {t("notifications.dropdown.loading")}
             </div>
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
               <BellIcon className="h-12 w-12 text-muted-foreground mb-2" />
-              <p className="text-muted-foreground text-sm">No notifications yet</p>
+              <p className="text-muted-foreground text-sm">{t("notifications.dropdown.empty.title")}</p>
               <p className="text-muted-foreground text-xs mt-1">
-                We'll notify you about your learning progress
+                {t("notifications.dropdown.empty.subtitle")}
               </p>
             </div>
           ) : (

@@ -15,10 +15,11 @@ import {
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 const sidebarNavItems = [
   {
-    title: "Account",
+    titleKey: "settings.nav.account",
     href: "/settings/account",
     icon: ShieldIcon
   },
@@ -28,22 +29,22 @@ const sidebarNavItems = [
     icon: CreditCardIcon
   }*/
   {
-    title: "Interests",
+    titleKey: "settings.nav.interests",
     href: "/settings/interests",
     icon: HeartIcon
   },
   {
-    title: "Appearance",
+    titleKey: "settings.nav.appearance",
     href: "/settings/appearance",
     icon: PaletteIcon
   },
   {
-    title: "Notifications",
+    titleKey: "settings.nav.notifications",
     href: "/settings/notifications",
     icon: BellIcon
   },
   {
-    title: "Display",
+    titleKey: "settings.nav.display",
     href: "/settings/display",
     icon: ContrastIcon
   }
@@ -51,6 +52,7 @@ const sidebarNavItems = [
 
 export function SidebarNav() {
   const pathname = usePathname();
+  const { t } = useI18n();
 
   return (
     <Card className="py-0">
@@ -67,7 +69,7 @@ export function SidebarNav() {
               asChild>
               <Link href={item.href}>
                 {item.icon && <item.icon />}
-                {item.title}
+                {t(item.titleKey)}
               </Link>
             </Button>
           ))}

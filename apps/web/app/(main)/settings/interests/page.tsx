@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 type InterestOption = {
   name: string;
@@ -214,6 +215,7 @@ const initialVisible = 36;
 
 export default function Page() {
   const supabase = createClient();
+  const { t } = useI18n();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
@@ -241,7 +243,7 @@ export default function Page() {
       setSelectedInterests(interests);
     } catch (error: any) {
       console.error("Error loading interests:", error);
-      toast.error("Failed to load interests");
+      toast.error(t("interests.toast.loadError"));
     } finally {
       setIsLoading(false);
     }
@@ -270,7 +272,7 @@ export default function Page() {
 
   const handleSave = async () => {
     if (selectedInterests.length < 3) {
-      toast.error("Please select at least 3 interests");
+      toast.error(t("interests.toast.minSelection"));
       return;
     }
 
@@ -301,10 +303,10 @@ export default function Page() {
 
       if (updateError) throw new Error(updateError.message);
 
-      toast.success("Interests updated successfully");
+      toast.success(t("interests.toast.success"));
     } catch (error: any) {
       console.error("Error saving interests:", error);
-      toast.error(error.message || "Failed to save interests");
+      toast.error(error.message || t("interests.toast.error"));
     } finally {
       setIsSaving(false);
     }
@@ -316,7 +318,7 @@ export default function Page() {
     return (
       <Card>
         <CardContent className="p-8">
-          <div className="text-center">Loading your interests...</div>
+          <div className="text-center">{t("interests.loading")}</div>
         </CardContent>
       </Card>
     );
@@ -327,9 +329,9 @@ export default function Page() {
       <CardContent className="p-6">
         <div className="space-y-6">
           <div className="space-y-2">
-            <h3 className="text-lg font-medium">Your Interests</h3>
+            <h3 className="text-lg font-medium">{t("interests.title")}</h3>
             <p className="text-sm text-muted-foreground">
-              Choose three or more topics you're interested in learning about. These help us personalize your experience.
+              {t("interests.description")}
             </p>
           </div>
 
@@ -337,7 +339,7 @@ export default function Page() {
           {selectedInterests.length > 0 && (
             <div className="space-y-3">
               <div className="text-sm font-medium">
-                Currently Selected ({selectedInterests.length})
+                {t("interests.currentlySelected", { count: selectedInterests.length })}
               </div>
               <div className="flex flex-wrap gap-2 p-4 bg-muted/50 rounded-lg border border-border">
                 {selectedInterests.map((interest) => (
@@ -357,7 +359,9 @@ export default function Page() {
           <div className="space-y-4">
             {/* Selected count */}
             <div className="text-sm text-muted-foreground">
-              {selectedInterests.length} selected {selectedInterests.length < 3 && `(${3 - selectedInterests.length} more needed)`}
+              {t("interests.selectedCount", { count: selectedInterests.length })}{" "}
+              {selectedInterests.length < 3 &&
+                t("interests.selectedMoreNeeded", { count: 3 - selectedInterests.length })}
             </div>
 
             {/* Interests grid */}
@@ -412,7 +416,7 @@ export default function Page() {
                   onClick={() => setShowAll(true)}
                   className="text-sm text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
                 >
-                  Show more
+                  {t("interests.showMore")}
                 </button>
               </div>
             )}
@@ -424,7 +428,7 @@ export default function Page() {
               disabled={selectedInterests.length < 3 || isSaving}
               className="min-w-[120px]"
             >
-              {isSaving ? "Saving..." : "Save Changes"}
+              {isSaving ? t("interests.savingButton") : t("interests.saveButton")}
             </Button>
           </div>
         </div>
@@ -432,4 +436,3 @@ export default function Page() {
     </Card>
   );
 }
-

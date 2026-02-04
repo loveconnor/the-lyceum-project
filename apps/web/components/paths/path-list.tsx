@@ -53,6 +53,49 @@ export default function PathList({ activeTab, onSelectPath, onAddPathClick }: Pa
   };
 
   const safePaths = Array.isArray(paths) ? paths : [];
+  const durationOptions = [
+    { label: "< 1 hour", value: "under-1h", min: 0, max: 60 },
+    { label: "1-3 hours", value: "1-3h", min: 60, max: 180 },
+    { label: "3-6 hours", value: "3-6h", min: 180, max: 360 },
+    { label: "6+ hours", value: "6h-plus", min: 360, max: Number.POSITIVE_INFINITY },
+  ];
+
+  const parseDurationToMinutes = (raw?: string) => {
+    if (!raw) return null;
+    const value = raw.toLowerCase();
+    const rangeMatch = value.match(/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/);
+    const singleMatch = value.match(/(\d+(?:\.\d+)?)/);
+    const unitMultiplier = value.includes("week")
+      ? 7 * 24 * 60
+      : value.includes("day")
+        ? 24 * 60
+        : value.includes("hour") || value.includes("hr")
+          ? 60
+          : value.includes("min")
+            ? 1
+            : 60;
+
+    if (rangeMatch) {
+      const minVal = Number(rangeMatch[1]);
+      const maxVal = Number(rangeMatch[2]);
+      if (Number.isNaN(minVal) || Number.isNaN(maxVal)) return null;
+      return ((minVal + maxVal) / 2) * unitMultiplier;
+    }
+
+    if (singleMatch) {
+      const val = Number(singleMatch[1]);
+      return Number.isNaN(val) ? null : val * unitMultiplier;
+    }
+
+    return null;
+  };
+
+  const getPathDurationMinutes = (path: LearningPath) => {
+    if (typeof path.estimated_duration === "number" && path.estimated_duration > 0) {
+      return path.estimated_duration;
+    }
+    return parseDurationToMinutes(path.estimatedDuration);
+  };
 
   // Apply all filters
   const filteredPaths = safePaths.filter((path) => {
@@ -63,7 +106,12 @@ export default function PathList({ activeTab, onSelectPath, onAddPathClick }: Pa
     if (filterDifficulty && path.difficulty !== filterDifficulty) return false;
 
     // Estimated duration filter
-    if (filterEstimatedDuration && path.estimatedDuration !== filterEstimatedDuration) return false;
+    if (filterEstimatedDuration) {
+      const selected = durationOptions.find((option) => option.value === filterEstimatedDuration);
+      const minutes = getPathDurationMinutes(path);
+      if (!selected || minutes === null) return false;
+      if (!(minutes >= selected.min && minutes < selected.max)) return false;
+    }
 
     // Core paths filter
     if (showCorePathsOnly && !path.starred) return false;
@@ -161,15 +209,17 @@ export default function PathList({ activeTab, onSelectPath, onAddPathClick }: Pa
       <div className="space-y-3">
         <h4 className="text-sm font-medium">Duration</h4>
         <div className="flex flex-col gap-2">
-          {["< 4 weeks", "4-8 weeks", "8-12 weeks", "12+ weeks"].map((duration) => (
+          {durationOptions.map((duration) => (
             <Toggle
-              key={duration}
+              key={duration.value}
               variant="outline"
               size="sm"
-              pressed={filterEstimatedDuration === duration}
-              onPressedChange={() => setFilterEstimatedDuration(filterEstimatedDuration === duration ? null : duration)}
+              pressed={filterEstimatedDuration === duration.value}
+              onPressedChange={() =>
+                setFilterEstimatedDuration(filterEstimatedDuration === duration.value ? null : duration.value)
+              }
               className="px-3 text-xs justify-start">
-              {duration}
+              {duration.label}
             </Toggle>
           ))}
         </div>

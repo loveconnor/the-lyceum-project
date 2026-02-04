@@ -18,10 +18,12 @@ import { getInitials } from "@/lib/user-profile";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { useUserSettings } from "@/components/providers/settings-provider";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export default function UserMenu() {
   const user = useUserProfile();
   const { settings } = useUserSettings();
+  const { t } = useI18n();
   const router = useRouter();
   const supabase = createClient();
   const [mounted, setMounted] = React.useState(false);
@@ -42,7 +44,7 @@ export default function UserMenu() {
   if (!mounted) {
     return (
       <Avatar>
-        <AvatarImage src={avatarSrc} alt={displayName ?? "User avatar"} />
+        <AvatarImage src={avatarSrc} alt={displayName ?? t("userMenu.avatarAlt")} />
         <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
       </Avatar>
     );
@@ -52,7 +54,7 @@ export default function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Avatar>
-          <AvatarImage src={avatarSrc} alt={displayName ?? "User avatar"} />
+          <AvatarImage src={avatarSrc} alt={displayName ?? t("userMenu.avatarAlt")} />
           <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
@@ -60,7 +62,7 @@ export default function UserMenu() {
         <DropdownMenuLabel className="p-0">
           <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
             <Avatar>
-              <AvatarImage src={avatarSrc} alt={displayName ?? "User avatar"} />
+              <AvatarImage src={avatarSrc} alt={displayName ?? t("userMenu.avatarAlt")} />
               <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
@@ -74,7 +76,7 @@ export default function UserMenu() {
           <Link href="/settings/account" passHref>
           <DropdownMenuItem>
             <BadgeCheck />
-            Account
+            {t("userMenu.account")}
           </DropdownMenuItem>
           </Link>
           {/** 
@@ -91,7 +93,7 @@ export default function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout}>
           <LogOut />
-          Log out
+          {t("userMenu.logout")}
         </DropdownMenuItem>
         {/** 
         <div className="bg-muted mt-1.5 rounded-md border">

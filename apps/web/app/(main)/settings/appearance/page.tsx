@@ -36,6 +36,7 @@ import {
   ThemeRadiusSelector,
   ResetThemeButton
 } from "@/components/theme-customizer";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 const appearanceFormSchema = z.object({
   font: z.enum(["inter", "geist", "system"], {
@@ -49,6 +50,7 @@ type AppearanceFormValues = z.infer<typeof appearanceFormSchema>;
 export default function Page() {
   const { setTheme } = useTheme();
   const { settings, saveSettings, isSaving } = useUserSettings();
+  const { t } = useI18n();
 
   const form = useForm<AppearanceFormValues>({
     resolver: zodResolver(appearanceFormSchema),
@@ -76,9 +78,9 @@ export default function Page() {
         }
       });
       
-      toast.success("Appearance updated");
+      toast.success(t("appearance.toast.success"));
     } catch (error: any) {
-      toast.error(error.message || "Unable to update appearance");
+      toast.error(error.message || t("appearance.toast.error"));
     }
   }
 
@@ -92,7 +94,7 @@ export default function Page() {
               name="font"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Font</FormLabel>
+                  <FormLabel>{t("appearance.font.label")}</FormLabel>
                   <Select
                     onValueChange={(value) => {
                       handleFontChange(value);
@@ -101,16 +103,16 @@ export default function Page() {
                     value={field.value}>
                     <FormControl>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select font" />
+                        <SelectValue placeholder={t("appearance.font.placeholder")} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="inter">Inter</SelectItem>
-                      <SelectItem value="geist">Geist</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
+                      <SelectItem value="inter">{t("appearance.font.option.inter")}</SelectItem>
+                      <SelectItem value="geist">{t("appearance.font.option.geist")}</SelectItem>
+                      <SelectItem value="system">{t("appearance.font.option.system")}</SelectItem>
                     </SelectContent>
                   </Select>
-                  <FormDescription>Set the font you want to use in the dashboard.</FormDescription>
+                  <FormDescription>{t("appearance.font.description")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -119,8 +121,8 @@ export default function Page() {
             <div className="space-y-4">
                <div>
                  <div className="mb-4">
-                   <h3 className="text-lg font-medium">Theme Customization</h3>
-                   <p className="text-sm text-muted-foreground">Customize the look and feel of the workspace.</p>
+                   <h3 className="text-lg font-medium">{t("appearance.theme.title")}</h3>
+                   <p className="text-sm text-muted-foreground">{t("appearance.theme.description")}</p>
                  </div>
                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                    <PresetSelector />
@@ -135,7 +137,7 @@ export default function Page() {
             </div>
 
             <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving..." : "Update preferences"}
+              {isSaving ? t("appearance.savingButton") : t("appearance.updateButton")}
             </Button>
           </form>
         </Form>

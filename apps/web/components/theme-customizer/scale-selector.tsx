@@ -4,13 +4,15 @@ import { Label } from "@/components/ui/label";
 import { useThemeConfig } from "@/components/active-theme";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { BanIcon } from "lucide-react";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function ThemeScaleSelector() {
   const { theme, setTheme } = useThemeConfig();
+  const { t } = useI18n();
 
   return (
     <div className="flex flex-col gap-4">
-      <Label htmlFor="roundedCorner">Scale:</Label>
+      <Label htmlFor="roundedCorner">{t("appearance.theme.scale.label")}</Label>
       <div>
         <ToggleGroup
           value={theme.scale}

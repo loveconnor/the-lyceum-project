@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BellIcon, BookOpen, Target, Award } from "lucide-react";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 const notificationsFormSchema = z.object({
   learning_reminders: z.boolean().default(true),
@@ -32,6 +33,7 @@ type NotificationsFormValues = z.infer<typeof notificationsFormSchema>;
 
 export default function Page() {
   const { settings, saveSettings, isSaving } = useUserSettings();
+  const { t } = useI18n();
 
   const form = useForm<NotificationsFormValues>({
     resolver: zodResolver(notificationsFormSchema),
@@ -57,9 +59,9 @@ export default function Page() {
       await saveSettings({
         notifications: data
       });
-      toast.success("Notification preferences updated");
+      toast.success(t("settings.notifications.toast.success"));
     } catch (error: any) {
-      toast.error(error.message || "Unable to update notification preferences");
+      toast.error(error.message || t("settings.notifications.toast.error"));
     }
   }
 
@@ -69,11 +71,10 @@ export default function Page() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BellIcon className="h-5 w-5" />
-            Learning Notifications
+            {t("settings.notifications.title")}
           </CardTitle>
           <CardDescription>
-            Manage when and how you receive notifications about your learning progress. 
-            Notifications are designed to be minimal and focused on helping you stay consistent.
+            {t("settings.notifications.description")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -88,11 +89,10 @@ export default function Page() {
                       <div className="space-y-0.5">
                         <FormLabel className="text-base flex items-center gap-2">
                           <BookOpen className="h-4 w-4" />
-                          Learning Reminders
+                          {t("settings.notifications.learningReminders.label")}
                         </FormLabel>
                         <FormDescription>
-                          Get gentle reminders to continue your learning paths when you haven't 
-                          studied in a few days. Example: "You haven't continued Introduction to Integrals in 3 days."
+                          {t("settings.notifications.learningReminders.description")}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -110,11 +110,10 @@ export default function Page() {
                       <div className="space-y-0.5">
                         <FormLabel className="text-base flex items-center gap-2">
                           <Target className="h-4 w-4" />
-                          Learning Path Milestones
+                          {t("settings.notifications.pathMilestones.label")}
                         </FormLabel>
                         <FormDescription>
-                          Celebrate when you complete a learning path or are close to finishing. 
-                          Example: "You completed JavaScript Fundamentals!" or "You're one lab away from completing this path."
+                          {t("settings.notifications.pathMilestones.description")}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -132,11 +131,10 @@ export default function Page() {
                       <div className="space-y-0.5">
                         <FormLabel className="text-base flex items-center gap-2">
                           <Award className="h-4 w-4" />
-                          Lab & Module Completions
+                          {t("settings.notifications.labMilestones.label")}
                         </FormLabel>
                         <FormDescription>
-                          Get notified when you complete labs or modules within your learning paths. 
-                          Positive reinforcement for your progress.
+                          {t("settings.notifications.labMilestones.description")}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -148,17 +146,16 @@ export default function Page() {
               </div>
 
               <div className="border-t pt-6">
-                <h3 className="mb-4 text-lg font-medium">Delivery Method</h3>
+                <h3 className="mb-4 text-lg font-medium">{t("settings.notifications.delivery.title")}</h3>
                 <FormField
                   control={form.control}
                   name="email_enabled"
                   render={({ field }) => (
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                       <div className="space-y-0.5">
-                        <FormLabel className="text-base">Email Notifications</FormLabel>
+                        <FormLabel className="text-base">{t("settings.notifications.email.label")}</FormLabel>
                         <FormDescription>
-                          Receive notification emails at your registered email address. 
-                          Emails will only be sent for the notification types you've enabled above.
+                          {t("settings.notifications.email.description")}
                         </FormDescription>
                       </div>
                       <FormControl>
@@ -170,7 +167,7 @@ export default function Page() {
               </div>
 
               <Button type="submit" disabled={isSaving}>
-                {isSaving ? "Saving..." : "Save Preferences"}
+                {isSaving ? t("settings.notifications.savingButton") : t("settings.notifications.saveButton")}
               </Button>
             </form>
           </Form>
@@ -180,16 +177,15 @@ export default function Page() {
       <Card className="bg-muted/50">
         <CardContent className="pt-6">
           <div className="space-y-2">
-            <h4 className="text-sm font-medium">About Lyceum Notifications</h4>
+            <h4 className="text-sm font-medium">{t("settings.notifications.about.title")}</h4>
             <p className="text-muted-foreground text-sm">
-              Our notification system is designed to support your learning journey without becoming 
-              a distraction. Notifications are:
+              {t("settings.notifications.about.description")}
             </p>
             <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
-              <li>Sparse and meaningful - only when it matters</li>
-              <li>Focused on your progress and consistency</li>
-              <li>Never about social activity or non-learning events</li>
-              <li>Delivered primarily via email for a calm experience</li>
+              <li>{t("settings.notifications.about.list1")}</li>
+              <li>{t("settings.notifications.about.list2")}</li>
+              <li>{t("settings.notifications.about.list3")}</li>
+              <li>{t("settings.notifications.about.list4")}</li>
             </ul>
           </div>
         </CardContent>

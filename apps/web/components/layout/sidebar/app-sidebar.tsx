@@ -27,6 +27,7 @@ import { SIDEBAR_ITEMS } from "@/lib/settings";
 import { useUserSettings } from "@/components/providers/settings-provider";
 import logo from "../logo.png"
 import Image from "next/image";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
@@ -34,6 +35,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isTablet = useIsTablet();
   const user = useUserProfile();
   const { settings } = useUserSettings();
+  const { t } = useI18n();
   const router = useRouter();
   const supabase = createClient();
 
@@ -72,7 +74,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <Image src={logo} alt="Logo" className="h-5 w-5 dark:invert" width={20} height={20} />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="text-foreground font-semibold">The Lyceum Project</span>
+                <span className="text-foreground font-semibold">{t("app.name")}</span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -96,12 +98,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             {item.href ? (
                               <Link href={item.href}>
                                 <item.icon className="size-4" />
-                                <span>{item.label}</span>
+                                <span>{t(item.labelKey)}</span>
                               </Link>
                             ) : (
                               <>
                                 <item.icon className="size-4" />
-                                <span>{item.label}</span>
+                                <span>{t(item.labelKey)}</span>
                               </>
                             )}
                           </SidebarMenuButton>
@@ -127,12 +129,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           {item.href ? (
                             <Link href={item.href}>
                               <item.icon className="size-4" />
-                              <span>{item.label}</span>
+                              <span>{t(item.labelKey)}</span>
                             </Link>
                           ) : (
                             <>
                               <item.icon className="size-4" />
-                              <span>{item.label}</span>
+                              <span>{t(item.labelKey)}</span>
                             </>
                           )}
                         </SidebarMenuButton>

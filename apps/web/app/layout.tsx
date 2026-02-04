@@ -14,6 +14,7 @@ import { ActiveThemeProvider } from "@/components/active-theme";
 import { DEFAULT_THEME } from "@/lib/themes";
 import { Toaster } from "@/components/ui/sonner";
 import { AnalyticsProvider } from "@/components/providers/analytics-provider";
+import { LANGUAGE_COOKIE_NAME, getLocaleFromString } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "The Lyceum Project",
@@ -31,6 +32,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const cookieStore = await cookies();
+  const locale = getLocaleFromString(cookieStore.get(LANGUAGE_COOKIE_NAME)?.value ?? null);
   const themeSettings = {
     preset: (cookieStore.get("theme_preset")?.value ?? DEFAULT_THEME.preset) as any,
     scale: (cookieStore.get("theme_scale")?.value ?? DEFAULT_THEME.scale) as any,
@@ -49,7 +51,7 @@ export default async function RootLayout({
   );
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body
         suppressHydrationWarning
         className={cn("bg-background group/layout font-sans", fontVariables)}

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/form";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 const displayFormSchema = z.object({
   sidebarItems: z
@@ -33,6 +34,7 @@ type DisplayFormValues = z.infer<typeof displayFormSchema>;
 
 export default function Page() {
   const { settings, saveSettings, isSaving } = useUserSettings();
+  const { t } = useI18n();
   const [mounted, setMounted] = useState(false);
 
   const form = useForm<DisplayFormValues>({
@@ -59,9 +61,9 @@ export default function Page() {
           sidebarItems: data.sidebarItems
         }
       });
-      toast.success("Sidebar updated");
+      toast.success(t("display.toast.success"));
     } catch (error: any) {
-      toast.error(error.message || "Unable to update sidebar");
+      toast.error(error.message || t("display.toast.error"));
     }
   }
 
@@ -80,10 +82,8 @@ export default function Page() {
               render={() => (
                 <FormItem>
                   <div className="mb-4">
-                    <FormLabel className="text-base">Sidebar</FormLabel>
-                    <FormDescription>
-                      Select the navigation items you want to display in the sidebar.
-                    </FormDescription>
+                    <FormLabel className="text-base">{t("display.sidebar.label")}</FormLabel>
+                    <FormDescription>{t("display.sidebar.description")}</FormDescription>
                   </div>
                   {SIDEBAR_ITEMS.map((item) => (
                     <FormField
@@ -105,7 +105,7 @@ export default function Page() {
                                 }}
                               />
                             </FormControl>
-                            <FormLabel className="font-normal">{item.label}</FormLabel>
+                            <FormLabel className="font-normal">{t(item.labelKey)}</FormLabel>
                           </FormItem>
                         );
                       }}
@@ -116,7 +116,7 @@ export default function Page() {
               )}
             />
             <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving..." : "Update display"}
+              {isSaving ? t("display.savingButton") : t("display.updateButton")}
             </Button>
           </form>
         </Form>

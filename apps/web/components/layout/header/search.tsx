@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 type SearchItem = {
   label: string;
@@ -33,22 +33,8 @@ type SearchGroup = {
   items: SearchItem[];
 };
 
-const navigationItems: SearchItem[] = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "AI Assistant", href: "/assistant", icon: Sparkles },
-  { label: "Learning Paths", href: "/paths", icon: Compass },
-  { label: "Labs", href: "/labs", icon: FlaskConical },
-  { label: "Settings", href: "/settings", icon: Settings },
-];
-
-const settingsItems: SearchItem[] = [
-  { label: "Account Settings", href: "/settings/account", icon: User, description: "Manage your profile and account details" },
-  { label: "Appearance", href: "/settings/appearance", icon: Palette, description: "Customize theme and font preferences" },
-  { label: "Notifications", href: "/settings/notifications", icon: Bell, description: "Configure learning reminders and alerts" },
-  { label: "Display", href: "/settings/display", icon: Settings, description: "Customize sidebar and layout options" },
-];
-
 export default function Search() {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -59,6 +45,45 @@ export default function Search() {
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const navigationItems: SearchItem[] = React.useMemo(
+    () => [
+      { label: t("nav.dashboard"), href: "/", icon: LayoutDashboard },
+      { label: t("nav.aiAssistant"), href: "/assistant", icon: Sparkles },
+      { label: t("nav.learningPaths"), href: "/paths", icon: Compass },
+      { label: t("nav.labs"), href: "/labs", icon: FlaskConical },
+      { label: t("nav.settings"), href: "/settings", icon: Settings }
+    ],
+    [t]
+  );
+  const settingsItems: SearchItem[] = React.useMemo(
+    () => [
+      {
+        label: t("nav.accountSettings"),
+        href: "/settings/account",
+        icon: User,
+        description: t("search.settings.account.description")
+      },
+      {
+        label: t("nav.appearance"),
+        href: "/settings/appearance",
+        icon: Palette,
+        description: t("search.settings.appearance.description")
+      },
+      {
+        label: t("nav.notifications"),
+        href: "/settings/notifications",
+        icon: Bell,
+        description: t("search.settings.notifications.description")
+      },
+      {
+        label: t("nav.display"),
+        href: "/settings/display",
+        icon: Settings,
+        description: t("search.settings.display.description")
+      }
+    ],
+    [t]
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -106,7 +131,7 @@ export default function Search() {
           label: p.title,
           href: `/paths/${p.id}`,
           description: p.description || undefined,
-          badge: p.status === 'completed' ? 'Completed' : p.status === 'in-progress' ? 'In Progress' : undefined,
+          badge: p.status === 'completed' ? t("search.badge.completed") : p.status === 'in-progress' ? t("search.badge.inProgress") : undefined,
           icon: Compass
         })));
       }
@@ -139,9 +164,9 @@ export default function Search() {
 
       if (chatsData) {
         setChats(chatsData.map(c => ({
-          label: c.title || 'Untitled Chat',
+          label: c.title || t("search.untitledChat"),
           href: `/assistant?chat=${c.id}`,
-          description: `Created ${new Date(c.created_at).toLocaleDateString()}`,
+          description: t("search.chatCreated", { date: new Date(c.created_at).toLocaleDateString() }),
           icon: MessageSquare
         })));
       }
@@ -180,23 +205,23 @@ export default function Search() {
 
   const searchGroups: SearchGroup[] = [
     ...(filteredNavigation.length > 0 ? [{
-      title: "Navigation",
+      title: t("search.group.navigation"),
       items: filteredNavigation
     }] : []),
     ...(filteredSettings.length > 0 ? [{
-      title: "Settings",
+      title: t("search.group.settings"),
       items: filteredSettings
     }] : []),
     ...(filteredPaths.length > 0 ? [{
-      title: "Learning Paths",
+      title: t("search.group.paths"),
       items: filteredPaths
     }] : []),
     ...(filteredLabs.length > 0 ? [{
-      title: "Labs",
+      title: t("search.group.labs"),
       items: filteredLabs
     }] : []),
     ...(filteredChats.length > 0 ? [{
-      title: "Chats",
+      title: t("search.group.chats"),
       items: filteredChats
     }] : [])
   ];
@@ -207,7 +232,7 @@ export default function Search() {
         <SearchIcon className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
         <Input
           className="h-9 w-full cursor-pointer rounded-md border pr-4 pl-10 text-sm shadow-xs"
-          placeholder="Search paths, labs, chats, settings..."
+          placeholder={t("search.placeholder")}
           type="search"
           onFocus={() => setOpen(true)}
         />
@@ -234,11 +259,11 @@ export default function Search() {
         <CommandDialog open={open} onOpenChange={setOpen}>
           <VisuallyHidden>
             <DialogHeader>
-              <DialogTitle>Search</DialogTitle>
+              <DialogTitle>{t("search.dialogTitle")}</DialogTitle>
             </DialogHeader>
           </VisuallyHidden>
           <CommandInput 
-            placeholder="Search paths, labs, chats, settings..." 
+            placeholder={t("search.placeholder")} 
             value={searchQuery}
             onValueChange={setSearchQuery}
           />
@@ -248,7 +273,7 @@ export default function Search() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : searchGroups.length === 0 ? (
-              <CommandEmpty>No results found.</CommandEmpty>
+              <CommandEmpty>{t("search.noResults")}</CommandEmpty>
             ) : (
               searchGroups.map((group, groupIndex) => (
                 <React.Fragment key={group.title}>

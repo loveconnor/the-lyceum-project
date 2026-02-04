@@ -35,18 +35,8 @@ import { useUserSettings } from "@/components/providers/settings-provider";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CircleUserRoundIcon, Trash2Icon } from "lucide-react";
-
-const languages = [
-  { label: "English", value: "en" },
-  { label: "French", value: "fr" },
-  { label: "German", value: "de" },
-  { label: "Spanish", value: "es" },
-  { label: "Portuguese", value: "pt" },
-  { label: "Russian", value: "ru" },
-  { label: "Japanese", value: "ja" },
-  { label: "Korean", value: "ko" },
-  { label: "Chinese", value: "zh" }
-] as const;
+import { useI18n } from "@/components/providers/i18n-provider";
+import { SUPPORTED_LOCALES, getLanguageLabel } from "@/lib/i18n";
 
 const accountFormSchema = z.object({
   name: z
@@ -68,9 +58,18 @@ type AccountFormValues = z.infer<typeof accountFormSchema>;
 
 export default function Page() {
   const { settings, saveSettings, isSaving } = useUserSettings();
+  const { t, locale } = useI18n();
   const [mounted, setMounted] = useState(false);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(
     settings.profile.avatarUrl ?? null
+  );
+  const languages = useMemo(
+    () =>
+      SUPPORTED_LOCALES.map((value) => ({
+        value,
+        label: getLanguageLabel(locale, value)
+      })),
+    [locale]
   );
 
   const [{ files }, { removeFile, openFileDialog, getInputProps }] = useFileUpload({
@@ -146,9 +145,9 @@ export default function Page() {
           avatarUrl: avatarPreview
         }
       });
-      toast.success("Account details updated");
+      toast.success(t("account.toast.success"));
     } catch (error: any) {
-      toast.error(error.message || "Unable to update account details");
+      toast.error(error.message || t("account.toast.error"));
     }
   }
 
@@ -167,7 +166,7 @@ export default function Page() {
                 </Avatar>
                 <div className="relative flex gap-2">
                   <Button type="button" onClick={openFileDialog} aria-haspopup="dialog">
-                    {files[0]?.file ? "Change image" : "Upload image"}
+                    {files[0]?.file ? t("account.changeImage") : t("account.uploadImage")}
                   </Button>
                   <input
                     {...getInputProps()}
@@ -193,12 +192,12 @@ export default function Page() {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{t("account.name.label")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Your name" {...field} />
+                    <Input placeholder={t("account.name.placeholder")} {...field} />
                   </FormControl>
                   <FormDescription>
-                    This is the name that will be displayed on your profile and in emails.
+                    {t("account.name.description")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -209,12 +208,12 @@ export default function Page() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>{t("account.email.label")}</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="you@example.com" {...field} />
+                    <Input type="email" placeholder={t("account.email.placeholder")} {...field} />
                   </FormControl>
                   <FormDescription>
-                    This is the email that appears on your profile and notifications.
+                    {t("account.email.description")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -225,7 +224,7 @@ export default function Page() {
               name="dob"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Date of birth</FormLabel>
+                  <FormLabel>{t("account.dob.label")}</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -235,7 +234,7 @@ export default function Page() {
                             "w-full pl-3 text-left font-normal",
                             !field.value && "text-muted-foreground"
                           )}>
-                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                          {field.value ? format(field.value, "PPP") : <span>{t("account.dob.placeholder")}</span>}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
                       </FormControl>
@@ -252,7 +251,7 @@ export default function Page() {
                       />
                     </PopoverContent>
                   </Popover>
-                  <FormDescription>Your date of birth is used to calculate your age.</FormDescription>
+                  <FormDescription>{t("account.dob.description")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -262,7 +261,7 @@ export default function Page() {
               name="language"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Language</FormLabel>
+                  <FormLabel>{t("account.language.label")}</FormLabel>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -275,16 +274,16 @@ export default function Page() {
                           )}>
                           {field.value
                             ? languages.find((language) => language.value === field.value)?.label
-                            : "Select language"}
+                            : t("account.language.placeholder")}
                           <CaretSortIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
                     <PopoverContent className="p-0" align="start">
                       <Command>
-                        <CommandInput placeholder="Search language..." />
+                        <CommandInput placeholder={t("account.language.searchPlaceholder")} />
                         <CommandList>
-                          <CommandEmpty>No language found.</CommandEmpty>
+                          <CommandEmpty>{t("account.language.empty")}</CommandEmpty>
                           <CommandGroup>
                             {languages.map((language) => (
                               <CommandItem
@@ -308,14 +307,14 @@ export default function Page() {
                     </PopoverContent>
                   </Popover>
                   <FormDescription>
-                    This is the language that will be used in the dashboard.
+                    {t("account.language.description")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving..." : "Update account"}
+              {isSaving ? t("account.savingButton") : t("account.updateButton")}
             </Button>
           </form>
         </Form>

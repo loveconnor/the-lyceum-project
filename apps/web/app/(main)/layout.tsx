@@ -9,6 +9,7 @@ import { UserProvider } from "@/components/providers/user-provider";
 import { coerceSettings } from "@/lib/settings";
 import { SettingsProvider } from "@/components/providers/settings-provider";
 import { FontApplier } from "@/components/font-applier";
+import { I18nBridge } from "@/components/providers/i18n-bridge";
 
 export default async function MainLayout({
   children
@@ -63,29 +64,31 @@ export default async function MainLayout({
   return (
     <UserProvider user={userProfile}>
       <SettingsProvider initialSettings={userSettings}>
-        <FontApplier />
-        <SidebarProvider
-          defaultOpen={defaultOpen}
-          style={
-            {
-              "--sidebar-width": "calc(var(--spacing) * 64)",
-              "--header-height": "calc(var(--spacing) * 14)",
-              "--content-padding": "calc(var(--spacing) * 4)",
-              "--content-margin": "calc(var(--spacing) * 1.5)",
-              "--content-full-height":
-                "calc(100vh - var(--header-height) - (var(--content-padding) * 2) - (var(--content-margin) * 2))"
-            } as React.CSSProperties
-          }>
-          <AppSidebar variant="inset" />
-          <SidebarInset>
-            <SiteHeader />
-            <div className="bg-muted/50 flex flex-1 flex-col">
-              <div className="@container/main p-[var(--content-padding)] xl:group-data-[theme-content-layout=centered]/layout:container xl:group-data-[theme-content-layout=centered]/layout:mx-auto">
-                {children}
+        <I18nBridge>
+          <FontApplier />
+          <SidebarProvider
+            defaultOpen={defaultOpen}
+            style={
+              {
+                "--sidebar-width": "calc(var(--spacing) * 64)",
+                "--header-height": "calc(var(--spacing) * 14)",
+                "--content-padding": "calc(var(--spacing) * 4)",
+                "--content-margin": "calc(var(--spacing) * 1.5)",
+                "--content-full-height":
+                  "calc(100vh - var(--header-height) - (var(--content-padding) * 2) - (var(--content-margin) * 2))"
+              } as React.CSSProperties
+            }>
+            <AppSidebar variant="inset" />
+            <SidebarInset>
+              <SiteHeader />
+              <div className="bg-muted/50 flex flex-1 flex-col">
+                <div className="@container/main p-[var(--content-padding)] xl:group-data-[theme-content-layout=centered]/layout:container xl:group-data-[theme-content-layout=centered]/layout:mx-auto">
+                  {children}
+                </div>
               </div>
-            </div>
-          </SidebarInset>
-        </SidebarProvider>
+            </SidebarInset>
+          </SidebarProvider>
+        </I18nBridge>
       </SettingsProvider>
     </UserProvider>
   );

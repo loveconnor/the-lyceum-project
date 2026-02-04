@@ -3,9 +3,11 @@
 import { useThemeConfig } from "@/components/active-theme";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_THEME } from "@/lib/themes";
+import { useI18n } from "@/components/providers/i18n-provider";
 
 export function ResetThemeButton() {
   const { setTheme } = useThemeConfig();
+  const { t } = useI18n();
 
   const resetThemeHandle = () => {
     setTheme(DEFAULT_THEME);
@@ -13,7 +15,7 @@ export function ResetThemeButton() {
 
   return (
     <Button variant="destructive" className="mt-4 w-full" onClick={resetThemeHandle}>
-      Reset to Default
+      {t("appearance.theme.reset")}
     </Button>
   );
 }
