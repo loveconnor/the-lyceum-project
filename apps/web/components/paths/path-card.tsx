@@ -262,11 +262,11 @@ const PathCard: React.FC<PathCardProps> = ({
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleNavigateToModules();
+                        if (onView) onView(path.id);
                       }}
                     >
                       <Eye className="mr-2 h-4 w-4" />
-                      View Modules
+                      View Path Overview
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem

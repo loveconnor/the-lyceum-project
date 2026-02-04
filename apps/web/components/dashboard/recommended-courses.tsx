@@ -37,7 +37,7 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { Progress } from "@/components/ui/progress";
 import { createClient } from "@/utils/supabase/client";
 import { EmptyState } from "./empty-state";
-import PathDetailSheet from "@/components/paths/path-detail-sheet";
+import PathDetailDialog from "@/components/paths/path-detail-dialog";
 import { generatePath, fetchPaths } from "@/lib/api/paths";
 import { usePathStore } from "@/app/(main)/paths/store";
 import { markPrimaryFeature, trackEvent } from "@/lib/analytics";
@@ -483,8 +483,8 @@ export function RecommendedCoursesTable({
         )}
       </CardContent>
       
-      {/* Path Detail Sheet */}
-      <PathDetailSheet
+      {/* Path Detail Dialog */}
+      <PathDetailDialog
         isOpen={isPathSheetOpen}
         onClose={handleClosePathSheet}
         pathId={selectedPathId}

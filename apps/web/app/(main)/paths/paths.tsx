@@ -4,8 +4,8 @@ import React, { useEffect } from "react";
 import { usePathStore } from "./store";
 
 import PathList from "@/components/paths/path-list";
-import PathDetailSheet from "@/components/paths/path-detail-sheet";
-import CreatePathSheet from "@/components/paths/create-path-sheet";
+import PathDetailDialog from "@/components/paths/path-detail-dialog";
+import CreatePathDialog from "@/components/paths/create-path-dialog";
 import { LearningPath } from "./types";
 
 export default function Paths({ paths }: { paths: LearningPath[] }) {
@@ -69,13 +69,13 @@ export default function Paths({ paths }: { paths: LearningPath[] }) {
         onAddPathClick={handleAddPathClick}
       />
 
-      <CreatePathSheet
+      <CreatePathDialog
         isOpen={isAddDialogOpen}
         onClose={handleCloseAddSheet}
         editPathId={editPathId}
       />
 
-      <PathDetailSheet
+      <PathDetailDialog
         isOpen={isPathSheetOpen}
         onClose={handleClosePathSheet}
         pathId={selectedPathId}

@@ -59,6 +59,12 @@ VISUAL AIDS HANDLING:
 - Visual aids are supplemental - the source text is ALWAYS authoritative
 - If a visual doesn't match the text perfectly, prioritize the text
 
+PRACTICAL EXERCISE TYPE RULES (CRITICAL):
+- ALWAYS set "exercise_type" for every practical exercise
+- Use "code_editor" ONLY when the exercise requires writing code (functions, classes, programs)
+- If the topic is NOT programming/software development, NEVER use "code_editor"
+- For non-coding topics, use "short_answer" or "multiple_choice" only
+
 OUTPUT FORMAT - Respond with JSON only:
 {
   "overview": "A 2-3 paragraph introduction synthesized from the source material. Use markdown formatting.",

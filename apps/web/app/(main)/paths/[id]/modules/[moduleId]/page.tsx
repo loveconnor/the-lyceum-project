@@ -927,36 +927,7 @@ const ExercisesSubView = ({
       }
       return currentExercise.exercise_type;
     }
-    
-    // Check for coding exercises based on description keywords
-    const description = (currentExercise?.description || '').toLowerCase();
-    const title = (currentExercise?.title || '').toLowerCase();
-    const combinedText = `${title} ${description}`;
-    
-    const codingKeywords = [
-      'write a program',
-      'write a complete',
-      'implement',
-      'java program',
-      'python program',
-      'javascript program',
-      'write code',
-      'create a function',
-      'create a class',
-      'write a function',
-      'code that',
-      'program that',
-      'using a for loop',
-      'using a while loop',
-      'using recursion'
-    ];
-    
-    const isCodingExercise = codingKeywords.some(keyword => combinedText.includes(keyword));
-    
-    if (isCodingExercise) {
-      return 'code_editor';
-    }
-    
+
     // Multiple choice detection
     if (currentExercise?.options && currentExercise.options.length > 0) {
       return 'multiple_choice';
@@ -967,7 +938,7 @@ const ExercisesSubView = ({
       return 'short_answer';
     }
     
-    // Default to short answer for non-coding problems
+    // Default to short answer
     return 'short_answer';
   };
   

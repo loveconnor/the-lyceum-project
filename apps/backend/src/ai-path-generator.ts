@@ -532,6 +532,9 @@ EXERCISE TYPES - Choose the right type for each problem:
 CRITICAL RULE FOR PROGRAMMING EXERCISES:
 - If the exercise asks the learner to WRITE ANY CODE (methods, functions, classes, programs), use "code_editor" type
 - Examples that require "code_editor": "Write a method...", "Implement a function...", "Create a program...", "Write code that..."
+NON-CODING RULE (CRITICAL):
+- If the topic is NOT programming/software development, NEVER use "code_editor"
+- For non-coding topics, use "short_answer" or "multiple_choice" only
 
 1. "short_answer" - Simple problems with a single answer
    Examples:
