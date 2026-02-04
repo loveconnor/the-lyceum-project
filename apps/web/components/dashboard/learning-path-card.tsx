@@ -4,6 +4,7 @@ import Link from "next/link";
 import { EmptyState } from "./empty-state";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { FIRST_WEEK_LOOP_NOTE } from "./first-week-copy";
 
 type LearningPathItem = {
   id?: string;
@@ -52,7 +53,8 @@ export function LearningPathCard({
           <EmptyState
             icon={BookOpenCheck}
             title="No learning path yet"
-            description="Complete an activity to unlock your personalized path. Your steps will appear here.">
+            description="Complete an activity to unlock your personalized path. Your steps will appear here."
+            note={FIRST_WEEK_LOOP_NOTE}>
           </EmptyState>
         )}
       </CardContent>

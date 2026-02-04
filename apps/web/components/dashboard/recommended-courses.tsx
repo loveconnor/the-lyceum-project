@@ -37,6 +37,7 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { Progress } from "@/components/ui/progress";
 import { createClient } from "@/utils/supabase/client";
 import { EmptyState } from "./empty-state";
+import { FIRST_WEEK_LOOP_NOTE } from "./first-week-copy";
 import PathDetailDialog from "@/components/paths/path-detail-dialog";
 import { generatePath, fetchPaths } from "@/lib/api/paths";
 import { usePathStore } from "@/app/(main)/paths/store";
@@ -455,6 +456,7 @@ export function RecommendedCoursesTable({
                       icon={GraduationCap}
                       title="No recommendations yet"
                       description="Generate courses tailored to you. Click regenerate to get your first set."
+                      note={FIRST_WEEK_LOOP_NOTE}
                       actionLabel="Regenerate"
                       actionIcon={Loader2}
                       onAction={handleRegenerate}

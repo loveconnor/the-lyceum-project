@@ -36,6 +36,7 @@ export interface Lab {
   updated_at: string;
   due_date?: string | null;
   completed_at?: string | null;
+  generation_constraint?: string;
   lab_comments?: Comment[];
   lab_progress?: LabProgress[];
   path_id?: string | null; // If part of a learning path

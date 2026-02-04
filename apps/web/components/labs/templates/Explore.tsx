@@ -58,6 +58,7 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
   const [isSimulating, setIsSimulating] = useState(false);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [currentReflection, setCurrentReflection] = useState("");
+  const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
   
   // Load progress when component mounts
   React.useEffect(() => {
@@ -125,6 +126,25 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
     } catch (error) {
       console.error("Failed to save progress:", error);
     }
+  };
+
+  const markLabComplete = async () => {
+    if (!labId) return;
+    try {
+      const { updateLab } = await import("@/lib/api/labs");
+      await updateLab(labId, {
+        status: "completed",
+        completed_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Failed to mark lab as complete:", error);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (hasMarkedComplete) return;
+    setHasMarkedComplete(true);
+    await markLabComplete();
   };
   
   const calculateTrajectory = () => {
@@ -396,7 +416,12 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
             </ScrollArea>
             
             <div className="p-4 border-t bg-background">
-              <Button className="w-full shadow-sm" variant="default">
+              <Button
+                className="w-full shadow-sm"
+                variant="default"
+                onClick={handleComplete}
+                disabled={hasMarkedComplete}
+              >
                 Complete Exploration
               </Button>
             </div>

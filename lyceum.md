@@ -44,6 +44,7 @@ The Lyceum Project is an AI powered learning platform that creates personalized 
 
 **1) Dashboard**
 - Welcome card and quick status overview.
+- Getting Started Plan checklist with a hide option after completion.
 - Learning path progress card.
 - Top topics card when there is enough data.
 - Success and activity analytics (success rate, in-progress vs completed, activity charts).
@@ -166,6 +167,43 @@ This is a key area for feature ideas. The app already has a large widget library
 
 ---
 
+**Completion & mastery semantics**
+These rules define what "completed" and "mastered" mean across labs, modules, and paths. Completion is a progress signal. Mastery is an evidence-based learning signal. They are intentionally not the same.
+
+**Definitions (global)**
+- Completion: All required steps are done and required checks are attempted. Completion can happen without understanding.
+- Mastery: Completion plus evidence of understanding. Mastery never auto-follows completion unless explicit criteria are met.
+- Reflection: Optional by default. Only required when an item is flagged `requiresReflection`.
+- Status remains `not-started` → `in-progress` → `completed`. Mastery is a separate signal (badge/field), not a replacement status.
+
+**Completion rules**
+- Lab completed: All required steps complete and any required checks attempted. Optional steps do not block.
+- Module completed: All required labs/content items completed. Optional items do not block.
+- Path completed: All required modules completed.
+
+**Mastery rules**
+- Lab mastered: Lab completed plus a mastery signal (e.g., assessment score ≥ threshold, validated submission, or two successful attempts on different days). If no mastery signal is configured, the lab cannot be marked mastered.
+- Module mastered: Module completed plus a mastery gate (e.g., all core labs mastered or a module assessment passed). If no mastery gate is configured, the module can be completed but not mastered.
+- Path mastered: Path completed plus a mastery gate (e.g., all required modules mastered or a path assessment passed). If no mastery gate is configured, the path can be completed but not mastered.
+
+**Reflection requirements**
+- Completion does not require reflection unless `requiresReflection` is set.
+- Mastery should require at least one reflection tied to the lab/module/path when a reflection prompt is available.
+
+**Analytics guidance**
+- Treat completion as activity/progress, not comprehension.
+- Report mastery separately as a learning outcome.
+- Store separate timestamps and evidence where possible: `completedAt`, `masteredAt`, and `masteryEvidence` (type + score/outcome).
+
+**UI hints (tooltips/info icons)**
+- `Completed`: "All required steps finished. This does not imply mastery."
+- `Mastered`: "You demonstrated understanding based on assessments or validated work."
+- `In progress`: "You have started; required steps remain."
+- `Not started`: "No required steps completed yet."
+- `Requires reflection`: "A short reflection is needed to finalize this item."
+
+---
+
 **AI and personalization**
 - Onboarding generates a recommended learning path via backend AI.
 - Learning paths can be AI generated with module outlines and content.
@@ -173,6 +211,10 @@ This is a key area for feature ideas. The app already has a large widget library
 - Assistant supports multi-conversation chat and optional illustrative visuals.
 - Visual enrichment system exists in backend for adding diagrams or visuals.
 - A source registry system can ground modules with external sources.
+
+**AI generation constraint (visible)**
+- Every AI-generated path, module, and lab must include one explicit constraint/assumption shown to the learner (e.g., "Designed for ~30 min/day", "Assumes basic algebra", "Will not introduce new prerequisites"). This sets expectations, reduces perceived randomness, and makes regeneration feel intentional.
+- UI hint copy: "Generated with one explicit constraint to set expectations (shown here)."
 
 ---
 
@@ -220,4 +262,3 @@ This is a key area for feature ideas. The app already has a large widget library
 - Coaching and scheduling (planner / time coach).
 - Progress insights and learner diagnostics.
 - Better source grounding and citations in modules.
-

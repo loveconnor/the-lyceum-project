@@ -101,7 +101,7 @@ export const messages = {
 
     "settings.notifications.title": "Learning Notifications",
     "settings.notifications.description":
-      "Manage when and how you receive notifications about your learning progress. Notifications are designed to be minimal and focused on helping you stay consistent.",
+      "Manage when and how you receive notifications about your learning progress. Notifications are designed to be minimal and focused on helping you stay consistent, especially in your getting-started days.",
     "settings.notifications.learningReminders.label": "Learning Reminders",
     "settings.notifications.learningReminders.description":
       "Get gentle reminders to continue your learning paths when you haven't studied in a few days. Example: \"You haven't continued Introduction to Integrals in 3 days.\"",
@@ -123,7 +123,8 @@ export const messages = {
     "settings.notifications.about.description":
       "Our notification system is designed to support your learning journey without becoming a distraction. Notifications are:",
     "settings.notifications.about.list1": "Sparse and meaningful - only when it matters",
-    "settings.notifications.about.list2": "Focused on your progress and consistency",
+    "settings.notifications.about.list2":
+      "Focused on your progress and consistency, including your getting-started plan",
     "settings.notifications.about.list3": "Never about social activity or non-learning events",
     "settings.notifications.about.list4": "Delivered primarily via email for a calm experience",
 
@@ -166,7 +167,8 @@ export const messages = {
     "notifications.dropdown.unread": "{count} unread",
     "notifications.dropdown.loading": "Loading notifications...",
     "notifications.dropdown.empty.title": "No notifications yet",
-    "notifications.dropdown.empty.subtitle": "We'll notify you about your learning progress"
+    "notifications.dropdown.empty.subtitle":
+      "Getting-started updates appear here as you complete onboarding, 1 module, 1 lab, and 1 reflection"
   },
   fr: {
     "app.name": "The Lyceum Project",

@@ -7,6 +7,7 @@ import { EmptyState } from "./empty-state";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FIRST_WEEK_LOOP_NOTE } from "./first-week-copy";
 
 export type Topic = {
   name: string;
@@ -93,6 +94,7 @@ export function TopicsCard({ topics = [] }: { topics?: Topic[] }) {
             icon={ChevronRight}
             title="No topics yet"
             description="Complete an activity and we will surface your top strengths and focus areas."
+            note={FIRST_WEEK_LOOP_NOTE}
           />
         )}
       </CardContent>

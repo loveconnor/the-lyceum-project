@@ -110,6 +110,7 @@ export default function ReviseTemplate({ data, labId, moduleContext }: ReviseTem
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLabOverview, setShowLabOverview] = useState(false);
   const [hasLoadedProgress, setHasLoadedProgress] = useState(false);
+  const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
   const { getAssistance, loading: aiLoading } = labId ? useLabAI(labId) : { getAssistance: null, loading: false };
   
   const currentStep = steps.find(s => s.status === "current");
@@ -200,6 +201,28 @@ export default function ReviseTemplate({ data, labId, moduleContext }: ReviseTem
       console.error("Failed to save progress:", error);
     }
   };
+
+  const markLabComplete = async () => {
+    if (!labId) return;
+    try {
+      const { updateLab } = await import("@/lib/api/labs");
+      await updateLab(labId, {
+        status: "completed",
+        completed_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Failed to mark lab as complete:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!labId || isLoading) return;
+    const allCompleted = steps.length > 0 && steps.every((step) => step.status === "completed");
+    if (allCompleted && !hasMarkedComplete) {
+      setHasMarkedComplete(true);
+      markLabComplete();
+    }
+  }, [steps, labId, isLoading, hasMarkedComplete]);
 
   const goToStep = (id: string) => {
     setSteps(prev => {

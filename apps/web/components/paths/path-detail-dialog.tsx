@@ -13,6 +13,7 @@ import {
 import { usePathStore } from "@/app/(main)/paths/store";
 import { statusClasses, pathStatusNamed } from "@/app/(main)/paths/enum";
 import { fetchPathById } from "@/lib/api/paths";
+import { getPathConstraint } from "@/lib/ai-constraints";
 import { createClient } from "@/utils/supabase/client";
 import type { Reflection } from "@/types/reflections";
 
@@ -22,6 +23,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ReflectionCard } from "@/components/reflections/reflection-list";
+import { AIConstraintNotice } from "@/components/ai/ai-constraint-notice";
 
 interface PathDetailDialogProps {
   isOpen: boolean;
@@ -179,6 +181,7 @@ const PathDetailDialog: React.FC<PathDetailDialogProps> = ({
   }, [isOpen, pathId, moduleIds]);
 
   if (!path) return null;
+  const pathConstraint = getPathConstraint(path);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -213,6 +216,10 @@ const PathDetailDialog: React.FC<PathDetailDialogProps> = ({
               <p className="text-muted-foreground text-sm leading-relaxed">
                 {path.description || "Complete this learning path to build comprehensive skills in this domain."}
               </p>
+              <AIConstraintNotice
+                constraint={pathConstraint}
+                className="max-w-3xl"
+              />
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-1.5">

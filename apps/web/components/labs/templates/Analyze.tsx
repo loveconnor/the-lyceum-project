@@ -102,6 +102,7 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
   const [claim, setClaim] = useState("");
   const [evidence, setEvidence] = useState("");
   const [reasoning, setReasoning] = useState("");
+  const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
 
   // Load progress when component mounts
   React.useEffect(() => {
@@ -210,6 +211,28 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
       console.error("Failed to save progress:", error);
     }
   };
+
+  const markLabComplete = async () => {
+    if (!labId) return;
+    try {
+      const { updateLab } = await import("@/lib/api/labs");
+      await updateLab(labId, {
+        status: "completed",
+        completed_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Failed to mark lab as complete:", error);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!labId || isLoadingProgress) return;
+    const allCompleted = steps.length > 0 && steps.every((step) => step.status === "completed");
+    if (allCompleted && !hasMarkedComplete) {
+      setHasMarkedComplete(true);
+      markLabComplete();
+    }
+  }, [steps, labId, isLoadingProgress, hasMarkedComplete]);
 
   const goToStep = (id: string) => {
     const stepIndex = steps.findIndex(s => s.id === id);

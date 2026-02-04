@@ -10,7 +10,8 @@ import {
   StudentSuccessCard,
   CourseProgressByMonth,
   RecommendedCoursesTable,
-  DashboardAnalytics
+  DashboardAnalytics,
+  FirstWeekSuccessLoop
 } from "@/components/dashboard";
 import { createClient } from "@/utils/supabase/server";
 
@@ -29,6 +30,13 @@ type DashboardTopic = {
   confidence: string;
   progress: number;
   count?: number;
+};
+
+type FirstWeekStatus = {
+  onboarding_complete: boolean;
+  module_completed: boolean;
+  lab_completed: boolean;
+  reflection_written: boolean;
 };
 
 type DashboardState = {
@@ -55,6 +63,14 @@ type DashboardState = {
     paths_in_progress?: number;
   };
   activities?: Array<{ timestamp: string; type: 'lab' | 'path' }>;
+  first_week: FirstWeekStatus;
+};
+
+const DEFAULT_FIRST_WEEK: FirstWeekStatus = {
+  onboarding_complete: false,
+  module_completed: false,
+  lab_completed: false,
+  reflection_written: false
 };
 
 const DEFAULT_STATE: DashboardState = {
@@ -69,6 +85,7 @@ const DEFAULT_STATE: DashboardState = {
   learning_path: [],
   recommended_topics: [],
   stats: {},
+  first_week: DEFAULT_FIRST_WEEK
 };
 
 const fallbackTopicsFromInterests = (onboarding: any, forceConfidence?: string): DashboardTopic[] => {
@@ -98,6 +115,76 @@ const fallbackTopicsFromInterests = (onboarding: any, forceConfidence?: string):
   return topics.slice(0, 6);
 };
 
+async function fetchFirstWeekStatus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<FirstWeekStatus> {
+  if (!userId) return DEFAULT_FIRST_WEEK;
+
+  try {
+    const [
+      { data: profile },
+      { count: reflectionCount },
+      { data: paths },
+      { count: completedLabCount }
+    ] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("onboarding_complete")
+        .eq("id", userId)
+        .maybeSingle(),
+      supabase
+        .from("reflections")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId),
+      supabase
+        .from("learning_paths")
+        .select("id")
+        .eq("user_id", userId),
+      supabase
+        .from("labs")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("status", "completed")
+    ]);
+
+    const pathIds = (paths || []).map((path: { id?: string }) => path.id).filter(Boolean) as string[];
+
+    let moduleCompleted = false;
+    let labCompleted = (completedLabCount ?? 0) > 0;
+
+    if (pathIds.length > 0) {
+      const [{ count: moduleCount }, { count: labCount }] = await Promise.all([
+        supabase
+          .from("learning_path_items")
+          .select("id", { count: "exact", head: true })
+          .in("path_id", pathIds)
+          .eq("item_type", "module")
+          .eq("status", "completed"),
+        supabase
+          .from("learning_path_items")
+          .select("id", { count: "exact", head: true })
+          .in("path_id", pathIds)
+          .eq("item_type", "lab")
+          .eq("status", "completed")
+      ]);
+
+      moduleCompleted = (moduleCount ?? 0) > 0;
+      labCompleted = labCompleted || (labCount ?? 0) > 0;
+    }
+
+    return {
+      onboarding_complete: Boolean(profile?.onboarding_complete),
+      module_completed: moduleCompleted,
+      lab_completed: labCompleted,
+      reflection_written: (reflectionCount ?? 0) > 0
+    };
+  } catch (error) {
+    console.warn("First-week status fetch failed", error);
+    return DEFAULT_FIRST_WEEK;
+  }
+}
+
 async function fetchDashboardState(): Promise<DashboardState> {
   const supabase = await createClient();
   const [{ data: sessionData }, { data: userData }] = await Promise.all([
@@ -113,7 +200,9 @@ async function fetchDashboardState(): Promise<DashboardState> {
     process.env.NEXT_PUBLIC_BACKEND_URL ||
     "http://localhost:3001";
 
-  if (!token || !userId) return { ...DEFAULT_STATE, user_id: userId };
+  if (!token || !userId) {
+    return { ...DEFAULT_STATE, user_id: userId, first_week: DEFAULT_FIRST_WEEK };
+  }
 
   try {
     const res = await fetch(`${baseUrl}/dashboard`, {
@@ -125,10 +214,12 @@ async function fetchDashboardState(): Promise<DashboardState> {
 
     if (!res.ok) {
       console.warn("Dashboard fetch failed", res.status);
-      return { ...DEFAULT_STATE, user_id: userId };
+      const first_week = await fetchFirstWeekStatus(supabase, userId);
+      return { ...DEFAULT_STATE, user_id: userId, first_week };
     }
 
     const data = (await res.json()) as DashboardState;
+    const first_week = await fetchFirstWeekStatus(supabase, userId);
     return {
       user_id: data.user_id || userId,
       ...DEFAULT_STATE,
@@ -137,6 +228,7 @@ async function fetchDashboardState(): Promise<DashboardState> {
       learning_path: data.learning_path || [],
       recommended_topics: data.recommended_topics || [],
       stats: data.stats || {},
+      first_week: data.first_week ? { ...DEFAULT_FIRST_WEEK, ...data.first_week, ...first_week } : first_week
     };
   } catch (error) {
     // Swallow network errors (e.g., backend not running) and fall back to onboarding-derived data
@@ -145,7 +237,7 @@ async function fetchDashboardState(): Promise<DashboardState> {
     try {
       // Fallback: pull onboarding_data directly and synthesize recommendations client-side
       if (!userId) {
-        return { ...DEFAULT_STATE, user_id: "" };
+        return { ...DEFAULT_STATE, user_id: "", first_week: DEFAULT_FIRST_WEEK };
       }
 
       const { data: profile } = await supabase
@@ -157,16 +249,19 @@ async function fetchDashboardState(): Promise<DashboardState> {
       const forceConfidence = "Complete an activity";
       const recommended_topics = fallbackTopicsFromInterests(profile?.onboarding_data, forceConfidence);
 
+      const first_week = await fetchFirstWeekStatus(supabase, userId);
       return {
         ...DEFAULT_STATE,
         user_id: userId,
         recommended_topics,
+        first_week
       };
     } catch (fallbackError) {
       console.warn("Dashboard fallback failed", fallbackError);
     }
 
-    return { ...DEFAULT_STATE, user_id: userId };
+    const first_week = await fetchFirstWeekStatus(supabase, userId);
+    return { ...DEFAULT_STATE, user_id: userId, first_week };
   }
 }
 
@@ -233,6 +328,8 @@ async function DashboardContent({
           </div>
         )}
       </div>
+
+      <FirstWeekSuccessLoop status={dashboard.first_week} />
       
       {/* Analytics sections - only show if there's data */}
       {(hasSuccessData || hasProgressData || hasActivityData) && (() => {
@@ -296,6 +393,7 @@ function DashboardSkeleton() {
         <div className="bg-muted animate-pulse rounded-lg lg:col-span-6 xl:col-span-3 h-64" />
         <div className="bg-muted animate-pulse rounded-lg lg:col-span-6 xl:col-span-3 h-64" />
       </div>
+      <div className="bg-muted animate-pulse rounded-lg h-36" />
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="bg-muted animate-pulse rounded-lg h-64" />
         <div className="bg-muted animate-pulse rounded-lg h-64" />

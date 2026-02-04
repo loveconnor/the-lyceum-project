@@ -16,6 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import CalendarDateRangePicker from "@/components/date-range-picker";
 import { EmptyState } from "./empty-state";
+import { FIRST_WEEK_LOOP_NOTE } from "./first-week-copy";
 
 type ActivityEntry = {
   timestamp: string;
@@ -207,6 +208,7 @@ export function CourseProgressByMonth({
           className="mx-auto mb-6 flex h-[360px] max-w-md items-center justify-center"
           title="No monthly progress yet"
           description="Track at least one activity to spark your trendline and see momentum build."
+          note={FIRST_WEEK_LOOP_NOTE}
         />
       )}
     </Card>

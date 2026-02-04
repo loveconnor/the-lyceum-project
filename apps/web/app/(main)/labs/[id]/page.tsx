@@ -8,6 +8,8 @@ import LabViewer from "@/components/labs/lab-viewer";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { markLabTouched, markPrimaryFeature, trackEvent } from "@/lib/analytics";
+import { getLabConstraint } from "@/lib/ai-constraints";
+import { AIConstraintNotice } from "@/components/ai/ai-constraint-notice";
 
 export default function LabPage() {
   const params = useParams();
@@ -110,6 +112,8 @@ export default function LabPage() {
     );
   }
 
+  const labConstraint = getLabConstraint(lab);
+
   return (
     <div className="h-[var(--content-full-height)] flex flex-col">
       <div className="p-4 border-b flex items-center gap-4">
@@ -126,6 +130,10 @@ export default function LabPage() {
           {lab.description && (
             <p className="text-sm text-muted-foreground">{lab.description}</p>
           )}
+          <AIConstraintNotice
+            constraint={labConstraint}
+            className="mt-2 max-w-2xl"
+          />
         </div>
       </div>
       <div className="flex-1 overflow-hidden">

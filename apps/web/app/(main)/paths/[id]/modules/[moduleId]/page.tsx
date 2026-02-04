@@ -60,6 +60,8 @@ import { ShortAnswerWidget, CodeEditorWidget, MultipleChoiceWidget } from "@/com
 import { MultipleChoice } from "@/components/learning/MultipleChoice";
 import { ReflectionModal } from "@/components/reflections";
 import { shouldTriggerReflection } from "@/types/reflections";
+import { getLabConstraint, getModuleConstraint } from "@/lib/ai-constraints";
+import { AIConstraintNotice } from "@/components/ai/ai-constraint-notice";
 
 // --- Types & Constants ---
 
@@ -3231,6 +3233,8 @@ export default function ModulePage() {
       );
     }
 
+    const labConstraint = getLabConstraint(lab);
+
     return (
       <div className="h-[calc(100vh-var(--header-height))] flex flex-col">
         <div className="p-4 border-b flex items-center gap-4">
@@ -3245,6 +3249,10 @@ export default function ModulePage() {
             {lab.description && (
               <p className="text-sm text-muted-foreground">{lab.description}</p>
             )}
+            <AIConstraintNotice
+              constraint={labConstraint}
+              className="mt-2 max-w-2xl"
+            />
           </div>
         </div>
         <div className="flex-1 overflow-hidden">
@@ -3268,6 +3276,7 @@ export default function ModulePage() {
       (module.description ? `${module.title}: ${module.description}` : module.title);
     const initialTree = learnByDoingData?.tree?.root ? learnByDoingData.tree : null;
     const learnByDoingApi = `${LEARN_BY_DOING_API_BASE}/learn-by-doing`;
+    const moduleConstraint = getModuleConstraint(module);
 
     return (
       <div className="space-y-8">
@@ -3289,6 +3298,10 @@ export default function ModulePage() {
                 {module.description}
               </p>
             )}
+            <AIConstraintNotice
+              constraint={moduleConstraint}
+              className="w-full max-w-2xl"
+            />
           </div>
         </div>
 
@@ -3363,6 +3376,7 @@ export default function ModulePage() {
   }
 
   const chapters = moduleContent.chapters;
+  const moduleConstraint = getModuleConstraint(module);
   
   // Module is complete when: Reading is done AND (Examples OR Visuals viewed)
   const isModuleComplete = isQuizPassed && (isExamplesComplete || isVisualsComplete);
@@ -3409,10 +3423,19 @@ export default function ModulePage() {
             </Button>
           </Link>
         </div>
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-3">
           <h1 className="text-3xl md:text-4xl font-display text-center leading-tight max-w-4xl px-32">
             {module.title}
           </h1>
+          {module.description && (
+            <p className="text-sm text-muted-foreground text-center max-w-2xl">
+              {module.description}
+            </p>
+          )}
+          <AIConstraintNotice
+            constraint={moduleConstraint}
+            className="w-full max-w-2xl"
+          />
         </div>
       </div>
 

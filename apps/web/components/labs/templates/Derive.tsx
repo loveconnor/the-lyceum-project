@@ -97,6 +97,7 @@ export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTem
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accessedSteps, setAccessedSteps] = useState<Set<string>>(new Set([initialSteps[0]?.id]));
   const [showLabOverview, setShowLabOverview] = useState(false);
+  const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
   
   const currentStepRef = React.useRef<HTMLButtonElement>(null);
 
@@ -220,6 +221,28 @@ export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTem
       console.error("Failed to save progress:", error);
     }
   };
+
+  const markLabComplete = async () => {
+    if (!labId) return;
+    try {
+      const { updateLab } = await import("@/lib/api/labs");
+      await updateLab(labId, {
+        status: "completed",
+        completed_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Failed to mark lab as complete:", error);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!labId || isLoadingProgress) return;
+    const allCompleted = steps.length > 0 && steps.every((step) => step.status === "completed");
+    if (allCompleted && !hasMarkedComplete) {
+      setHasMarkedComplete(true);
+      markLabComplete();
+    }
+  }, [steps, labId, isLoadingProgress, hasMarkedComplete]);
 
   // Helper function to auto-wrap math notation for preview
   const previewWithMath = (text: string): string => {

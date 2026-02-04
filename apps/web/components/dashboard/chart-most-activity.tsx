@@ -11,6 +11,7 @@ import {
   ChartTooltipContent
 } from "@/components/ui/chart";
 import { EmptyState } from "./empty-state";
+import { FIRST_WEEK_LOOP_NOTE } from "./first-week-copy";
 
 const chartConfig = {
   lab_completed: {
@@ -102,6 +103,7 @@ export function ChartMostActivity({
             icon={Activity}
             title="No activity yet"
             description="Log your first study session or course to light up this activity map."
+            note={FIRST_WEEK_LOOP_NOTE}
           />
         )}
       </CardContent>

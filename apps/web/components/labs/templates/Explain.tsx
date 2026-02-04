@@ -100,6 +100,7 @@ export default function ExplainTemplate({ data, labId, moduleContext }: ExplainT
   const [isLoading, setIsLoading] = useState(true);
   const [showLabOverview, setShowLabOverview] = useState(false);
   const [hasLoadedProgress, setHasLoadedProgress] = useState(false);
+  const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
   const { getAssistance, loading: aiLoading } = labId ? useLabAI(labId) : { getAssistance: null, loading: false };
 
   // Dynamic explanations object based on step IDs
@@ -213,6 +214,28 @@ export default function ExplainTemplate({ data, labId, moduleContext }: ExplainT
       console.error("Failed to save progress:", error);
     }
   };
+
+  const markLabComplete = async () => {
+    if (!labId) return;
+    try {
+      const { updateLab } = await import("@/lib/api/labs");
+      await updateLab(labId, {
+        status: "completed",
+        completed_at: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Failed to mark lab as complete:", error);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!labId || isLoading) return;
+    const allCompleted = steps.length > 0 && steps.every((step) => step.status === "completed");
+    if (allCompleted && !hasMarkedComplete) {
+      setHasMarkedComplete(true);
+      markLabComplete();
+    }
+  }, [steps, labId, isLoading, hasMarkedComplete]);
 
   const completeStep = async (id: string) => {
     // Save progress before completing

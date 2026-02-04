@@ -6,6 +6,7 @@ type EmptyStateProps = {
   icon: LucideIcon;
   title: string;
   description: string;
+  note?: string;
   actionLabel?: string;
   actionIcon?: LucideIcon;
   onAction?: () => void;
@@ -16,6 +17,7 @@ export function EmptyState({
   icon: Icon,
   title,
   description,
+  note,
   actionLabel,
   actionIcon: ActionIcon,
   onAction,
@@ -31,6 +33,7 @@ export function EmptyState({
       <Icon className="text-muted-foreground mx-auto h-16 w-16" />
       <h2 className="mt-6 text-xl font-semibold">{title}</h2>
       <p className="text-muted-foreground mt-2 text-sm">{description}</p>
+      {note && <p className="text-muted-foreground mt-3 text-xs">{note}</p>}
       {actionLabel && (
         <div className="mt-6">
           <Button onClick={onAction}>

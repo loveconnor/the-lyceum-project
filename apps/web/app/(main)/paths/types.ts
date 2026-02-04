@@ -34,6 +34,7 @@ export interface Module {
   completed: boolean;
   status?: 'not-started' | 'in-progress' | 'completed';
   content_mode?: 'ai_generated' | 'registry_backed' | 'learn_by_doing';
+  generation_constraint?: string;
   content_data?: any;
   progress_data?: {
     reading_completed?: boolean;
@@ -60,6 +61,7 @@ export interface PathItem {
   item_type: 'lab' | 'module' | 'reading' | 'video' | 'quiz' | 'project';
   status: 'not-started' | 'in-progress' | 'completed';
   completed_at?: string | null;
+  generation_constraint?: string;
   content_data?: any;
   content_mode?: 'ai_generated' | 'registry_backed' | 'learn_by_doing';
   source_asset_id?: string | null;
@@ -108,6 +110,7 @@ export interface LearningPath {
   difficulty?: Difficulty;
   estimated_duration?: number; // Duration in minutes from database
   estimatedDuration?: string; // Legacy: Total path duration (e.g., "8-12 weeks", "40 hours")
+  generation_constraint?: string;
   web_sources?: WebSource[];
 }
 
