@@ -1,0 +1,46 @@
+{
+  "name": "lyceum-landing",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true,
+    "printWidth": 120,
+    "plugins": [
+      "prettier-plugin-organize-imports",
+      "prettier-plugin-tailwindcss"
+    ],
+    "tailwindStylesheet": "./src/app/globals.css",
+    "tailwindFunctions": [
+      "clsx"
+    ]
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.2.4",
+    "@tailwindplus/elements": "0.0.0-insiders.98ea4bc",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "next": "^16",
+    "react": "^19",
+    "react-dom": "^19",
+    "tailwind-merge": "^3.4.0",
+    "tailwindcss": "^4.1.18"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "^16",
+    "prettier": "^3.6.2",
+    "prettier-plugin-organize-imports": "^4.3.0",
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "typescript": "^5"
+  }
+}

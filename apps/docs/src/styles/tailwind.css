@@ -1,0 +1,154 @@
+@import 'tailwindcss';
+
+@plugin '@tailwindcss/typography';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --base-50: oklch(0.985 0.0013 286.84);
+  --base-100: oklch(0.967 0.0027 286.38);
+  --base-200: oklch(0.92 0.0053 286.32);
+  --base-300: oklch(0.871 0.008 286.29);
+  --base-400: oklch(0.705 0.012 286.07);
+  --base-500: oklch(0.552 0.016 285.94);
+  --base-600: oklch(0.442 0.0147 285.79);
+  --base-700: oklch(0.37 0.012 285.81);
+  --base-800: oklch(0.274 0.008 286.03);
+  --base-900: oklch(0.21 0.0053 285.89);
+  --base-950: oklch(0.141 0.004 285.83);
+
+  --background: var(--color-white);
+  --foreground: var(--base-800);
+  --card: var(--color-white);
+  --card-foreground: var(--base-800);
+  --popover: var(--color-white);
+  --popover-foreground: var(--base-800);
+  --primary: var(--base-950);
+  --primary-foreground: var(--color-white);
+  --secondary: var(--base-300);
+  --secondary-foreground: var(--base-800);
+  --muted: var(--base-100);
+  --muted-foreground: var(--base-500);
+  --accent: var(--base-200);
+  --accent-foreground: var(--base-800);
+  --border: var(--base-200);
+  --input: var(--base-300);
+  --ring: var(--base-800);
+
+  --color-slate-50: var(--base-50);
+  --color-slate-100: var(--base-100);
+  --color-slate-200: var(--base-200);
+  --color-slate-300: var(--base-300);
+  --color-slate-400: var(--base-400);
+  --color-slate-500: var(--base-500);
+  --color-slate-600: var(--base-600);
+  --color-slate-700: var(--base-700);
+  --color-slate-800: var(--base-800);
+  --color-slate-900: var(--base-900);
+
+  --color-sky-50: var(--base-50);
+  --color-sky-300: var(--base-300);
+  --color-sky-400: var(--base-500);
+  --color-sky-500: var(--base-700);
+  --color-sky-600: var(--base-800);
+  --color-sky-800: var(--base-900);
+  --color-cyan-400: var(--base-500);
+  --color-indigo-200: var(--base-200);
+  --color-indigo-400: var(--base-400);
+  --color-blue-300: var(--base-300);
+  --color-blue-400: var(--base-500);
+}
+
+.dark {
+  --background: var(--base-950);
+  --foreground: var(--base-200);
+  --card: var(--base-900);
+  --card-foreground: var(--base-200);
+  --popover: var(--base-900);
+  --popover-foreground: var(--base-200);
+  --primary: var(--base-50);
+  --primary-foreground: var(--base-900);
+  --secondary: var(--base-500);
+  --secondary-foreground: var(--base-200);
+  --muted: var(--base-900);
+  --muted-foreground: var(--base-400);
+  --accent: var(--base-800);
+  --accent-foreground: var(--base-200);
+  --border: var(--base-800);
+  --input: var(--base-700);
+  --ring: var(--base-200);
+}
+
+@theme {
+  --text-*: initial;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.5rem;
+  --text-base: 1rem;
+  --text-base--line-height: 2rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 2rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2.5rem;
+  --text-3xl: 2rem;
+  --text-3xl--line-height: 2.5rem;
+  --text-4xl: 2.5rem;
+  --text-4xl--line-height: 3rem;
+  --text-5xl: 3rem;
+  --text-5xl--line-height: 3.5rem;
+  --text-6xl: 3.75rem;
+  --text-6xl--line-height: 1;
+  --text-7xl: 4.5rem;
+  --text-7xl--line-height: 1;
+  --text-8xl: 6rem;
+  --text-8xl--line-height: 1;
+  --text-9xl: 8rem;
+  --text-9xl--line-height: 1;
+
+  --font-sans: var(--font-lexend);
+  --font-display: var(--font-lexend);
+  --font-display--font-feature-settings: 'ss01';
+
+  --container-8xl: 88rem;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius, 0.5rem) - 4px);
+  --radius-md: calc(var(--radius, 0.5rem) - 2px);
+  --radius-lg: var(--radius, 0.5rem);
+  --radius-xl: calc(var(--radius, 0.5rem) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  [inert] ::-webkit-scrollbar {
+    display: none;
+  }
+}

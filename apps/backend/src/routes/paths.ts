@@ -1632,7 +1632,7 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
     console.log(`[Generate] 🤖 Using AI-GENERATED content (no registry match)`);
     
     if (stream) {
-      res.write(`data: ${JSON.stringify({ type: 'status', message: shouldUseWebSearch ? '🤖 Generating content with AI + web sources...' : '🤖 Generating content with AI...' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'status', message: shouldUseWebSearch ? 'Generating content with AI + web sources...' : 'Generating content with AI...' })}\n\n`);
     }
 
     const outline = await generatePathOutline({

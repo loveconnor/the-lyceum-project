@@ -22,6 +22,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { updatePathItem } from "@/lib/api/paths";
+import { resetLab } from "@/lib/api/labs";
+import { fetchPaths } from "@/lib/api/paths";
 
 interface PathListProps {
   activeTab: FilterTab;
@@ -32,6 +35,7 @@ interface PathListProps {
 export default function PathList({ activeTab, onSelectPath, onAddPathClick }: PathListProps) {
   const {
     paths,
+    setPaths,
     updatePath,
     deletePath,
     viewMode,
@@ -158,13 +162,46 @@ export default function PathList({ activeTab, onSelectPath, onAddPathClick }: Pa
 
   const handleRestartPath = async (id: string) => {
     try {
-      await updatePath(id, { status: "not-started" as PathStatus });
-      // Reset all modules to incomplete
+      // Find the path to get its learning path items
       const path = safePaths.find(p => p.id === id);
-      if (path?.modules) {
-        const resetModules = path.modules.map(m => ({ ...m, completed: false }));
-        await updatePath(id, { modules: resetModules });
+      if (!path) {
+        toast.error("Path not found");
+        return;
       }
+
+      // Reset the main path status
+      await updatePath(id, { status: "not-started" as PathStatus });
+      
+      // Reset all learning path items to not-started
+      if (path.learning_path_items && path.learning_path_items.length > 0) {
+        const resetPromises = path.learning_path_items.map(async (item) => {
+          // Reset the path item status and clear progress
+          const itemUpdatePromise = updatePathItem(id, item.id, {
+            status: "not-started",
+            progress_data: null  // Clear any progress data
+          });
+
+          // If the item has an associated lab, reset that too
+          const labResetPromise = item.lab_id 
+            ? resetLab(item.lab_id).catch(error => {
+                console.warn(`Failed to reset lab ${item.lab_id}:`, error);
+              })
+            : Promise.resolve();
+
+          return Promise.all([itemUpdatePromise, labResetPromise]);
+        });
+        
+        await Promise.all(resetPromises);
+      }
+      
+      // Refresh paths data from server to show updated state
+      try {
+        const freshPaths = await fetchPaths();
+        setPaths(freshPaths);
+      } catch (refreshError) {
+        console.warn("Failed to refresh paths after restart:", refreshError);
+      }
+      
       toast.success("Path has been restarted");
     } catch (error) {
       console.error("Error restarting path:", error);
