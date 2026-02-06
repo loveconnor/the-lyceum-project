@@ -536,7 +536,9 @@ export function Demo({
       }
     }
 
-    const stepChildren = children.slice(introChildren.length);
+    const stepChildren = children
+      .slice(introChildren.length)
+      .filter((childKey) => Boolean(currentTree.elements[childKey]));
     const total = stepChildren.length || 1;
     const active = Math.min(Math.max(stepIndex, 0), total - 1);
     const activeChildKey = stepChildren[active];
@@ -677,7 +679,8 @@ export function Demo({
   }, [stepTreeInfo.active, widgetStates]);
 
   // Check if current step can advance
-  const canAdvanceToNext = isTextOnlyStep || completedSteps.has(stepTreeInfo.active);
+  const canAdvanceToNext =
+    isTextOnlyStep || !stepHasInteractiveWidget || completedSteps.has(stepTreeInfo.active);
 
   const stepHasBodyText = (() => {
     if (!stepByStep || !currentTree || !stepTreeInfo.activeChildKey) {

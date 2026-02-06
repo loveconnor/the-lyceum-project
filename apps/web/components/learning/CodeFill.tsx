@@ -146,6 +146,32 @@ const DEFAULT_SCENARIOS: CodeFillScenario[] = [
   },
 ];
 
+const normalizeCodeSnippet = (value: string) => {
+  if (!value) return value;
+
+  let normalized = value
+    .replace(/\\r\\n|\\n|\\r/g, "\n")
+    .replace(/\\t/g, "\t");
+  const hasGapPlaceholder = /{{\s*gap[^}]*}}/.test(normalized);
+
+  // If authored as a single-line block, expand the body for readability.
+  // Example:
+  // "public void makeSound() { System.out.println(\"Bark\"); }"
+  // -> "public void makeSound() {\n  System.out.println(\"Bark\");\n}"
+  if (!normalized.includes("\n") && !hasGapPlaceholder) {
+    const blockMatch = normalized.match(/^(.*)\{\s*([\s\S]*?)\s*\}\s*$/);
+    if (blockMatch) {
+      const header = blockMatch[1].trimEnd();
+      const body = blockMatch[2].trim();
+      if (body.length > 0) {
+        normalized = `${header}{\n  ${body}\n}`;
+      }
+    }
+  }
+
+  return normalized;
+};
+
 const highlightSyntax = (text: string) => {
   if (!text) return null;
 
@@ -200,7 +226,19 @@ const CodeRenderer = ({
   validationState,
 }: CodeRendererProps) => {
   const normalizedTemplate = useMemo(() => {
-    return template.replace(/\\r\\n|\\n|\\r/g, "\n").replace(/\\t/g, "\t");
+    let normalized = normalizeCodeSnippet(template);
+
+    // If a template is authored as a single line like:
+    // "public {{gap_1}} class Animal { {{gap_2}} }"
+    // render the block body on its own line for better code alignment.
+    if (!normalized.includes("\n")) {
+      normalized = normalized.replace(
+        /\{\s*({{gap[^}]*}})\s*\}/g,
+        "{\n  $1\n}",
+      );
+    }
+
+    return normalized;
   }, [template]);
 
   const parts = useMemo(() => {
@@ -227,7 +265,7 @@ const CodeRenderer = ({
   };
 
   return (
-    <div className="font-mono text-sm leading-8 whitespace-pre-wrap">
+    <div className="font-mono text-sm leading-8 whitespace-pre overflow-x-auto">
       {parts.map((part, index) => {
         const gapMatch = part.match(/{{(gap[^}]+)}}/);
         const gapId = gapMatch?.[1];
@@ -239,7 +277,7 @@ const CodeRenderer = ({
           const isError = validationState?.submitted && !isCorrect;
 
           let classes =
-            "inline-block min-w-[80px] min-h-[28px] px-3 py-1 mx-1 rounded text-xs transition-all duration-200 cursor-pointer select-none border border-dashed align-middle whitespace-pre";
+            "inline-block min-w-[80px] min-h-[28px] px-3 py-1 my-0.5 rounded text-xs transition-all duration-200 cursor-pointer select-none border border-dashed align-middle whitespace-pre";
 
           if (isSelected) {
             classes +=
@@ -278,7 +316,7 @@ const CodeRenderer = ({
               onDrop={(e) => handleDrop(e, gapId)}
               className={classes}
             >
-              {filledOption ? filledOption.label : ""}
+              {filledOption ? normalizeCodeSnippet(filledOption.label) : ""}
             </span>
           );
         }
@@ -290,7 +328,7 @@ const CodeRenderer = ({
 };
 
 type OptionBankProps = {
-  options: CodeFillOption[];
+  options: Array<CodeFillOption & { instanceKey: string }>;
   onSelect: (option: CodeFillOption) => void;
 };
 
@@ -310,12 +348,14 @@ const OptionBank = ({ options, onSelect }: OptionBankProps) => {
       <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">
         Options
       </h3>
-      {safeOptions.map((opt) => (
+      {safeOptions.map((opt) => {
+        const { instanceKey, ...option } = opt;
+        return (
         <button
-          key={opt.id}
+          key={instanceKey}
           draggable
-          onDragStart={(e) => handleDragStart(e, opt)}
-          onClick={() => onSelect(opt)}
+          onDragStart={(e) => handleDragStart(e, option)}
+          onClick={() => onSelect(option)}
           className="
             w-full text-left px-4 py-3
             bg-card border border-border rounded-lg shadow-sm
@@ -324,11 +364,12 @@ const OptionBank = ({ options, onSelect }: OptionBankProps) => {
             cursor-grab active:cursor-grabbing
           "
         >
-          <span className="font-mono text-sm text-foreground pointer-events-none">
-            {opt.label}
+          <span className="font-mono text-sm text-foreground pointer-events-none whitespace-pre-wrap leading-7">
+            {normalizeCodeSnippet(option.label)}
           </span>
         </button>
-      ))}
+        );
+      })}
     </div>
   );
 };
@@ -405,6 +446,52 @@ export function CodeFill({ element, children }: ComponentRenderProps) {
   });
 
   const scenario = scenarios[currentScenarioIndex] ?? scenarios[0];
+  const availableOptions = useMemo<Array<CodeFillOption & { instanceKey: string }>>(() => {
+    if (!scenario) return [];
+
+    const canonicalOptionById = new Map<string, CodeFillOption>();
+    const totalById = new Map<string, number>();
+
+    // Preserve author order while allowing duplicate pool entries by id.
+    for (const option of scenario.options) {
+      if (!canonicalOptionById.has(option.id)) {
+        canonicalOptionById.set(option.id, option);
+      }
+      totalById.set(option.id, (totalById.get(option.id) ?? 0) + 1);
+    }
+
+    // If a correct option id is used in multiple gaps, ensure enough copies exist.
+    const expectedCounts = new Map<string, number>();
+    for (const gap of scenario.gaps) {
+      expectedCounts.set(gap.expectedId, (expectedCounts.get(gap.expectedId) ?? 0) + 1);
+    }
+    for (const [optionId, expectedCount] of expectedCounts.entries()) {
+      const currentTotal = totalById.get(optionId) ?? 0;
+      if (currentTotal < expectedCount && canonicalOptionById.has(optionId)) {
+        totalById.set(optionId, expectedCount);
+      }
+    }
+
+    const usedById = new Map<string, number>();
+    for (const selected of Object.values(answers)) {
+      if (!selected?.id) continue;
+      usedById.set(selected.id, (usedById.get(selected.id) ?? 0) + 1);
+    }
+
+    const pool: Array<CodeFillOption & { instanceKey: string }> = [];
+    for (const [optionId, totalCount] of totalById.entries()) {
+      const option = canonicalOptionById.get(optionId);
+      if (!option) continue;
+      const usedCount = usedById.get(optionId) ?? 0;
+      const remaining = Math.max(0, totalCount - usedCount);
+
+      for (let i = 0; i < remaining; i += 1) {
+        pool.push({ ...option, instanceKey: `${optionId}__${i}` });
+      }
+    }
+
+    return pool;
+  }, [scenario, answers]);
 
   useEffect(() => {
     if (currentScenarioIndex > scenarios.length - 1) {
@@ -559,7 +646,7 @@ export function CodeFill({ element, children }: ComponentRenderProps) {
         <div className="md:col-span-1 md:min-w-[220px]">
           {showOptions && optionsSlotMode !== "replace" && (
             <OptionBank
-              options={scenario.options}
+              options={availableOptions}
               onSelect={handleOptionSelect}
             />
           )}

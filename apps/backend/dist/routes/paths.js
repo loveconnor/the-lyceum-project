@@ -17,6 +17,43 @@ const firecrawlBaseUrl = process.env.FIRECRAWL_BASE_URL || 'http://localhost:300
 const firecrawlAgentBaseUrl = process.env.FIRECRAWL_AGENT_BASE_URL || 'https://api.firecrawl.dev/v2';
 const firecrawlApiKey = process.env.FIRECRAWL_API_KEY || '';
 const firecrawlEnabled = process.env.USE_FIRECRAWL !== 'false' && Boolean(firecrawlApiKey);
+const MAX_FIRECRAWL_FILE_CONTEXT_CHARS = 18000;
+const MAX_FIRECRAWL_FILE_COUNT = 5;
+const MAX_FIRECRAWL_FILE_CHARS_EACH = 3500;
+const buildFirecrawlFileContext = (contextFiles) => {
+    if (!Array.isArray(contextFiles) || contextFiles.length === 0)
+        return '';
+    const usableFiles = contextFiles
+        .filter((file) => typeof file?.content === 'string' && file.content.trim().length > 0)
+        .slice(0, MAX_FIRECRAWL_FILE_COUNT);
+    if (usableFiles.length === 0)
+        return '';
+    const sections = [];
+    let usedChars = 0;
+    for (const file of usableFiles) {
+        if (usedChars >= MAX_FIRECRAWL_FILE_CONTEXT_CHARS)
+            break;
+        const remaining = MAX_FIRECRAWL_FILE_CONTEXT_CHARS - usedChars;
+        const budgetForFile = Math.min(remaining, MAX_FIRECRAWL_FILE_CHARS_EACH);
+        if (budgetForFile <= 0)
+            break;
+        const excerpt = file.content.slice(0, budgetForFile);
+        const section = `File: ${file.name}\n` +
+            `Type: ${file.type}\n` +
+            `Excerpt:\n${excerpt}\n`;
+        sections.push(section);
+        usedChars += section.length;
+    }
+    if (sections.length === 0)
+        return '';
+    return [
+        'USER-UPLOADED FILE CONTEXT (high priority):',
+        'Use this content to steer topic emphasis, terminology, and source selection.',
+        'Treat this as mandatory grounding context for the research task.',
+        '',
+        ...sections,
+    ].join('\n');
+};
 const extractFirecrawlSources = (payload) => {
     if (!payload)
         return [];
@@ -146,7 +183,7 @@ const firecrawlLocalSearchUrls = async (query) => {
         return [];
     }
 };
-const firecrawlAgentSources = async (query, limit = 5) => {
+const firecrawlAgentSources = async (query, limit = 5, options) => {
     const controller = new AbortController();
     try {
         const useLocalSearch = process.env.FIRECRAWL_USE_LOCAL_SEARCH !== 'false';
@@ -163,8 +200,17 @@ const firecrawlAgentSources = async (query, limit = 5) => {
                 seedUrlsCount: seedUrls.length,
             },
         });
+        const fileContext = buildFirecrawlFileContext(options?.contextFiles || []);
+        logger_1.logger.info('firecrawl', 'Prepared uploaded file context for agent', {
+            details: {
+                files: options?.contextFiles?.length || 0,
+                contextChars: fileContext.length,
+            },
+        });
         const agentPrompt = `You are a research agent for a learning platform.
   Find authoritative sources that teach the topic: "${query}".
+
+  ${fileContext ? `${fileContext}\n` : ''}
 
   Return a JSON object with a "sources" array. Each source MUST include:
   - source_type (e.g., Official Tutorial, Official Documentation, Textbook, University Tutorial)
@@ -179,6 +225,7 @@ const firecrawlAgentSources = async (query, limit = 5) => {
 
   Requirements:
   - Prefer official docs, textbooks, or reputable tutorials
+  - Prioritize sources that align with the uploaded file context when provided
   - Extract detailed instructional content (not just introductions)
   - Include code snippets if available
   - Avoid forums or low-quality content unless no alternatives exist`;
@@ -532,6 +579,7 @@ router.get("/", async (req, res) => {
           item_type,
           status,
           completed_at,
+          content_mode,
           labs (
             id,
             title,
@@ -591,6 +639,7 @@ router.get("/:id", async (req, res) => {
           item_type,
           status,
           completed_at,
+          content_mode,
           labs (
             id,
             title,
@@ -742,7 +791,8 @@ router.post("/generate", async (req, res) => {
         };
         const experience = profile?.onboarding_data?.workPreferences?.experience;
         const difficulty = experience ? (experienceMap[experience] || 'intermediate') : 'intermediate';
-        const shouldUseWebSearch = firecrawlEnabled && !use_ai_only && use_web_search === true;
+        const learnByDoingEnabled = Boolean(learn_by_doing);
+        const shouldUseWebSearch = !learnByDoingEnabled && firecrawlEnabled && !use_ai_only && use_web_search === true;
         console.log(`[Generate] Using difficulty level: ${difficulty}`);
         console.log(`[Generate] Description: "${description}"`);
         console.log(`[Generate] Topics: ${topics?.join(', ') || 'none'}`);
@@ -752,6 +802,7 @@ router.post("/generate", async (req, res) => {
             details: {
                 use_ai_only: Boolean(use_ai_only),
                 use_web_search: shouldUseWebSearch,
+                learn_by_doing: learnByDoingEnabled,
                 firecrawl_enabled: firecrawlEnabled,
             },
         });
@@ -779,7 +830,6 @@ router.post("/generate", async (req, res) => {
                 }
             }
         }
-        const learnByDoingEnabled = Boolean(learn_by_doing);
         const includeLabs = include_labs !== false;
         const buildLearnByDoingPrompt = (moduleOutline) => {
             const base = moduleOutline.description
@@ -1189,6 +1239,7 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
                         .eq("id", newPath.id)
                         .single();
                     if (stream) {
+                        const completionMode = learnByDoingEnabled ? 'learn_by_doing' : 'registry_backed';
                         res.write(`data: ${JSON.stringify({
                             type: 'status',
                             message: `🎉 Path ready! Grounded in "${asset.title}"`
@@ -1197,12 +1248,16 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
                             type: 'completed',
                             path: completePath,
                             source_asset: asset,
-                            content_mode: 'registry_backed'
+                            content_mode: completionMode
                         })}\n\n`);
                         res.end();
                         return;
                     }
-                    return res.status(201).json({ ...completePath, source_asset: asset, content_mode: 'registry_backed' });
+                    return res.status(201).json({
+                        ...completePath,
+                        source_asset: asset,
+                        content_mode: learnByDoingEnabled ? 'learn_by_doing' : 'registry_backed'
+                    });
                 }
             }
             catch (registryError) {
@@ -1233,7 +1288,9 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
                         res.write(`data: ${JSON.stringify({ type: 'status', message: 'Running web research agent...' })}\n\n`);
                     }
                     logger_1.logger.info('firecrawl', `Fetching web sources for: ${searchQuery}`);
-                    const firecrawlResult = await firecrawlAgentSources(searchQuery, 6);
+                    const firecrawlResult = await firecrawlAgentSources(searchQuery, 6, {
+                        contextFiles,
+                    });
                     if (firecrawlResult.error) {
                         logger_1.logger.warn('firecrawl', 'Agent returned error', {
                             details: { query: searchQuery, error: firecrawlResult.error },
@@ -1275,7 +1332,7 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
         }
         console.log(`[Generate] 🤖 Using AI-GENERATED content (no registry match)`);
         if (stream) {
-            res.write(`data: ${JSON.stringify({ type: 'status', message: shouldUseWebSearch ? '🤖 Generating content with AI + web sources...' : '🤖 Generating content with AI...' })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: 'status', message: shouldUseWebSearch ? 'Generating content with AI + web sources...' : 'Generating content with AI...' })}\n\n`);
         }
         const outline = await (0, ai_path_generator_1.generatePathOutline)({
             title: title || "",
@@ -1431,12 +1488,13 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
             .select(`*, learning_path_items (*)`)
             .eq("id", newPath.id)
             .single();
+        const completionMode = learnByDoingEnabled ? 'learn_by_doing' : 'ai_generated';
         if (stream) {
-            res.write(`data: ${JSON.stringify({ type: 'completed', path: completePath, content_mode: 'ai_generated', web_sources: webSources })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: 'completed', path: completePath, content_mode: completionMode, web_sources: webSources })}\n\n`);
             res.end();
             return;
         }
-        return res.status(201).json({ ...completePath, content_mode: 'ai_generated', web_sources: webSources });
+        return res.status(201).json({ ...completePath, content_mode: completionMode, web_sources: webSources });
     }
     catch (error) {
         console.error("[Generate] Error:", error);

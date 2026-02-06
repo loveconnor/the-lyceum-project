@@ -43,8 +43,15 @@ const CreatePathDialog: React.FC<CreatePathDialogProps> = ({ isOpen, onClose, ed
   const [includeLabs, setIncludeLabs] = React.useState(true);
   const firecrawlEnabled = process.env.NEXT_PUBLIC_USE_FIRECRAWL === "true";
   const [useWebSearch, setUseWebSearch] = React.useState(firecrawlEnabled);
+  const effectiveUseWebSearch = firecrawlEnabled && useWebSearch && !useLearnByDoing;
   const [recommendedTopics, setRecommendedTopics] = React.useState<RecommendedTopic[]>([]);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = React.useState(true);
+
+  React.useEffect(() => {
+    if (useLearnByDoing && useWebSearch) {
+      setUseWebSearch(false);
+    }
+  }, [useLearnByDoing, useWebSearch]);
 
   // Fetch user's recommended topics from dashboard
   React.useEffect(() => {
@@ -163,8 +170,8 @@ const CreatePathDialog: React.FC<CreatePathDialogProps> = ({ isOpen, onClose, ed
               ...pathData, 
               learnByDoing: useLearnByDoing, 
               includeLabs,
-              useAiOnly: !(firecrawlEnabled && useWebSearch),
-              useWebSearch: firecrawlEnabled && useWebSearch,
+              useAiOnly: !effectiveUseWebSearch,
+              useWebSearch: effectiveUseWebSearch,
               contextFiles: contextFilesData
             });
             toast.success("Learning path created with modules and content!");
@@ -198,8 +205,8 @@ const CreatePathDialog: React.FC<CreatePathDialogProps> = ({ isOpen, onClose, ed
             ...pathData, 
             learnByDoing: useLearnByDoing, 
             includeLabs,
-            useAiOnly: !(firecrawlEnabled && useWebSearch),
-            useWebSearch: firecrawlEnabled && useWebSearch,
+            useAiOnly: !effectiveUseWebSearch,
+            useWebSearch: effectiveUseWebSearch,
             contextFiles: contextFilesData
           });
           toast.success("Learning path created with modules and content!");
@@ -371,7 +378,7 @@ const CreatePathDialog: React.FC<CreatePathDialogProps> = ({ isOpen, onClose, ed
                       <div className="space-y-1 text-left">
                         <span className="font-medium">Generation Options</span>
                         <span className="block text-xs text-muted-foreground">
-                          {`${firecrawlEnabled ? (useWebSearch ? "Web grounded" : "Fully AI") : "AI only"} • Learn-by-doing ${useLearnByDoing ? "on" : "off"} • Labs ${includeLabs ? "on" : "off"}`}
+                          {`${firecrawlEnabled ? (effectiveUseWebSearch ? "Web grounded" : "Fully AI") : "AI only"} • Learn-by-doing ${useLearnByDoing ? "on" : "off"} • Labs ${includeLabs ? "on" : "off"}`}
                         </span>
                       </div>
                     </AccordionTrigger>
@@ -382,23 +389,25 @@ const CreatePathDialog: React.FC<CreatePathDialogProps> = ({ isOpen, onClose, ed
                             <p className="text-sm font-medium">Content Source</p>
                             <p className="text-xs text-muted-foreground">
                               {firecrawlEnabled
-                                ? useWebSearch
-                                  ? "Search the web for sources and ground the path in them."
-                                  : "Generate all content fully with AI."
+                                ? useLearnByDoing
+                                  ? "Disabled while Learn-by-Doing is enabled."
+                                  : effectiveUseWebSearch
+                                    ? "Search the web for sources and ground the path in them."
+                                    : "Generate all content fully with AI."
                                 : "Web search is disabled in this environment."}
                             </p>
                           </div>
                           <div className="flex items-center gap-2 text-xs">
-                            <span className={cn(useWebSearch ? "text-foreground font-medium" : "text-muted-foreground")}>
+                            <span className={cn(effectiveUseWebSearch ? "text-foreground font-medium" : "text-muted-foreground")}>
                               Search Web
                             </span>
                             <Switch
-                              checked={useWebSearch}
+                              checked={effectiveUseWebSearch}
                               onCheckedChange={setUseWebSearch}
                               aria-label="Search the web for grounded content"
-                              disabled={!firecrawlEnabled}
+                              disabled={!firecrawlEnabled || useLearnByDoing}
                             />
-                            <span className={cn(!useWebSearch ? "text-foreground font-medium" : "text-muted-foreground")}>
+                            <span className={cn(!effectiveUseWebSearch ? "text-foreground font-medium" : "text-muted-foreground")}>
                               Fully AI
                             </span>
                           </div>

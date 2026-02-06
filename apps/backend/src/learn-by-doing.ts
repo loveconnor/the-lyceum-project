@@ -53,7 +53,7 @@ Charts:
 - LineGraph: { title?: string, data: Array<{label: string, value: number}> } - Line chart with points
 
 Interactive:
-- CodeFill: { title?: string, description?: string, codeTemplate?: string, gaps?: Array<{ id: string, expectedId: string }>, options?: Array<{ id: string, label: string, type?: string }>, scenarios?: Array<{ id: string, title?: string, description?: string, codeTemplate: string, gaps: Array<{ id: string, expectedId: string }>, options: Array<{ id: string, label: string, type?: string }> }>, showHeader?: boolean, showOptions?: boolean, showControls?: boolean, showScenarioNavigation?: boolean } - Drag-and-drop code fill activity with optional scenario navigation
+- CodeFill: { title?: string, description?: string, codeTemplate?: string, gaps?: Array<{ id: string, expectedId: string }>, options?: Array<{ id: string, label: string, type?: string }>, scenarios?: Array<{ id: string, title?: string, description?: string, codeTemplate: string, gaps: Array<{ id: string, expectedId: string }>, options: Array<{ id: string, label: string, type?: string }> }>, showHeader?: boolean, showOptions?: boolean, showControls?: boolean, showScenarioNavigation?: boolean } - Drag-and-drop code fill activity with optional scenario navigation. CRITICAL: options MUST include all correct choices referenced by gaps[].expectedId PLUS at least 2 distractor options (plausible but incorrect).
 - FillInTheBlank: { title?: string, description: string, textTemplate: string, blanks: Array<{ id: string, correctAnswers: string[], placeholder?: string, hint?: string }>, wordBank: string[], caseSensitive?: boolean } - Drag-and-drop fill-in-the-blank activity. CRITICAL: description is REQUIRED and must be 2-4 sentences explaining: (1) what to complete, (2) what types of items are in the word bank (be specific - e.g., "data types like int and String, values like 42"), (3) what concept is being practiced. Example: "Complete the variable declarations by dragging data types (int, String, double) and values (42, true) from the word bank into each blank. This reinforces proper Java syntax." wordBank is MANDATORY and MUST contain ALL correct answers from blanks[].correctAnswers PLUS 2-3 distractor words. Example: if blanks need ["int", "25"], wordBank must be ["int", "25", "String", "float", "30"].
 - NumericInput: { label?: string, placeholder?: string, unit?: string, correctAnswer: number, allowScientific?: boolean, tolerance?: number, range?: [number, number], showFeedback?: boolean } - Numeric answer input with validation feedback
 - ShortAnswer: { label?: string, description?: string, question?: string, placeholder?: string, maxLength?: number, rows?: number, showCounter?: boolean } - Short text response with character counter
@@ -99,7 +99,8 @@ RULES:
     Example WRONG (will have no correct matches):
       leftItems: [{ id: "varA", label: "Variable A" }]
       rightItems: [{ id: "val1", label: "false" }] ← IDs don't match!
-    VALIDATION: Before outputting Matching, verify every leftItems[].id has a matching rightItems[].id.
+    ALSO REQUIRED: rightItems order must be intentionally mixed (NOT the same positional order as leftItems). Avoid same-row answers by default.
+    VALIDATION: Before outputting Matching, verify every leftItems[].id has a matching rightItems[].id and rightItems are not positionally aligned with leftItems.
 11. For DragDrop, every item.correctCategoryId must match one of the categories[].id values.
 12. For DiagramSelection with D3, set diagramType:"d3" and provide d3Diagram.nodes (id, optional label, optional x/y) and links (source/target). If x/y omitted, a simple grid layout is used.
 13. For DiagramSelection, prefer diagramType:"d3" by default; only use imagePath when the prompt explicitly mentions an image URL.
@@ -109,6 +110,7 @@ RULES:
 17. MANDATORY: Every step MUST have EITHER a Markdown element with at least 100 characters (4-6 sentences) OR an interactive component.
 18. If you create a Heading, you MUST also create either a Markdown element with substantial content OR an interactive widget in the same Stack.
 19. VALIDATION: Before outputting, verify each step has substantive content. Steps with only headings will be rejected.
+20. CRITICAL: Do NOT append placeholder/trailing steps. Every key in root.children MUST reference an existing element, and the final child in root.children MUST be a real completable step (interactive or body text).
 
 FORBIDDEN CLASSES (NEVER USE):
 - min-h-screen, h-screen, min-h-full, h-full, min-h-dvh, h-dvh - viewport heights break the small render container
@@ -177,10 +179,15 @@ CodeFill Requirements (CRITICAL - MUST FOLLOW):
 ★ When using CodeFill, ALWAYS set showControls:true, showScenarioNavigation:true, showOptions:true, showFeedback:true, autoAdvance:true
 ★ Provide scenarios with at least 2 items so the Next button advances
 ★ Every gap.expectedId MUST have a matching option.id - mismatches cause [Missing Def] errors
+★ options MUST include at least 2 distractors (option IDs that are NOT referenced by any gap.expectedId)
 ★ VALIDATION: For each gap, verify there is an option with matching id
 Example CORRECT:
   gaps: [{ id: "gap_1", expectedId: "opt_init" }]
-  options: [{ id: "opt_init", label: "int i = 0" }]
+  options: [
+    { id: "opt_init", label: "int i = 0" },
+    { id: "opt_wrong_1", label: "int i = 1" },
+    { id: "opt_wrong_2", label: "i <= 10" }
+  ]
 Example WRONG (causes error):
   gaps: [{ id: "gap_1", expectedId: "opt_init" }]
   options: [{ id: "opt_wrong", label: "int i = 0" }] ← ID mismatch!
@@ -242,6 +249,7 @@ Matching Requirements (CRITICAL - MOST COMMON MISTAKES):
 ★ Think of IDs as "invisible connection cables" - matching IDs create correct pairs
 ★ Labels should be DIFFERENT (left = question, right = answer), but IDs must be THE SAME
 ★ ALWAYS set shuffleRight:true - otherwise right items appear in same order as left (making it too easy!)
+★ NEVER place rightItems in the same positional order as leftItems. Intentionally permute rightItems so correct matches are on different rows.
 
 Step-by-Step Process for Creating Matching:
   1. Decide your pairs (e.g., Variable A → false, Variable B → false, Variable C → true)
@@ -274,6 +282,7 @@ Examples of BROKEN Matching (will have ZERO correct matches):
 VALIDATION BEFORE OUTPUT: 
   1. For each leftItems[].id, verify there exists a rightItems[].id with the EXACT same value
   2. Verify shuffleRight is set to true (required for proper challenge)
+  3. Verify rightItems are not positionally aligned with leftItems (avoid same-row answers)
 
 Lesson Structure Requirements:
 - The goal is to TEACH the user the topic thoroughly with comprehensive explanations and hands-on activities.
@@ -281,6 +290,7 @@ Lesson Structure Requirements:
 - EVERY STEP must have content - no empty steps allowed anywhere (beginning, middle, or end)
 - The FINAL STEP is especially important - it should be a meaningful interactive assessment or comprehensive summary
 - FORBIDDEN: Empty final steps, steps with only headings at the end, incomplete conclusions, or ShortAnswer reflections as the final step
+- FORBIDDEN: Adding an extra trailing child in root.children that has no matching /elements entry or no completable content.
 - Recommended final step types: final assessment quiz (MultipleChoice with multiple questions), comprehensive TrueFalse, OrderSteps challenge, or Matching review. If using Markdown for summary, ensure it's substantial (200+ words) with clear takeaways.
 - NEVER wrap interactive learning components in Card. Interactive components like MultipleChoice, FillInTheBlank, CodeFill, etc. should be the root element of their step.
 - PACING RULE: NEVER have more than 2 consecutive text-only steps. After 1-2 teaching steps, you MUST include an interactive widget (MultipleChoice, FillInTheBlank, CodeFill, etc.) to practice the concept.
@@ -648,6 +658,115 @@ function validateTreeContent(tree: UITree): { valid: boolean; reason?: string } 
   const elements = tree.elements;
   let hasSubstantiveContent = false;
   let emptySteps: string[] = [];
+  const rootElement = elements[tree.root];
+  const rootChildren: string[] = Array.isArray(rootElement?.children)
+    ? rootElement.children
+    : [];
+
+  const interactiveTypes = new Set([
+    "MultipleChoice",
+    "FillInTheBlank",
+    "CodeFill",
+    "TrueFalse",
+    "Matching",
+    "OrderSteps",
+    "DragDrop",
+    "ShortAnswer",
+    "NumericInput",
+    "DiagramSelection",
+  ]);
+
+  const elementHasBodyText = (element: any): boolean => {
+    if (!element) return false;
+    if (element.type === "Markdown") {
+      return (element.props?.content?.length || 0) >= 50;
+    }
+    if (element.type === "Text") {
+      return (element.props?.content?.length || 0) >= 30;
+    }
+    if (element.type === "Stack" || element.type === "Card") {
+      const children = Array.isArray(element.children) ? element.children : [];
+      return children.some((childKey: string) => {
+        const child = elements[childKey];
+        if (!child) return false;
+        if (interactiveTypes.has(child.type)) return true;
+        if (child.type === "Markdown") return (child.props?.content?.length || 0) >= 50;
+        if (child.type === "Text") return (child.props?.content?.length || 0) >= 30;
+        return false;
+      });
+    }
+    return false;
+  };
+
+  const isCompletableStepElement = (element: any): boolean => {
+    if (!element) return false;
+    if (interactiveTypes.has(element.type)) return true;
+    return elementHasBodyText(element);
+  };
+
+  const isIntroTextOnlyElement = (key: string): boolean => {
+    const element = elements[key];
+    if (!element) return false;
+    if (element.type === "Text" || element.type === "Markdown" || element.type === "Heading") {
+      return true;
+    }
+    if (element.type === "Stack" || element.type === "Card") {
+      const children = Array.isArray(element.children) ? element.children : [];
+      if (children.length === 0) return false;
+      return children.every((childKey: string) => {
+        const child = elements[childKey];
+        return child?.type === "Text" || child?.type === "Markdown" || child?.type === "Heading";
+      });
+    }
+    return false;
+  };
+
+  // Structural guard: root children must all resolve to real elements.
+  if (rootChildren.length > 0) {
+    const missingRootChildren = rootChildren.filter((childKey) => !elements[childKey]);
+    if (missingRootChildren.length > 0) {
+      return {
+        valid: false,
+        reason: `Root has missing child references: ${missingRootChildren.slice(0, 3).join(", ")}`,
+      };
+    }
+  }
+
+  // Step-by-step guard: final step must be completable (prevents dead-end empty last step).
+  if (rootChildren.length > 0) {
+    const introChildren: string[] = [];
+    for (const childKey of rootChildren) {
+      if (isIntroTextOnlyElement(childKey)) {
+        introChildren.push(childKey);
+      } else {
+        break;
+      }
+    }
+    const stepChildren = rootChildren.slice(introChildren.length);
+    if (stepChildren.length === 0) {
+      return { valid: false, reason: "No step children found after intro content" };
+    }
+
+    for (let i = 0; i < stepChildren.length; i += 1) {
+      const stepKey = stepChildren[i];
+      const stepElement = elements[stepKey];
+      if (!isCompletableStepElement(stepElement)) {
+        return {
+          valid: false,
+          reason: `Step ${i + 1} (${stepKey}) is not completable (no body text or interactive widget)`,
+        };
+      }
+    }
+
+    const lastStepKey = stepChildren[stepChildren.length - 1];
+    const lastStepElement = elements[lastStepKey];
+    if (!isCompletableStepElement(lastStepElement)) {
+      return {
+        valid: false,
+        reason: `Final step ${lastStepKey} is empty or non-completable`,
+      };
+    }
+  }
 
   // Check each element for content quality
   for (const [key, element] of Object.entries(elements)) {
@@ -680,6 +799,14 @@ function validateTreeContent(tree: UITree): { valid: boolean; reason?: string } 
       if (missingAnswers.length > 0) {
         emptySteps.push(`${key} (FillInTheBlank: wordBank missing correct answers: ${missingAnswers.join(', ')})`);
         console.warn(`[Validation] FillInTheBlank "${key}" is missing answers in wordBank:`, missingAnswers);
+      }
+
+      // Validate distractor count in wordBank (wrong but plausible choices)
+      const uniqueCorrectAnswers = new Set(allCorrectAnswers);
+      const distractorCount = wordBank.filter((word: string) => !uniqueCorrectAnswers.has(word)).length;
+      if (distractorCount < 2) {
+        emptySteps.push(`${key} (FillInTheBlank: wordBank needs at least 2 distractors, found ${distractorCount})`);
+        console.warn(`[Validation] FillInTheBlank "${key}" needs more distractors. Found: ${distractorCount}`);
       }
       
       // Validate that textTemplate has placeholder for each blank
@@ -714,6 +841,14 @@ function validateTreeContent(tree: UITree): { valid: boolean; reason?: string } 
         emptySteps.push(`${key} (CodeFill: options missing IDs for gaps: ${missingIds})`);
         console.warn(`[Validation] CodeFill "${key}" is missing option IDs:`, missingIds);
       }
+
+      // Validate distractor options for challenge quality
+      const expectedIds = new Set(gaps.map((gap: any) => gap.expectedId));
+      const distractorCount = options.filter((opt: any) => !expectedIds.has(opt.id)).length;
+      if (distractorCount < 2) {
+        emptySteps.push(`${key} (CodeFill: needs at least 2 distractor options, found ${distractorCount})`);
+        console.warn(`[Validation] CodeFill "${key}" needs more distractor options. Found: ${distractorCount}`);
+      }
       
       // Validate that codeTemplate has placeholder for each gap
       const gapPattern = /{{gap_\d+}}/g;
@@ -746,6 +881,16 @@ function validateTreeContent(tree: UITree): { valid: boolean; reason?: string } 
           console.warn(`  Left IDs: ${[...leftIds].join(', ')}`);
           console.warn(`  Right IDs: ${[...rightIds].join(', ')}`);
         }
+
+        // Check if right items are positionally aligned with left items (too easy)
+        const comparableLength = Math.min(leftItems.length, rightItems.length);
+        const alignedCount = Array.from({ length: comparableLength }).filter(
+          (_, idx) => leftItems[idx]?.id === rightItems[idx]?.id
+        ).length;
+        if (comparableLength > 1 && alignedCount === comparableLength) {
+          emptySteps.push(`${key} (Matching rightItems are in same positional order as leftItems - too easy)`);
+          console.warn(`[Validation] Matching component "${key}" has same-row alignment for all pairs; reorder rightItems`);
+        }
         
         // Check if shuffleRight is enabled
         if (shuffleRight !== true) {
@@ -758,10 +903,7 @@ function validateTreeContent(tree: UITree): { valid: boolean; reason?: string } 
     }
 
     // Interactive components count as substantive
-    const interactiveTypes = ['MultipleChoice', 'CodeFill', 'TrueFalse', 
-                              'OrderSteps', 'DragDrop', 'ShortAnswer', 'NumericInput'];
-    
-    if (interactiveTypes.includes(element.type)) {
+    if (interactiveTypes.has(element.type)) {
       hasSubstantiveContent = true;
       continue;
     }

@@ -35,6 +35,7 @@ export default async function Page() {
             item_type,
             status,
             completed_at,
+            content_mode,
             labs (
               id,
               title,

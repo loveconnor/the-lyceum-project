@@ -681,6 +681,7 @@ router.get("/", async (req: Request, res: Response) => {
           item_type,
           status,
           completed_at,
+          content_mode,
           labs (
             id,
             title,
@@ -749,6 +750,7 @@ router.get("/:id", async (req: Request, res: Response) => {
           item_type,
           status,
           completed_at,
+          content_mode,
           labs (
             id,
             title,
@@ -937,7 +939,8 @@ router.post("/generate", async (req: Request, res: Response) => {
     const experience = profile?.onboarding_data?.workPreferences?.experience;
     const difficulty = experience ? (experienceMap[experience] || 'intermediate') : 'intermediate';
 
-    const shouldUseWebSearch = firecrawlEnabled && !use_ai_only && use_web_search === true;
+    const learnByDoingEnabled = Boolean(learn_by_doing);
+    const shouldUseWebSearch = !learnByDoingEnabled && firecrawlEnabled && !use_ai_only && use_web_search === true;
 
     console.log(`[Generate] Using difficulty level: ${difficulty}`);
     console.log(`[Generate] Description: "${description}"`);
@@ -949,6 +952,7 @@ router.post("/generate", async (req: Request, res: Response) => {
       details: {
         use_ai_only: Boolean(use_ai_only),
         use_web_search: shouldUseWebSearch,
+        learn_by_doing: learnByDoingEnabled,
         firecrawl_enabled: firecrawlEnabled,
       },
     });
@@ -977,7 +981,6 @@ router.post("/generate", async (req: Request, res: Response) => {
       }
     }
     
-    const learnByDoingEnabled = Boolean(learn_by_doing);
     const includeLabs = include_labs !== false;
     const buildLearnByDoingPrompt = (moduleOutline: { title: string; description?: string }) => {
       const base = moduleOutline.description
@@ -1475,6 +1478,7 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
             .single();
 
           if (stream) {
+            const completionMode = learnByDoingEnabled ? 'learn_by_doing' : 'registry_backed';
             res.write(`data: ${JSON.stringify({ 
               type: 'status', 
               message: `🎉 Path ready! Grounded in "${asset.title}"`
@@ -1483,13 +1487,17 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
               type: 'completed', 
               path: completePath, 
               source_asset: asset,
-              content_mode: 'registry_backed'
+              content_mode: completionMode
             })}\n\n`);
             res.end();
             return;
           }
 
-          return res.status(201).json({ ...completePath, source_asset: asset, content_mode: 'registry_backed' });
+          return res.status(201).json({
+            ...completePath,
+            source_asset: asset,
+            content_mode: learnByDoingEnabled ? 'learn_by_doing' : 'registry_backed'
+          });
         }
 
       } catch (registryError) {
@@ -1754,13 +1762,15 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
       .eq("id", newPath.id)
       .single();
 
+    const completionMode = learnByDoingEnabled ? 'learn_by_doing' : 'ai_generated';
+
     if (stream) {
-      res.write(`data: ${JSON.stringify({ type: 'completed', path: completePath, content_mode: 'ai_generated', web_sources: webSources })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'completed', path: completePath, content_mode: completionMode, web_sources: webSources })}\n\n`);
       res.end();
       return;
     }
 
-    return res.status(201).json({ ...completePath, content_mode: 'ai_generated', web_sources: webSources });
+    return res.status(201).json({ ...completePath, content_mode: completionMode, web_sources: webSources });
 
   } catch (error) {
     console.error("[Generate] Error:", error);

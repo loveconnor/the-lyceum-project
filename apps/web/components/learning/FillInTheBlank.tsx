@@ -59,6 +59,15 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
   const showHeader = props.showHeader ?? false;
   const showActions = props.showActions ?? false;
   const showValidation = props.showValidation ?? false;
+  const stateKey = useMemo(
+    () =>
+      JSON.stringify({
+        textTemplate,
+        blankIds: blanks.map((b) => b.id),
+        wordBank,
+      }),
+    [textTemplate, blanks, wordBank],
+  );
 
   // State to track user inputs keyed by blank ID
   const [inputs, setInputs] = useState<Record<string, string>>({});
@@ -77,7 +86,15 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
       ? (window as any).__getWidgetState() 
       : null;
     
-    if (savedState && savedState.inputs && savedState.bankItems) {
+    const isCompatibleSavedState =
+      savedState &&
+      savedState.widgetType === "FillInTheBlank" &&
+      savedState.stateKey === stateKey &&
+      savedState.inputs &&
+      typeof savedState.inputs === "object" &&
+      Array.isArray(savedState.bankItems);
+
+    if (isCompatibleSavedState) {
       setInputs(savedState.inputs);
       setBankItems(savedState.bankItems);
       setResults(savedState.results || {});
@@ -89,13 +106,15 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
       setResults({});
       setStatus("idle");
     }
-  }, [wordBank, textTemplate]); // Re-init if props change widely
+  }, [wordBank, textTemplate, stateKey]); // Re-init if props change widely
 
   // Save state whenever inputs or bank items change
   useEffect(() => {
     if (Object.keys(inputs).length > 0 || bankItems.length !== wordBank.length) {
       if (typeof (window as any).__saveWidgetState === "function") {
         (window as any).__saveWidgetState({
+          widgetType: "FillInTheBlank",
+          stateKey,
           inputs,
           bankItems,
           results,
@@ -103,21 +122,25 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
         });
       }
     }
-  }, [inputs, bankItems, results, status, wordBank.length]);
+  }, [inputs, bankItems, results, status, wordBank.length, stateKey]);
 
   // Parse the template to identify segments and blank placeholders
   const segments = useMemo<Segment[]>(() => {
-    const hasExplicitPlaceholders = /(\{\{[^}]+\}\}|\{[^}]+\})/.test(
-      textTemplate,
-    );
+    // Support canonical {{id}} placeholders and legacy {id} placeholders.
+    // Single-brace placeholders are intentionally strict so literal braces
+    // used in code examples (e.g. "{ }") are not parsed as blanks.
+    const explicitPlaceholderPattern = /(\{\{[^}]+\}\}|\{[A-Za-z0-9_-]+\})/g;
+    const hasExplicitPlaceholders = explicitPlaceholderPattern.test(textTemplate);
 
     if (hasExplicitPlaceholders) {
-      const parts = textTemplate.split(/(\{\{[^}]+\}\}|\{[^}]+\})/g);
+      const parts = textTemplate.split(explicitPlaceholderPattern);
       return parts.map((part, index) => {
-        const match = part.match(/^(?:\{\{([^}]+)\}\}|\{([^}]+)\})$/);
-        const rawId = match?.[1] || match?.[2];
-        if (rawId) {
-          const blankId = rawId.trim();
+        const doubleBraceMatch = part.match(/^\{\{([^}]+)\}\}$/);
+        const singleBraceMatch = part.match(/^\{([A-Za-z0-9_-]+)\}$/);
+        const rawId = doubleBraceMatch?.[1] ?? singleBraceMatch?.[1];
+        const blankId = rawId?.trim();
+
+        if (blankId) {
           const blankDef = blanks.find((b) => b.id === blankId);
           return { type: "blank", id: blankId, def: blankDef, key: index };
         }

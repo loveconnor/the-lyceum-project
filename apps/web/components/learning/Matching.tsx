@@ -79,13 +79,14 @@ export function Matching({ element }: ComponentRenderProps) {
   const rightRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
   // State to force re-render of lines
-  const [lineCoordinates, setLineCoordinates] = useState<
-    {
-      start: { x: number; y: number };
-      end: { x: number; y: number };
-      color: string;
-    }[]
-  >([]);
+	  const [lineCoordinates, setLineCoordinates] = useState<
+	    {
+	      start: { x: number; y: number };
+	      end: { x: number; y: number };
+	      color: string;
+	      curvature: number;
+	    }[]
+	  >([]);
 
   // Initialize and Shuffle
   useEffect(() => {
@@ -117,11 +118,12 @@ export function Matching({ element }: ComponentRenderProps) {
     return () => {
       if (!containerRef.current) return;
       const containerRect = containerRef.current.getBoundingClientRect();
-      const lines: Array<{
-        start: { x: number; y: number };
-        end: { x: number; y: number };
-        color: string;
-      }> = [];
+	      const lines: Array<{
+	        start: { x: number; y: number };
+	        end: { x: number; y: number };
+	        color: string;
+	        curvature: number;
+	      }> = [];
 
       // Draw matched lines
       Object.entries(matches).forEach(([leftId, rightId]) => {
@@ -132,28 +134,30 @@ export function Matching({ element }: ComponentRenderProps) {
           const leftRect = leftEl.getBoundingClientRect();
           const rightRect = rightEl.getBoundingClientRect();
 
-          const rawStartX = leftRect.right - containerRect.left + 6;
-          const rawEndX = rightRect.left - containerRect.left - 6;
+          // Use connector dot centers (left item right edge, right item left edge)
+          // so short same-row matches still have drawable distance.
+          const rawStartX = leftRect.right - containerRect.left;
+          const rawEndX = rightRect.left - containerRect.left;
           const startX = rawStartX;
-          const endX = Math.max(rawEndX, startX + 12);
+	          const endX = Math.max(rawEndX, startX + 8);
+	          const horizontalDistance = endX - startX;
+	          const curvature = Math.max(8, Math.min(50, horizontalDistance * 0.45));
 
-          // Only draw line if there's meaningful horizontal distance (more than 20px gap between items)
-          if (endX - startX > 20) {
-            // Calculate start (right side of left item) and end (left side of right item) relative to container
-            lines.push({
-              start: {
-                x: startX,
-                y: leftRect.top + leftRect.height / 2 - containerRect.top,
-              },
-              end: {
-                x: endX,
-                y: rightRect.top + rightRect.height / 2 - containerRect.top,
-              },
-              color: leftId === rightId ? "url(#gradient-line)" : "#ef4444",
-            });
-          }
-        }
-      });
+	          // Always draw a connection, even for short horizontal gaps.
+	            lines.push({
+	              start: {
+	                x: startX,
+	                y: leftRect.top + leftRect.height / 2 - containerRect.top,
+	              },
+	              end: {
+	                x: endX,
+	                y: rightRect.top + rightRect.height / 2 - containerRect.top,
+	              },
+	              color: leftId === rightId ? "#6366f1" : "#ef4444",
+	              curvature,
+	            });
+	        }
+	      });
       setLineCoordinates(lines);
     };
   }, [matches, rightOrder]);
@@ -242,31 +246,19 @@ export function Matching({ element }: ComponentRenderProps) {
 
       <div className="relative" ref={containerRef}>
         {/* SVG Overlay for Lines */}
-        <svg className="absolute inset-0 pointer-events-none w-full h-full z-10 overflow-visible">
-          <defs>
-            <linearGradient
-              id="gradient-line"
-              x1="0%"
-              y1="0%"
-              x2="100%"
-              y2="0%"
-            >
-              <stop offset="0%" stopColor="#6366f1" /> {/* Indigo-500 */}
-              <stop offset="100%" stopColor="#8b5cf6" /> {/* Violet-500 */}
-            </linearGradient>
-          </defs>
+        <svg className="absolute inset-0 pointer-events-none w-full h-full z-40 overflow-visible">
           {lineCoordinates.map((line, i) => (
             <path
-              key={i}
-              d={`
-                M ${line.start.x} ${line.start.y} 
-                C ${line.start.x + 50} ${line.start.y}, 
-                  ${line.end.x - 50} ${line.end.y}, 
-                  ${line.end.x} ${line.end.y}
-              `}
+	              key={i}
+	              d={`
+	                M ${line.start.x} ${line.start.y} 
+	                C ${line.start.x + line.curvature} ${line.start.y}, 
+	                  ${line.end.x - line.curvature} ${line.end.y}, 
+	                  ${line.end.x} ${line.end.y}
+	              `}
               fill="none"
               stroke={line.color}
-              strokeWidth="3"
+              strokeWidth="4"
               strokeLinecap="round"
               className="drop-shadow-sm transition-all duration-500 ease-out"
               style={{
@@ -329,7 +321,7 @@ export function Matching({ element }: ComponentRenderProps) {
 
                   {/* Connector Dot */}
                   <div
-                    className={`absolute right-[-6px] top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 transition-all z-30 ${
+                    className={`absolute right-[-6px] top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 transition-all z-50 ${
                       isError
                         ? "bg-rose-500 border-background"
                         : isMatched
@@ -375,7 +367,7 @@ export function Matching({ element }: ComponentRenderProps) {
                 >
                   {/* Connector Dot (Left side of right item) */}
                   <div
-                    className={`absolute left-[-6px] top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 transition-all z-30 ${
+                    className={`absolute left-[-6px] top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 transition-all z-50 ${
                       isError
                         ? "bg-rose-500 border-background"
                         : isMatched
