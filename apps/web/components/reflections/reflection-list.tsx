@@ -182,7 +182,7 @@ export function ReflectionCard({
           {/* What Worked or Didn't Work */}
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-muted-foreground">
-              What Worked or Didn't Work
+              What Worked or Didn&apos;t Work
             </h4>
             <div className="text-sm">
               <EditorWidgetReadOnly

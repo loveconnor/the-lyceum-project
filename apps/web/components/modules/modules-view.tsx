@@ -16,6 +16,10 @@ interface ModulesViewProps {
   path: LearningPath;
 }
 
+type ModuleWithLab = NonNullable<LearningPath["modules"]>[number] & {
+  lab_id?: string | null;
+};
+
 export default function ModulesView({ path }: ModulesViewProps) {
   const router = useRouter();
   const hasTrackedStart = useRef(false);
@@ -25,8 +29,9 @@ export default function ModulesView({ path }: ModulesViewProps) {
   const completedModules = path.modules?.filter((m) => m.completed).length || 0;
   const totalModules = path.modules?.length || 0;
   const progressPercentage = totalModules > 0 ? (completedModules / totalModules) * 100 : 0;
-  const totalLabs = path.modules?.filter((m: any) => m.lab_id).length ?? null;
-  const completedLabsCount = path.modules?.filter((m: any) => m.lab_id && m.completed).length ?? null;
+  const totalLabs = path.modules?.filter((m) => (m as ModuleWithLab).lab_id).length ?? null;
+  const completedLabsCount =
+    path.modules?.filter((m) => (m as ModuleWithLab).lab_id && m.completed).length ?? null;
 
   // Get difficulty label
   const difficultyLabels: Record<string, string> = {

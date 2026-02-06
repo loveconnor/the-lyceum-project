@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { MoonIcon, SunIcon } from "lucide-react";
 import { useUserSettings } from "@/components/providers/settings-provider";
@@ -8,13 +8,13 @@ import { useUserSettings } from "@/components/providers/settings-provider";
 import { Button } from "@/components/ui/button";
 
 export default function ThemeSwitch() {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  );
   const { theme, setTheme } = useTheme();
   const { settings, saveSettings } = useUserSettings();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   if (!mounted) {
     return null;

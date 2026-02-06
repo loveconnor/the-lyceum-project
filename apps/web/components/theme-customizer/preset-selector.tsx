@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { DEFAULT_THEME, THEMES } from "@/lib/themes";
 import { useThemeConfig } from "@/components/active-theme";

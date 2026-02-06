@@ -1,4 +1,5 @@
 "use client";
+ 
 
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
@@ -98,7 +99,8 @@ export function SettingsProvider({
         throw new Error(error?.message || "Unable to load settings for this account.");
       }
 
-      const nextSettings = coerceSettings((user as any)?.user_metadata?.settings);
+      const metadata = user?.user_metadata as { settings?: unknown } | undefined;
+      const nextSettings = coerceSettings(metadata?.settings);
       setSettings(nextSettings);
       return nextSettings;
     } finally {

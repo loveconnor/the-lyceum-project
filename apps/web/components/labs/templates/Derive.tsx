@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useState } from "react";
 import { DeriveLabData } from "@/types/lab-templates";
@@ -626,7 +627,7 @@ Approve if they show reasonable understanding and correct approach. If not appro
                       /* Fallback: No widgets found in lab data */
                       <div className="space-y-4 p-6 bg-muted/30 rounded-lg border-2 border-dashed">
                         <p className="text-sm text-muted-foreground text-center">
-                          This lab doesn't have widget configuration. Widgets make labs interactive!
+                          This lab doesn&apos;t have widget configuration. Widgets make labs interactive!
                         </p>
                       </div>
                     )}

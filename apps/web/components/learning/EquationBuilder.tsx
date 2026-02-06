@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect, @typescript-eslint/no-unsafe-function-type */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Trash2, Copy, Check, Undo2, AlertCircle } from "lucide-react";

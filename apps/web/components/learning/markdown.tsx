@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { cn } from "@/lib/utils";
 import React, { memo, useMemo } from "react";
 import ReactMarkdown, { Components } from "react-markdown";

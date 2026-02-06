@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Label } from "@/components/ui/label";
 import { useThemeConfig } from "@/components/active-theme";

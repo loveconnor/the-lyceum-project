@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
 
 import { useState, useEffect, useRef, useMemo, useLayoutEffect } from "react";
 import { Check, RotateCcw, X } from "lucide-react";

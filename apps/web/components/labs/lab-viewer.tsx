@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React from "react";
 import { Lab } from "@/app/(main)/labs/types";

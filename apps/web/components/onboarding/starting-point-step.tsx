@@ -104,7 +104,7 @@ export function WorkPreferencesStep() {
               onClick={handleSkip}
               className="text-sm text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
             >
-              Skip, I'll get started on my own
+              Skip, I&apos;ll get started on my own
             </button>
           </div>
         </div>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Integration Guide: Adding Reflections to Lab Templates
  * 

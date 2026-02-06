@@ -19,14 +19,18 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import Link from "next/link";
 import { useUserSettings } from "@/components/providers/settings-provider";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 export function NavUser() {
   const { isMobile } = useSidebar();
   const user = useUserProfile();
   const { settings } = useUserSettings();
   const router = useRouter();
   const supabase = createClient();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  );
   const displayName = settings.account.name || settings.profile.username || user?.name;
   const displayEmail = settings.profile.email || user?.email;
   const avatarSrc =
@@ -37,10 +41,6 @@ export function NavUser() {
     router.push("/login");
     router.refresh();
   };
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   if (!mounted) {
     return (

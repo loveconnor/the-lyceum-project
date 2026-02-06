@@ -207,7 +207,7 @@ const PathCard: React.FC<PathCardProps> = ({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Learning Path</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{path.title}"? This action cannot be undone and will remove all modules and progress associated with this path.
+              Are you sure you want to delete &quot;{path.title}&quot;? This action cannot be undone and will remove all modules and progress associated with this path.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -359,7 +359,7 @@ const PathCard: React.FC<PathCardProps> = ({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Learning Path</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{path.title}"? This action cannot be undone and will remove all modules and progress associated with this path.
+              Are you sure you want to delete &quot;{path.title}&quot;? This action cannot be undone and will remove all modules and progress associated with this path.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // Shared animation class
 export const baseClass =
@@ -27,12 +27,14 @@ export function useInteractiveState() {
     {},
   );
 
-  openSelect = _openSelect;
-  setOpenSelect = _setOpenSelect;
-  selectValues = _selectValues;
-  setSelectValues = _setSelectValues;
+  useEffect(() => {
+    openSelect = _openSelect;
+    setOpenSelect = _setOpenSelect;
+    selectValues = _selectValues;
+    setSelectValues = _setSelectValues;
+  }, [_openSelect, _setOpenSelect, _selectValues, _setSelectValues]);
 
-  return { openSelect, selectValues };
+  return { openSelect: _openSelect, selectValues: _selectValues };
 }
 
 export function getOpenSelect() {

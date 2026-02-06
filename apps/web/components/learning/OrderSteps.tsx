@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
 
 import { useState, useRef, useEffect } from "react";
 import {

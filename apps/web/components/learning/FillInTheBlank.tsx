@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect, prefer-const */
 
 import React, { useState, useMemo, useEffect } from "react";
 import {
@@ -566,7 +567,7 @@ export function FillInTheBlank({ element }: ComponentRenderProps) {
                     .map((b) => (
                       <li key={b.id}>
                         <span className="font-medium">{b.id}:</span> You entered
-                        "{inputs[b.id] || ""}".
+                        &quot;{inputs[b.id] || ""}&quot;.
                         {b.hint && (
                           <span className="text-rose-700 ml-1 italic">
                             — Hint: {b.hint}

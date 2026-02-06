@@ -52,7 +52,7 @@ export function AccountTypeStep() {
       if (result.recommendations && result.recommendations.length > 0) {
         setRecommendation(result.recommendations[0]);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error generating recommendation:', error);
       toast.error('Failed to generate recommendations');
     } finally {
@@ -97,11 +97,15 @@ export function AccountTypeStep() {
 
       if (!pathResponse.ok) throw new Error('Failed to create learning path');
       
-      const pathData = await pathResponse.json();
+      const pathData = (await pathResponse.json()) as {
+        id: string;
+        learning_path_items?: Array<{ item_type?: string }>;
+        modules?: unknown[];
+      };
 
       const totalLabs =
         Array.isArray(pathData?.learning_path_items)
-          ? pathData.learning_path_items.filter((item: any) => item.item_type === "lab").length
+          ? pathData.learning_path_items.filter((item) => item.item_type === "lab").length
           : Array.isArray(pathData?.modules)
             ? pathData.modules.length
             : null;
@@ -137,8 +141,9 @@ export function AccountTypeStep() {
       // Navigate to the new learning path
       router.push(`/paths/${pathData.id}`);
       router.refresh();
-    } catch (err: any) {
-      toast.error(err.message || "Unable to create learning path");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unable to create learning path";
+      toast.error(message || "Unable to create learning path");
       setIsCreatingPath(false);
     }
   };
@@ -166,8 +171,9 @@ export function AccountTypeStep() {
       reset();
       router.push("/");
       router.refresh();
-    } catch (err: any) {
-      toast.error(err.message || "Unable to finish onboarding");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unable to finish onboarding";
+      toast.error(message || "Unable to finish onboarding");
     }
   };
 
@@ -179,7 +185,7 @@ export function AccountTypeStep() {
           <div className="text-center space-y-3">
             <h1 className="text-3xl font-normal">Your learning path is ready</h1>
             <p className="text-muted-foreground">
-              Based on your interests and experience, here's a great place to start
+              Based on your interests and experience, here&apos;s a great place to start
             </p>
           </div>
 
