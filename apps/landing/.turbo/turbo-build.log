@@ -1,33 +1,0 @@
-
-
-> landing@0.1.0 build /Users/connorlove/projects/the-lyceum-project/apps/landing
-> next build
-
- [33m[1m⚠[22m[39m Invalid next.config.mjs options detected: 
- [33m[1m⚠[22m[39m     Unrecognized key(s) in object: 'allowedDevOrigins' at "experimental"
- [33m[1m⚠[22m[39m See more info here: https://nextjs.org/docs/messages/invalid-next-config
-   [1m[38;2;173;127;168m▲ Next.js 15.3.4[39m[22m
-   - Environments: .env.local
-
- [37m[1m [22m[39m Creating an optimized production build ...
- [32m[1m✓[22m[39m Compiled successfully in 6.0s
- [37m[1m [22m[39m Skipping validation of types
- [37m[1m [22m[39m Skipping linting
-[?25l [37m[1m [22m[39m Collecting page data  [36m.[39m[2K[1G [37m[1m [22m[39m Collecting page data  [36m..[39m[2K[1G [37m[1m [22m[39m Collecting page data  [36m...[39m[2K[1G[?25h [37m[1m [22m[39m Collecting page data     [32m[1m✓[22m[39m Collecting page data 
-[?25l [37m[1m [22m[39m Generating static pages (0/5)  [36m[    ][39m[2K[1G [37m[1m [22m[39m Generating static pages (0/5)  [36m[=   ][39m[2K[1G [37m[1m [22m[39m Generating static pages (0/5)  [36m[==  ][39m[2K[1G[?25h [32m[1m✓[22m[39m Generating static pages (5/5)
-[?25l [37m[1m [22m[39m Finalizing page optimization  [36m.[39m[?25l [37m[1m [22m[39m Collecting build traces  [36m.[39m[2K[1G[?25h [37m[1m [22m[39m Collecting build traces     [32m[1m✓[22m[39m Collecting build traces 
-[2K[1G[?25h [37m[1m [22m[39m Finalizing page optimization     [32m[1m✓[22m[39m Finalizing page optimization 
-
-[4mRoute (app)[24m                                 [4mSize[24m  [4mFirst Load JS[24m  [4m[24m  [4m[24m
-┌ ○ /                                    1.55 kB         [37m[1m110 kB[22m[39m
-├ ○ /_not-found                            977 B         [37m[1m103 kB[22m[39m
-└ ○ /manifesto                             729 B         [37m[1m109 kB[22m[39m
-+ First Load JS shared by all             [37m[1m102 kB[22m[39m
-  ├ chunks/643-2a2d5cd409779dc8.js       46.5 kB
-  ├ chunks/96ffe362-e54e18c085ba6d70.js  53.2 kB
-  └ other shared chunks (total)          1.92 kB
-
-
-○  (Static)  prerendered as static content
-
-[?25h
