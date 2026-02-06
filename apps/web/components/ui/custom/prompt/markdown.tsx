@@ -152,26 +152,92 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
   pre: ({ children }) => <>{children}</>
 };
 
-function robustParseJSON(jsonString: string) {
-  try {
-    // 0. Remove markdown code blocks if present
-    let cleaned = jsonString.trim();
-    if (cleaned.startsWith('```')) {
-      cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+function cleanJSONLikeString(jsonString: string) {
+  let cleaned = jsonString.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  }
+
+  return cleaned
+    .replace(/,\s*([\]}])/g, '$1')
+    .replace(/\/\/.*/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
+function sanitizeInvalidJsonEscapes(jsonString: string) {
+  const validEscapeChars = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't']);
+  let result = '';
+  let inString = false;
+
+  for (let i = 0; i < jsonString.length; i += 1) {
+    const char = jsonString[i];
+
+    if (char === '"' && (i === 0 || jsonString[i - 1] !== '\\')) {
+      inString = !inString;
+      result += char;
+      continue;
     }
 
-    // 1. Remove trailing commas in arrays and objects
-    // 2. Remove comments
-    cleaned = cleaned
-      .replace(/,\s*([\]}])/g, '$1')
-      .replace(/\/\/.*/g, '')
-      .replace(/\/\*[\s\S]*?\*\//g, '');
-    
-    return JSON.parse(cleaned);
-  } catch (e) {
-    // If cleaning fails or still invalid, try original as fallback
-    return JSON.parse(jsonString);
+    if (inString && char === '\\') {
+      const next = jsonString[i + 1];
+
+      if (!next) {
+        result += '\\\\';
+        continue;
+      }
+
+      if (next === 'u') {
+        const hex = jsonString.slice(i + 2, i + 6);
+        if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+          result += `\\u${hex}`;
+          i += 5;
+          continue;
+        }
+
+        // Invalid unicode escape (e.g. \underline) -> keep literal backslash.
+        result += '\\\\';
+        continue;
+      }
+
+      // For LaTeX-like commands such as \beta, \nabla, \frac, treat "\" as literal.
+      const following = jsonString[i + 2] ?? '';
+      const isCommandLike = /[A-Za-z]/.test(next) && /[A-Za-z]/.test(following);
+      if (isCommandLike) {
+        result += '\\\\';
+        continue;
+      }
+
+      if (validEscapeChars.has(next)) {
+        result += `\\${next}`;
+        i += 1;
+        continue;
+      }
+
+      // Invalid JSON escape (e.g. \m) -> keep literal backslash.
+      result += '\\\\';
+      continue;
+    }
+
+    result += char;
   }
+
+  return result;
+}
+
+function robustParseJSON(jsonString: string) {
+  const cleaned = cleanJSONLikeString(jsonString);
+  const attempts = [cleaned, sanitizeInvalidJsonEscapes(cleaned), sanitizeInvalidJsonEscapes(jsonString)];
+
+  let lastError: unknown;
+  for (const attempt of attempts) {
+    try {
+      return JSON.parse(attempt);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
 }
 
 function MarkdownComponent({ children, className, components = DEFAULT_COMPONENTS }: MarkdownProps) {
@@ -323,12 +389,55 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
   const finalProcessedContent = useMemo(() => {
     const baseContent = typeof processedContent === 'string' ? processedContent : '';
     let processed = baseContent;
+    const isLikelyParenthesizedMath = (content: string) => {
+      const trimmed = content.trim();
+      if (!trimmed) return false;
+
+      const hasLatexCommand = /\\[a-zA-Z]+/.test(trimmed);
+      const hasSubOrSup = /[_^]/.test(trimmed);
+      const hasEquationOperator = /[=+*/^]|-(?=\d)/.test(trimmed);
+      const hasDigit = /\d/.test(trimmed);
+
+      // Remove LaTeX command names before counting natural-language words.
+      const deLatex = trimmed.replace(/\\[a-zA-Z]+/g, " ");
+      const plainText = deLatex
+        .replace(/[$_^{}=+\-*/\\,.;:()[\]0-9]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const wordCount = plainText ? plainText.split(" ").length : 0;
+
+      // Avoid wrapping prose-style parentheticals like "(e.g., give both ...)".
+      if (wordCount >= 4) return false;
+      if (hasLatexCommand) return true;
+      if (hasSubOrSup) return true;
+      if (hasEquationOperator && hasDigit) return true;
+      return false;
+    };
     
     // Convert [ math ] style display math to $$ math $$
     // This handles cases where AI uses square brackets for display math
     processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, content) => {
       return `$$${content}$$`;
     });
+
+    // Convert \( math \) style inline math to $ math $
+    // Handle both double-escaped and single-escaped variants
+    processed = processed
+      .replace(/\\\\\(([\s\S]*?)\\\\\)/g, (match, content) => `$${content}$`)
+      .replace(/\\\(([\s\S]*?)\\\)/g, (match, content) => `$${content}$`);
+
+    // Pass 1: wrap simple parenthesized math with no nested parentheses.
+    processed = processed.replace(
+      /\(([^()\n]*?(?:_[A-Za-z{]|\\[a-zA-Z]+)[^()\n]*)\)/g,
+      (match, content) => `$${content}$`
+    );
+
+    // Pass 2: wrap one-level nested parenthesized math, e.g. (\mathbf r(3)=...).
+    // This catches expressions skipped by the no-nesting pass above.
+    processed = processed.replace(
+      /\(((?:[^()\n]+|\([^()\n]*\))+?)\)/g,
+      (match, content) => (isLikelyParenthesizedMath(content) ? `$${content.trim()}$` : match)
+    );
     
     // Also handle the case where square brackets are used without backslashes
     // Match [ followed by math content and closing ]

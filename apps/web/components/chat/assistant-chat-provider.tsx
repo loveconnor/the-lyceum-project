@@ -4,6 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { createClient } from "@/utils/supabase/client";
 import { ANALYTICS_CONFIG } from "@/lib/analytics/config";
 import { markAiUsed, markPrimaryFeature, trackEvent } from "@/lib/analytics";
+import { parseFileContent } from "@/lib/fileParser";
 
 type Conversation = {
   id: string;
@@ -233,7 +234,14 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
 
   const sendMessage = useCallback(
     async (content: string, files?: File[]) => {
-      if (!content.trim()) return;
+      const trimmedContent = content.trim();
+      const effectiveContent =
+        trimmedContent ||
+        (files && files.length > 0
+          ? `Please analyze the attached file${files.length > 1 ? "s" : ""}.`
+          : "");
+
+      if (!effectiveContent) return;
       setIsSending(true);
       try {
         startAiSession(messages.length);
@@ -264,19 +272,22 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
         // Optimistic user message; assistant placeholder only when streaming text arrives
         const tempUserId = `temp-user-${Date.now()}`;
         const tempAssistantId = `temp-assistant-${Date.now()}`;
-        setMessages((prev) => [...prev, { id: tempUserId, role: "user", content: content, files }]);
+        setMessages((prev) => [...prev, { id: tempUserId, role: "user", content: effectiveContent, files }]);
 
-        // Process files if present - read their content
+        // Process files if present - parse by file type (PDF, DOCX, text, etc.)
         let fileContents: Array<{ name: string; content: string; type: string }> = [];
         if (files && files.length > 0) {
           fileContents = await Promise.all(
             files.map(async (file) => {
               try {
-                const content = await file.text();
+                const parsedContent = await parseFileContent(file);
+                const content = parsedContent.startsWith("[PDF_BASE64]")
+                  ? parsedContent
+                  : parsedContent.slice(0, 50000);
                 console.log(`Read file ${file.name}: ${content.length} characters`);
                 return {
                   name: file.name,
-                  content: content.slice(0, 50000), // Limit file size
+                  content,
                   type: file.type
                 };
               } catch (error) {
@@ -300,7 +311,7 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
           },
           body: JSON.stringify({
             conversationId,
-            message: content,
+            message: effectiveContent,
             files: fileContents
           })
         });
@@ -342,7 +353,20 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
             const data = dataLines.join("\n");
 
             if (event === "end") break;
-            if (event === "error") continue;
+            if (event === "error") {
+              let message = "Assistant request failed";
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed?.error && typeof parsed.error === "string") {
+                  message = parsed.error;
+                }
+              } catch {
+                if (data?.trim()) {
+                  message = data.trim();
+                }
+              }
+              throw new Error(message);
+            }
             
             if (event === "title") {
               try {
@@ -422,6 +446,10 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
               )
             );
           }
+        }
+
+        if (!hasStarted) {
+          throw new Error("No response received from assistant.");
         }
 
         // After streaming, we have the most up-to-date messages including visuals.

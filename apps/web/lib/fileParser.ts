@@ -38,10 +38,29 @@ export async function parseFileContent(file: File): Promise<string> {
  */
 async function parsePDFAsBase64(file: File): Promise<string> {
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const base64 = btoa(
-      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-    );
+    // Use FileReader -> data URL to avoid expensive string concatenation on large PDFs
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result !== 'string') {
+          reject(new Error('Invalid FileReader result type'));
+          return;
+        }
+
+        const commaIndex = result.indexOf(',');
+        if (commaIndex < 0) {
+          reject(new Error('Invalid data URL for PDF'));
+          return;
+        }
+
+        resolve(result.slice(commaIndex + 1));
+      };
+
+      reader.onerror = () => reject(reader.error || new Error('Failed to read PDF file'));
+      reader.readAsDataURL(file);
+    });
     
     console.log(`✅ [FILE PARSER] Encoded PDF as base64 for backend processing: ${file.name}`);
     return `[PDF_BASE64]${base64}`;

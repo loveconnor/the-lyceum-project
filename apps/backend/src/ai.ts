@@ -353,6 +353,40 @@ type AssistantChatOptions = {
   systemPrompt?: string;
 };
 
+const MAX_ASSISTANT_CONTEXT_CHARS = 16000;
+const MAX_ASSISTANT_MESSAGE_CHARS = 8000;
+const MAX_ASSISTANT_HISTORY_TOTAL_CHARS = 32000;
+
+const clampText = (text: string, maxChars: number): string => {
+  if (text.length <= maxChars) return text;
+  const headChars = Math.floor(maxChars * 0.85);
+  const tailChars = Math.max(0, maxChars - headChars);
+  return `${text.slice(0, headChars)}\n\n[...content truncated for length...]\n\n${text.slice(text.length - tailChars)}`;
+};
+
+const buildBoundedAssistantMessages = (messages: ChatMessage[]): ChatCompletionMessageParam[] => {
+  // Keep the newest messages first within a total size budget.
+  const kept: ChatCompletionMessageParam[] = [];
+  let usedChars = 0;
+
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    const boundedContent = clampText(message.content, MAX_ASSISTANT_MESSAGE_CHARS);
+
+    if (usedChars + boundedContent.length > MAX_ASSISTANT_HISTORY_TOTAL_CHARS) {
+      break;
+    }
+
+    kept.push({
+      role: message.role,
+      content: boundedContent,
+    } as ChatCompletionMessageParam);
+    usedChars += boundedContent.length;
+  }
+
+  return kept.reverse();
+};
+
 export const runAssistantChat = async (
   messages: ChatMessage[],
   options: AssistantChatOptions = {},
@@ -362,11 +396,14 @@ export const runAssistantChat = async (
     : baseSystemInstruction;
 
   const client = ensureClient();
+  const boundedContext = options.context
+    ? clampText(options.context, MAX_ASSISTANT_CONTEXT_CHARS)
+    : undefined;
 
   const chatMessages: ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },
-    ...(options.context ? [{ role: 'system', content: `Context: ${options.context}` }] : []),
-    ...messages.map((m) => ({ role: m.role, content: m.content } as ChatCompletionMessageParam)),
+    ...(boundedContext ? [{ role: 'system', content: `Context: ${boundedContext}` }] : []),
+    ...buildBoundedAssistantMessages(messages),
   ];
 
   const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
@@ -389,11 +426,14 @@ export const runAssistantChatStream = async (
     : baseSystemInstruction;
 
   const client = ensureClient();
+  const boundedContext = options.context
+    ? clampText(options.context, MAX_ASSISTANT_CONTEXT_CHARS)
+    : undefined;
 
   const chatMessages: ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },
-    ...(options.context ? [{ role: 'system', content: `Context: ${options.context}` }] : []),
-    ...messages.map((m) => ({ role: m.role, content: m.content } as ChatCompletionMessageParam)),
+    ...(boundedContext ? [{ role: 'system', content: `Context: ${boundedContext}` }] : []),
+    ...buildBoundedAssistantMessages(messages),
   ];
 
   const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
@@ -423,6 +463,16 @@ export const runAssistantChatStream = async (
 
 export const generateChatTitle = async (userMessage: string, assistantReply: string): Promise<string | null> => {
   const client = ensureClient();
+  const fallbackTitle = (() => {
+    const cleaned = (userMessage || '')
+      .replace(/[`*_#>\[\]()]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!cleaned) return null;
+
+    const words = cleaned.split(' ').slice(0, 6).join(' ');
+    return words.length > 60 ? words.slice(0, 60).trim() : words;
+  })();
   
   if (!userMessage && !assistantReply) return null;
 
@@ -444,7 +494,7 @@ export const generateChatTitle = async (userMessage: string, assistantReply: str
     });
 
     let title = completion.choices[0]?.message?.content?.trim();
-    if (!title) return null;
+    if (!title) return fallbackTitle;
     
     // Clean up
     title = title
@@ -458,9 +508,9 @@ export const generateChatTitle = async (userMessage: string, assistantReply: str
       return title.slice(0, 60).trim();
     }
 
-    return title || null;
+    return title || fallbackTitle;
   } catch (error) {
     console.error('Error generating chat title:', error);
-    return null;
+    return fallbackTitle;
   }
 };

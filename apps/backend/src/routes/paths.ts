@@ -4,7 +4,7 @@ import { updateDashboardActivity } from "../dashboardService";
 import { generatePathOutline, generateModuleContent, generateModuleFromSourceContent } from "../ai-path-generator";
 import { generateLearnByDoingTree } from "../learn-by-doing";
 import { generateRegistryBackedPath } from "../ai-path-generator-registry";
-import pdfParse = require('pdf-parse');
+import { extractPdfText } from "../pdf-utils";
 import { 
   createModuleCompletionNotification, 
   createPathCompletionNotification 
@@ -35,6 +35,56 @@ type WebSource = {
 
 type FirecrawlSource = WebSource & {
   content: string;
+};
+
+type ContextFileInput = {
+  name: string;
+  content: string;
+  type: string;
+};
+
+const MAX_FIRECRAWL_FILE_CONTEXT_CHARS = 18000;
+const MAX_FIRECRAWL_FILE_COUNT = 5;
+const MAX_FIRECRAWL_FILE_CHARS_EACH = 3500;
+
+const buildFirecrawlFileContext = (contextFiles: ContextFileInput[]): string => {
+  if (!Array.isArray(contextFiles) || contextFiles.length === 0) return '';
+
+  const usableFiles = contextFiles
+    .filter((file) => typeof file?.content === 'string' && file.content.trim().length > 0)
+    .slice(0, MAX_FIRECRAWL_FILE_COUNT);
+
+  if (usableFiles.length === 0) return '';
+
+  const sections: string[] = [];
+  let usedChars = 0;
+
+  for (const file of usableFiles) {
+    if (usedChars >= MAX_FIRECRAWL_FILE_CONTEXT_CHARS) break;
+
+    const remaining = MAX_FIRECRAWL_FILE_CONTEXT_CHARS - usedChars;
+    const budgetForFile = Math.min(remaining, MAX_FIRECRAWL_FILE_CHARS_EACH);
+    if (budgetForFile <= 0) break;
+
+    const excerpt = file.content.slice(0, budgetForFile);
+    const section =
+      `File: ${file.name}\n` +
+      `Type: ${file.type}\n` +
+      `Excerpt:\n${excerpt}\n`;
+
+    sections.push(section);
+    usedChars += section.length;
+  }
+
+  if (sections.length === 0) return '';
+
+  return [
+    'USER-UPLOADED FILE CONTEXT (high priority):',
+    'Use this content to steer topic emphasis, terminology, and source selection.',
+    'Treat this as mandatory grounding context for the research task.',
+    '',
+    ...sections,
+  ].join('\n');
 };
 
 const extractFirecrawlSources = (payload: any): any[] => {
@@ -171,7 +221,10 @@ const firecrawlLocalSearchUrls = async (query: string): Promise<string[]> => {
 
 const firecrawlAgentSources = async (
   query: string,
-  limit: number = 5
+  limit: number = 5,
+  options?: {
+    contextFiles?: ContextFileInput[];
+  }
 ): Promise<{ sources: FirecrawlSource[]; error?: string }> => {
   const controller = new AbortController();
 
@@ -193,8 +246,18 @@ const firecrawlAgentSources = async (
       },
     });
 
+    const fileContext = buildFirecrawlFileContext(options?.contextFiles || []);
+    logger.info('firecrawl', 'Prepared uploaded file context for agent', {
+      details: {
+        files: options?.contextFiles?.length || 0,
+        contextChars: fileContext.length,
+      },
+    });
+
     const agentPrompt = `You are a research agent for a learning platform.
   Find authoritative sources that teach the topic: "${query}".
+
+  ${fileContext ? `${fileContext}\n` : ''}
 
   Return a JSON object with a "sources" array. Each source MUST include:
   - source_type (e.g., Official Tutorial, Official Documentation, Textbook, University Tutorial)
@@ -209,6 +272,7 @@ const firecrawlAgentSources = async (
 
   Requirements:
   - Prefer official docs, textbooks, or reputable tutorials
+  - Prioritize sources that align with the uploaded file context when provided
   - Extract detailed instructional content (not just introductions)
   - Include code snippets if available
   - Avoid forums or low-quality content unless no alternatives exist`;
@@ -901,8 +965,7 @@ router.post("/generate", async (req: Request, res: Response) => {
             console.log(`[Generate]   Parsing PDF: ${file.name}...`);
             const base64Data = file.content.substring('[PDF_BASE64]'.length);
             const buffer = Buffer.from(base64Data, 'base64');
-            const pdfData = await (pdfParse as unknown as (data: Buffer) => Promise<any>)(buffer);
-            file.content = pdfData.text;
+            file.content = await extractPdfText(buffer);
             console.log(`[Generate]   ✅ Extracted ${file.content.length} characters from PDF`);
           } catch (error) {
             console.error(`[Generate]   ❌ Failed to parse PDF ${file.name}:`, error);
@@ -1461,7 +1524,9 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
           }
 
           logger.info('firecrawl', `Fetching web sources for: ${searchQuery}`);
-          const firecrawlResult = await firecrawlAgentSources(searchQuery, 6);
+          const firecrawlResult = await firecrawlAgentSources(searchQuery, 6, {
+            contextFiles,
+          });
 
           if (firecrawlResult.error) {
             logger.warn('firecrawl', 'Agent returned error', {

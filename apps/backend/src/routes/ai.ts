@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { extractPdfText } from '../pdf-utils';
 
 import {
   generateCourseOutline,
@@ -27,6 +28,7 @@ import {
 } from '../visual-enrichment';
 
 const aiRouter = Router();
+const MAX_CONTEXT_FILE_CHARS = 12000;
 const assistantSystemPrompt =
   process.env.ASSISTANT_SYSTEM_PROMPT ||
   'You are Lyceum, a concise AI study partner. Prioritize clarity, short sentences, and actionable next steps. ' +
@@ -396,14 +398,45 @@ aiRouter.post('/assistant/chat', async (req, res) => {
     // Check if this is the first message (no history, or only the current message)
     const isFirstMessage = history.length === 0;
 
-    // Build file context if files are provided
+    // Parse PDF payloads and build file context if files are provided
     let fileContext = '';
     if (files && files.length > 0) {
-      console.log(`Received ${files.length} file(s):`, files.map(f => ({ name: f.name, type: f.type, contentLength: f.content?.length })));
+      const parsedFiles = await Promise.all(
+        files.map(async (file) => {
+          if (!file?.content?.startsWith?.('[PDF_BASE64]')) {
+            return file;
+          }
+
+          try {
+            const base64Data = file.content.substring('[PDF_BASE64]'.length);
+            const buffer = Buffer.from(base64Data, 'base64');
+            const parsedText = await extractPdfText(buffer);
+
+            return {
+              ...file,
+              content: parsedText.trim().length > 0
+                ? parsedText
+                : `[PDF parsed but returned no text: ${file.name}]`,
+            };
+          } catch (error) {
+            console.error(`Failed to parse assistant PDF ${file.name}:`, error);
+            return {
+              ...file,
+              content: `[PDF parsing failed: ${file.name}]`,
+            };
+          }
+        })
+      );
+
+      console.log(
+        `Received ${parsedFiles.length} file(s):`,
+        parsedFiles.map((f) => ({ name: f.name, type: f.type, contentLength: f.content?.length }))
+      );
+
       fileContext = '=== UPLOADED FILES ===\n' +
         'The user has uploaded the following file(s) for you to reference:\n\n' +
-        files.map((file) => 
-          `📎 File: ${file.name}\nType: ${file.type}\n\nContent:\n${file.content}\n${'='.repeat(80)}`
+        parsedFiles.map((file) => 
+          `📎 File: ${file.name}\nType: ${file.type}\n\nContent:\n${(file.content || '').slice(0, MAX_CONTEXT_FILE_CHARS)}\n${'='.repeat(80)}`
         ).join('\n\n');
       console.log(`Built file context: ${fileContext.length} characters`);
     }
@@ -511,6 +544,24 @@ aiRouter.post('/assistant/chat', async (req, res) => {
         for await (const chunk of generator) {
           full += chunk;
           res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+        }
+
+        // Some local/OpenAI-compatible providers may return an empty stream.
+        // Fallback once to non-stream completion so the UI still receives content.
+        if (!full.trim()) {
+          console.warn('AI stream returned empty content; attempting non-stream fallback');
+          const fallback = await runAssistantChat(chatMessages, {
+            context: [visualAidsContext, fileContext, contextString, context].filter(Boolean).join('\n\n') || undefined,
+            systemPrompt: enhancedSystemPrompt,
+          });
+          if (fallback.reply?.trim()) {
+            full = fallback.reply;
+            res.write(`data: ${JSON.stringify(full)}\n\n`);
+          }
+        }
+
+        if (!full.trim()) {
+          throw new Error('Model returned an empty response. Please try again.');
         }
 
         await appendAssistantMessages(

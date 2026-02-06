@@ -17,19 +17,24 @@ const defaultState = (userId) => ({
     stats: {},
 });
 const normalizeTopics = (topics = [], { forceConfidence, progress, padToSix = true, } = {}) => {
-    const normalized = topics.slice(0, 6).map((t) => ({
-        name: t.name || t.title || 'Topic',
-        category: t.category ||
+    const normalized = topics.slice(0, 6).map((t) => {
+        const name = t.name || t.title || 'Topic';
+        const category = t.category ||
             t.difficulty ||
             t.suggested_formats?.[0] ||
-            'General',
-        confidence: forceConfidence ||
-            t.confidence ||
-            (typeof t.estimated_hours === 'number'
-                ? `~${t.estimated_hours} hrs`
-                : t.rationale || 'Suggested'),
-        progress: typeof progress === 'number' ? progress : t.progress ?? 0,
-    }));
+            'General';
+        return {
+            name,
+            category,
+            confidence: forceConfidence ||
+                t.confidence ||
+                (typeof t.estimated_hours === 'number'
+                    ? `~${t.estimated_hours} hrs`
+                    : t.rationale || 'Suggested'),
+            progress: typeof progress === 'number' ? progress : t.progress ?? 0,
+            description: t.summary || t.description || `Learn ${name} fundamentals and core concepts at ${category.toLowerCase()} level.`,
+        };
+    });
     if (padToSix) {
         while (normalized.length < 6) {
             normalized.push({
@@ -37,6 +42,7 @@ const normalizeTopics = (topics = [], { forceConfidence, progress, padToSix = tr
                 category: 'General',
                 confidence: forceConfidence || 'Complete an activity',
                 progress: typeof progress === 'number' ? progress : 0,
+                description: 'Complete an activity to get personalized recommendations based on your learning goals.',
             });
         }
     }
@@ -68,11 +74,17 @@ const fallbackTopicsFromInterests = (onboarding, forceConfidence) => {
     }
     const uniqueInterests = [...new Set(interests)].filter(Boolean);
     const expanded = uniqueInterests.flatMap((interest) => [
-        { name: interest, category: 'Interest', confidence: forceConfidence || 'Based on interests' },
+        {
+            name: interest,
+            category: 'Interest',
+            confidence: forceConfidence || 'Based on interests',
+            description: `Explore ${interest} and develop practical skills in this area of interest.`,
+        },
         {
             name: `${interest} fundamentals`,
             category: 'Interest',
             confidence: forceConfidence || 'Based on interests',
+            description: `Master the core fundamentals and essential concepts of ${interest}.`,
         },
     ]);
     return expanded.slice(0, 6);
@@ -179,12 +191,12 @@ const ensureRecommendations = async (state, { forceRefresh = false } = {}) => {
     if (recommendedTopics.length < 6) {
         console.log('[ENSURE_RECS] Using final safety net');
         recommendedTopics = normalizeTopics([
-            { name: 'Learning Skills', category: 'General', confidence: forceConfidence || 'Suggested' },
-            { name: 'Study Habits', category: 'General', confidence: forceConfidence || 'Suggested' },
-            { name: 'Problem Solving', category: 'General', confidence: forceConfidence || 'Suggested' },
-            { name: 'Critical Thinking', category: 'General', confidence: forceConfidence || 'Suggested' },
-            { name: 'Communication', category: 'General', confidence: forceConfidence || 'Suggested' },
-            { name: 'Project Execution', category: 'General', confidence: forceConfidence || 'Suggested' },
+            { name: 'Learning Skills', category: 'General', confidence: forceConfidence || 'Suggested', description: 'Develop effective learning strategies and techniques to accelerate your educational journey.' },
+            { name: 'Study Habits', category: 'General', confidence: forceConfidence || 'Suggested', description: 'Build consistent and productive study routines that maximize retention and understanding.' },
+            { name: 'Problem Solving', category: 'General', confidence: forceConfidence || 'Suggested', description: 'Master systematic approaches to analyzing and solving complex problems across domains.' },
+            { name: 'Critical Thinking', category: 'General', confidence: forceConfidence || 'Suggested', description: 'Enhance your ability to evaluate information, analyze arguments, and make sound decisions.' },
+            { name: 'Communication', category: 'General', confidence: forceConfidence || 'Suggested', description: 'Improve your written and verbal communication skills for professional and academic success.' },
+            { name: 'Project Execution', category: 'General', confidence: forceConfidence || 'Suggested', description: 'Learn to plan, organize, and deliver projects effectively from conception to completion.' },
         ], { forceConfidence, progress: 0, padToSix: false });
         console.log('[ENSURE_RECS] Safety net applied, total:', recommendedTopics.length);
     }
@@ -224,15 +236,34 @@ const recalculateStatsFromLabs = async (userId) => {
         console.error('Error fetching labs for stats:', error);
         return {};
     }
-    if (!labs || labs.length === 0) {
+    // Fetch all paths for this user
+    const { data: paths, error: pathsError } = await supabase
+        .from('learning_paths')
+        .select('id, status, completed_at')
+        .eq('user_id', userId);
+    if (pathsError) {
+        console.error('Error fetching paths for stats:', pathsError);
+    }
+    // Fetch conversations count
+    const { count: conversationCount, error: conversationError } = await supabase
+        .from('assistant_conversations')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId);
+    if (conversationError) {
+        console.error('Error fetching conversations for stats:', conversationError);
+    }
+    const allLabs = labs || [];
+    const allPaths = paths || [];
+    const totalChats = conversationCount || 0;
+    if (allLabs.length === 0 && allPaths.length === 0 && totalChats === 0) {
         return {};
     }
     // Calculate statistics
-    const completedLabs = labs.filter(l => l.status === 'completed');
-    const inProgressLabs = labs.filter(l => l.status === 'in-progress');
-    const notStartedLabs = labs.filter(l => l.status === 'not-started');
-    // Calculate success rate: (completed / (completed + in-progress)) * 100
-    // This shows the success rate of labs you've actually engaged with
+    const completedLabs = allLabs.filter(l => l.status === 'completed');
+    const inProgressLabs = allLabs.filter(l => l.status === 'in-progress');
+    const completedPaths = allPaths.filter(p => p.status === 'completed');
+    const inProgressPaths = allPaths.filter(p => p.status === 'in-progress');
+    // Calculate success rate: show success rate of labs you've actually engaged with
     const engagedLabs = completedLabs.length + inProgressLabs.length;
     const successRate = engagedLabs > 0
         ? (completedLabs.length / engagedLabs) * 100
@@ -261,6 +292,16 @@ const recalculateStatsFromLabs = async (userId) => {
             monthlyActivity[monthKey].labs += 1;
         }
     });
+    // Process completed paths for monthly activity
+    completedPaths.forEach(path => {
+        if (path.completed_at) {
+            const monthKey = path.completed_at.slice(0, 7);
+            if (!monthlyActivity[monthKey]) {
+                monthlyActivity[monthKey] = { labs: 0, paths: 0 };
+            }
+            monthlyActivity[monthKey].paths += 1;
+        }
+    });
     // Convert topic counts to dashboard format
     const topTopics = Object.entries(topicCounts)
         .sort((a, b) => b[1] - a[1])
@@ -276,10 +317,13 @@ const recalculateStatsFromLabs = async (userId) => {
     const activityCounts = {
         lab_completed: completedLabs.length,
         lab_started: inProgressLabs.length,
+        path_completed: completedPaths.length,
+        path_started: inProgressPaths.length,
+        chat_active: totalChats
     };
     return {
-        total_courses: completedLabs.length,
-        total_activities: labs.length,
+        total_courses: completedLabs.length + completedPaths.length,
+        total_activities: allLabs.length + allPaths.length + totalChats,
         total_minutes: totalMinutes,
         overall_success_rate: Math.round(successRate),
         top_topics: topTopics,
@@ -291,8 +335,14 @@ const recalculateStatsFromLabs = async (userId) => {
             total_students: 1, // Single user
             passing_students: completedLabs.length > 0 ? 1 : 0,
             // Frontend expects these fields
+            // We map these to the breakdown we want in the UI
             in_progress: inProgressLabs.length,
             completed: completedLabs.length,
+            // New specific fields
+            labs_completed: completedLabs.length,
+            labs_in_progress: inProgressLabs.length,
+            paths_completed: completedPaths.length,
+            paths_in_progress: inProgressPaths.length
         }
     };
 };
@@ -350,9 +400,39 @@ router.get('/', async (req, res) => {
         }
         // Sort by timestamp
         activities.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        // Fetch user's learning paths with item counts
+        const { data: learningPaths } = await supabase
+            .from('learning_paths')
+            .select(`
+        id,
+        title,
+        status,
+        learning_path_items (
+          id,
+          status
+        )
+      `)
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(5);
+        // Calculate progress for each path
+        const learningPathData = (learningPaths || []).map((path) => {
+            const items = path.learning_path_items || [];
+            const total = items.length;
+            const completed = items.filter((item) => item.status === 'completed').length;
+            const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+            return {
+                id: path.id,
+                title: path.title,
+                progress,
+                completed,
+                total,
+                status: path.status,
+            };
+        });
         console.log('[DASHBOARD_GET] Calling ensureRecommendations with forceRefresh=false');
         const withRecs = await ensureRecommendations(state);
-        res.json({ ...withRecs, activities });
+        res.json({ ...withRecs, activities, learning_path: learningPathData });
     }
     catch (error) {
         console.error('Dashboard fetch error', error);

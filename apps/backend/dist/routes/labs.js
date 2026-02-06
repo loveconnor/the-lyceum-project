@@ -28,6 +28,13 @@ router.get("/", async (req, res) => {
           id,
           text,
           created_at
+        ),
+        learning_path_items!learning_path_items_lab_id_fkey (
+          path_id,
+          learning_paths (
+            id,
+            title
+          )
         )
       `)
             .eq("user_id", userId)
@@ -36,7 +43,18 @@ router.get("/", async (req, res) => {
             console.error("Error fetching labs:", error);
             return res.status(500).json({ error: "Failed to fetch labs" });
         }
-        return res.json(labs);
+        // Transform the data to include path_id and path_title at the lab level
+        const transformedLabs = labs?.map(lab => {
+            const pathItem = lab.learning_path_items?.[0];
+            const pathInfo = pathItem?.learning_paths;
+            return {
+                ...lab,
+                path_id: pathInfo?.id || null,
+                path_title: pathInfo?.title || null,
+                learning_path_items: undefined // Remove the nested structure
+            };
+        }) || [];
+        return res.json(transformedLabs);
     }
     catch (error) {
         console.error("Error in GET /labs:", error);
@@ -54,7 +72,16 @@ router.get("/:id", async (req, res) => {
         const { id } = req.params;
         const { data: lab, error } = await supabase
             .from("labs")
-            .select("*")
+            .select(`
+        *,
+        learning_path_items!learning_path_items_lab_id_fkey (
+          path_id,
+          learning_paths (
+            id,
+            title
+          )
+        )
+      `)
             .eq("id", id)
             .eq("user_id", userId)
             .single();
@@ -62,6 +89,15 @@ router.get("/:id", async (req, res) => {
             console.error("Error fetching lab:", error);
             return res.status(404).json({ error: "Lab not found" });
         }
+        // Transform to include path info at lab level
+        const pathItem = lab.learning_path_items?.[0];
+        const pathInfo = pathItem?.learning_paths;
+        const transformedLab = {
+            ...lab,
+            path_id: pathInfo?.id || null,
+            path_title: pathInfo?.title || null,
+            learning_path_items: undefined
+        };
         // Fetch progress
         const { data: progress } = await supabase
             .from("lab_progress")
@@ -75,7 +111,7 @@ router.get("/:id", async (req, res) => {
             .eq("lab_id", id)
             .order("created_at", { ascending: true });
         return res.json({
-            ...lab,
+            ...transformedLab,
             lab_progress: progress || [],
             lab_comments: comments || []
         });
@@ -92,15 +128,65 @@ router.post("/generate", async (req, res) => {
         if (!userId) {
             return res.status(401).json({ error: "Unauthorized" });
         }
-        const { learningGoal, context, userProfile } = req.body;
+        const { learningGoal, context, userProfile, path_id } = req.body;
         if (!learningGoal) {
             return res.status(400).json({ error: "Learning goal is required" });
+        }
+        // If path_id is provided, fetch path details and previous modules to include as context
+        let enrichedContext = context || '';
+        if (path_id) {
+            const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
+            const { data: pathData, error: pathError } = await supabase
+                .from('learning_paths')
+                .select('title, description, topics, difficulty')
+                .eq('id', path_id)
+                .eq('user_id', userId)
+                .single();
+            if (pathData && !pathError) {
+                // Fetch all modules in the path to understand what content has been covered
+                const { data: pathItems, error: itemsError } = await supabase
+                    .from('learning_path_items')
+                    .select('title, description, order_index, item_type, content_data, status')
+                    .eq('path_id', path_id)
+                    .order('order_index', { ascending: true });
+                // Build context about covered content
+                let coveredTopicsContext = '';
+                if (pathItems && !itemsError && pathItems.length > 0) {
+                    const completedModules = pathItems.filter((item) => item.item_type === 'module' && item.status === 'completed' && item.content_data);
+                    if (completedModules.length > 0) {
+                        const topicsSummary = [];
+                        completedModules.forEach((module) => {
+                            const content = module.content_data;
+                            // Extract key concepts and learning objectives
+                            if (content.learning_objectives) {
+                                topicsSummary.push(`Module "${module.title}": ${content.learning_objectives.join(', ')}`);
+                            }
+                            else if (content.key_concepts) {
+                                const concepts = content.key_concepts.map((kc) => kc.concept || kc).join(', ');
+                                topicsSummary.push(`Module "${module.title}": ${concepts}`);
+                            }
+                            else {
+                                topicsSummary.push(`Module "${module.title}": ${module.description || ''}`);
+                            }
+                        });
+                        coveredTopicsContext = `\n\nCONCEPTS COVERED IN PREVIOUS MODULES (you MUST only use concepts from this list):\n${topicsSummary.join('\n')}\n\nIMPORTANT: Only create labs that use concepts, techniques, and knowledge from the modules listed above. Do not introduce new concepts or assume knowledge of topics not yet covered in this learning path.`;
+                    }
+                }
+                // Prepend path context to any existing context
+                const pathContext = `This lab is part of the learning path "${pathData.title}"${pathData.description ? `: ${pathData.description}` : ''}${pathData.topics?.length ? `. Path topics: ${pathData.topics.join(', ')}` : ''}${pathData.difficulty ? `. Difficulty level: ${pathData.difficulty}` : ''}. Please ensure the lab aligns with the path's subject matter, programming language, and difficulty level.${coveredTopicsContext}`;
+                enrichedContext = enrichedContext ? `${pathContext}\n\n${enrichedContext}` : pathContext;
+                console.log('Enriched lab context with path and covered topics:', pathContext);
+            }
+            else if (pathError) {
+                console.warn('Failed to fetch path context:', pathError);
+            }
         }
         // Generate the lab using AI
         const generatedLab = await (0, ai_lab_generator_1.generateLab)({
             learningGoal,
-            context,
+            context: enrichedContext,
             userProfile,
+            path_id,
         });
         // Save to database
         const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
@@ -237,6 +323,53 @@ router.delete("/:id", async (req, res) => {
     }
     catch (error) {
         console.error("Error in DELETE /labs/:id:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+});
+// Reset lab progress
+router.post("/:id/reset", async (req, res) => {
+    try {
+        const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
+        const userId = req.user?.id;
+        if (!userId) {
+            return res.status(401).json({ error: "Unauthorized" });
+        }
+        const { id } = req.params;
+        // Verify lab ownership
+        const { data: lab, error: labError } = await supabase
+            .from("labs")
+            .select("id")
+            .eq("id", id)
+            .eq("user_id", userId)
+            .single();
+        if (labError || !lab) {
+            return res.status(404).json({ error: "Lab not found" });
+        }
+        // Delete all progress for this lab
+        const { error: deleteError } = await supabase
+            .from("lab_progress")
+            .delete()
+            .eq("lab_id", id)
+            .eq("user_id", userId);
+        if (deleteError) {
+            console.error("Error resetting lab progress:", deleteError);
+            return res.status(500).json({ error: "Failed to reset lab progress" });
+        }
+        // Reset lab status to not-started
+        const { data: updatedLab, error: updateError } = await supabase
+            .from("labs")
+            .update({ status: "not-started", completed_at: null })
+            .eq("id", id)
+            .select()
+            .single();
+        if (updateError) {
+            console.error("Error resetting lab status:", updateError);
+            return res.status(500).json({ error: "Failed to reset lab status" });
+        }
+        return res.json(updatedLab);
+    }
+    catch (error) {
+        console.error("Error in POST /labs/:id/reset:", error);
         return res.status(500).json({ error: "Internal server error" });
     }
 });

@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generatePathOutline = generatePathOutline;
 exports.generateModuleContent = generateModuleContent;
+exports.generateModuleFromSourceContent = generateModuleFromSourceContent;
 const openai_1 = __importDefault(require("openai"));
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
@@ -41,6 +42,10 @@ const stripCodeFences = (text) => {
 // Attempt to repair common JSON issues
 const repairJson = (text) => {
     let repaired = text;
+    // Fix backticks inside JSON strings (backticks are not valid in JSON)
+    // Replace backticks with single quotes when they appear inside strings
+    repaired = repaired.replace(/: `([^`"]*)`/g, ': "$1"');
+    repaired = repaired.replace(/:\s*`([^`"]*)`/g, ': "$1"');
     // Fix unescaped backslashes in LaTeX (common issue)
     // Match patterns like \frac, \int, \sum, etc. that should be \\frac, \\int, \\sum
     repaired = repaired.replace(/(?<!\\)\\([a-zA-Z]+)/g, '\\\\$1');
@@ -99,6 +104,12 @@ const fixLiteralNewlines = (obj) => {
 };
 const PATH_OUTLINE_PROMPT = `You are an expert curriculum designer for Lyceum, an educational platform. Your job is to create a high-level outline for a learning path.
 
+CRITICAL: When users provide uploaded files with specific instructions:
+- Those instructions are MANDATORY requirements
+- If they say "make X the first module", X must be order_index: 0
+- If they specify a topic order, follow it exactly
+- User requirements override standard curriculum practices
+
 Given a learning path title and description, generate:
 1. Path metadata (refined title, description, difficulty, duration, topics)
 2. A sequence of module titles and descriptions that progressively build knowledge
@@ -126,8 +137,24 @@ Guidelines:
 - Each module should take 2-4 hours to complete
 - Module titles should be clear and descriptive
 - Descriptions should explain what the learner will achieve
-- Ensure proper scaffolding between modules`;
+- Ensure proper scaffolding between modules
+- CRITICAL: If user uploaded files contain instructions like "make X first" or "start with Y", those topics MUST be in the earliest modules (order_index: 0, 1, etc.)
+
+EXAMPLE: If user says "Create a module about abstract classes. Make that first module before everything"
+Then your response MUST have:
+{
+  "modules": [
+    {
+      "title": "Abstract Classes in Java",
+      "description": "...",
+      "order_index": 0
+    },
+    ... other modules after ...
+  ]
+}`;
 const MODULE_CONTENT_PROMPT = `You are an expert curriculum designer for Lyceum. Generate detailed content for a single learning module.
+
+CRITICAL: Your response must be VALID JSON. DO NOT use backticks (\`) anywhere in your response. Use double quotes (") for all strings. All content should be properly escaped for JSON.
 
 Respond with JSON only in this structure:
 {
@@ -143,18 +170,18 @@ Respond with JSON only in this structure:
         "id": 0,
         "title": "Chapter title",
         "duration": "5-10 min",
-        "content": "Rich markdown content with headings (##, ###), bullet points, code examples if relevant, and clear explanations. Make this substantive and educational - 3-5 paragraphs.",
+        "content": "READING CONTENT ONLY. Rich markdown with headings, bullet points, code examples if relevant, and clear explanations. 3-5 paragraphs of EDUCATIONAL READING. Do NOT include any quiz questions, 'Quick Check', 'Practice Activity', 'Quiz', or any interactive elements here - those go ONLY in the quizzes array below.",
         "quizzes": [
           {
-            "question": "Clear, specific question testing understanding (wrap any math in $ like: What is $x^2 + y^2$?)",
+            "question": "Clear, specific question testing understanding (wrap any math in $ like: What is $x^2 + y^2$? - for code, use markdown code blocks)",
             "options": [
-              { "id": "A", "text": "Option A text (if math: $\\\\mathbf{v} = (3, 4)$)" },
+              { "id": "A", "text": "Option A text (if math: $\\\\mathbf{v} = (3, 4)$ - if code: use backtick for inline or triple-backtick for blocks)" },
               { "id": "B", "text": "Option B text (if math: $x = 3 + 4i$)" },
               { "id": "C", "text": "Option C text" },
               { "id": "D", "text": "Option D text" }
             ],
             "correct": "B",
-            "explanation": "Brief explanation of why this is correct (wrap math in $ as well)"
+            "explanation": "Brief explanation of why this is correct (wrap math in $ and code in backticks as well)"
           }
         ]
       }
@@ -178,18 +205,18 @@ Respond with JSON only in this structure:
     "practical_exercises": [
       {
         "title": "Short descriptive title for the problem",
-        "description": "The actual problem to solve. For math: 'Solve: $2x + 5 = 13$' or 'Find the derivative of $f(x) = x^3 + 2x$'. For other subjects: A specific question or task the learner must complete.",
+        "description": "The actual problem to solve (e.g., 'Solve: $2x + 5 = 13$' or 'Fill in the blank: 4, 5, _, 7, 8')",
+        "exercise_type": "short_answer" | "multiple_choice" | "code_editor",
         "difficulty": "beginner" | "intermediate" | "advanced",
         "estimated_time": "5-15 min",
+        "correct_answer": "The correct answer (e.g., '4' or 'x = 7')",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
         "hints": [
           "First hint - a small nudge in the right direction",
-          "Second hint - more specific guidance",
-          "Third hint - nearly gives the approach but not the answer"
+          "Second hint - more specific guidance"
         ],
-        "worked_example": "Complete step-by-step solution:\\n**Step 1:** First step with explanation\\n**Step 2:** Second step with explanation\\n**Answer:** Final answer with interpretation",
         "common_mistakes": [
-          "Common mistake 1 and why it's wrong",
-          "Common mistake 2 and how to avoid it"
+          "Common mistake 1 and why it's wrong"
         ]
       }
     ],
@@ -263,31 +290,153 @@ Guidelines:
 - Make content specific, actionable, and pedagogically sound
 - Write in an engaging, conversational but professional tone
 
+CHAPTER WRITING GUIDELINES (CRITICAL):
+========================================
+Write chapters that are THOROUGH, CLEAR, and EASY TO UNDERSTAND:
+
+1. LENGTH & DEPTH:
+   - Each chapter should be 800-1200 words (approximately 5-10 paragraphs)
+   - Never write chapters shorter than 600 words
+   - Explain concepts thoroughly - don't rush or skip details
+   - Break complex ideas into smaller, digestible pieces
+
+2. STRUCTURE & FLOW:
+   - Use a clear, logical progression from simple to complex
+   - Each paragraph should flow naturally to the next
+   - Use transition phrases: "Building on this...", "Now that we understand...", "Let's explore..."
+   - Don't jump between topics - finish explaining one concept before moving to the next
+   - Include smooth transitions between sections
+
+3. LANGUAGE & CLARITY:
+   - Use simple, conversational language - write like you're explaining to a friend
+   - Define technical terms when first introduced
+   - Avoid jargon; when necessary, explain it immediately
+   - Use concrete examples to illustrate abstract concepts
+   - Break down complex sentences into shorter ones
+   - Use active voice ("we calculate" not "it is calculated")
+
+4. EXPLANATION STYLE:
+   - Start with the "why" before the "how" - motivation matters
+   - Use analogies and metaphors to relate to familiar concepts
+   - Show multiple perspectives on the same concept when helpful
+   - Address common confusions proactively
+   - Explain the reasoning behind formulas, methods, and approaches
+   - Don't assume prior knowledge - build up systematically
+
+5. FORMATTING FOR READABILITY:
+   - Use headers (##, ###) to organize sections within the chapter
+   - Use bullet points for lists of related items
+   - Use numbered lists for sequential steps or procedures
+   - Use **bold** for key terms and important points
+   - Use > blockquotes for important notes or warnings
+   - Add blank lines between paragraphs for visual breathing room
+
+6. EXAMPLES & ILLUSTRATIONS:
+   - Include concrete examples within the chapter text
+   - Walk through examples step-by-step with explanations
+   - Use realistic scenarios that learners can relate to
+   - For math: show the work AND explain the reasoning for each step
+
+7. PEDAGOGICAL APPROACH:
+   - Begin each chapter with what the learner will understand by the end
+   - Build incrementally - each new concept should build on previous ones
+   - Revisit and reinforce key ideas throughout the chapter
+   - End chapters with a brief summary of what was covered
+   - Anticipate and address common questions or misconceptions
+
+EXAMPLE OF GOOD CHAPTER STRUCTURE:
+-----------------------------------
+## Introduction to the Concept
+[2-3 paragraphs: What is it? Why does it matter? Where is it used?]
+
+## Understanding the Fundamentals
+[3-4 paragraphs: Core principles explained simply with examples]
+
+## How It Works in Practice
+[2-3 paragraphs: Concrete examples showing the concept in action]
+
+## Key Insights and Connections
+[2 paragraphs: Tie it together, connect to bigger picture]
+
+## Summary
+[1 paragraph: Brief recap of main points]
+
+CHAPTER CONTENT SEPARATION (CRITICAL):
+======================================
+The chapter "content" field is for READING ONLY. The UI renders this as readable text.
+Quiz questions are handled by a SEPARATE quiz component that reads from the "quizzes" array.
+
+✗ DO NOT put these in the "content" field:
+  - "Quiz", "Quick Check", "Practice Activity", "Check Your Understanding"
+  - Any questions with answer options (A, B, C, D)
+  - Any interactive exercises or fill-in-the-blank prompts
+  - Numbered quiz questions (1., 2., 3.)
+
+✓ The "content" field should ONLY contain:
+  - Educational explanations and reading material
+  - Examples that illustrate concepts
+  - Definitions and key points
+  - Diagrams described in text (actual diagrams go in visuals)
+
+✓ All questions go in the "quizzes" array as structured objects.
+
 PRACTICAL EXERCISES REQUIREMENTS (CRITICAL):
 ===============================================
-Exercises MUST be actual problems the learner solves, NOT descriptions of activities.
+Exercises MUST be actual problems with correct answers that can be verified.
 
-✓ CORRECT exercise description examples:
-  - "Solve for x: $3x - 7 = 14$"
-  - "Find the derivative: $f(x) = 5x^4 - 3x^2 + 2$"
-  - "Simplify the expression: $\\frac{x^2 - 9}{x + 3}$"
-  - "Calculate the area of a triangle with base 8cm and height 5cm"
-  - "Convert 0.75 to a fraction in lowest terms"
-  - "Factor completely: $x^2 + 7x + 12$"
-  - "What is $\\frac{3}{4} + \\frac{2}{5}$?"
-  
+EXERCISE TYPES - Choose the right type for each problem:
+
+CRITICAL RULE FOR PROGRAMMING EXERCISES:
+- If the exercise asks the learner to WRITE ANY CODE (methods, functions, classes, programs), use "code_editor" type
+- Examples that require "code_editor": "Write a method...", "Implement a function...", "Create a program...", "Write code that..."
+NON-CODING RULE (CRITICAL):
+- If the topic is NOT programming/software development, NEVER use "code_editor"
+- For non-coding topics, use "short_answer" or "multiple_choice" only
+
+1. "short_answer" - Simple problems with a single answer
+   Examples:
+   - "Fill in the blank: 4, 5, _, 7, 8" → correct_answer: "6"
+   - "What is 7 × 8?" → correct_answer: "56"
+   - "Solve: $2x = 10$" → correct_answer: "5" or "x = 5"
+   - "What is the GCD of 12 and 18?" → correct_answer: "6"
+   Use when: Single number, single word, or simple expression answer
+
+2. "multiple_choice" - Select from options
+   Examples:
+   - "Which is prime: 9, 11, 15, 21?" → options: ["9", "11", "15", "21"], correct_answer: "11"
+   - "What is $\\sqrt{64}$?" → options: ["6", "7", "8", "9"], correct_answer: "8"
+   Use when: Testing recognition, or when there are natural distractor options
+   MUST include "options" array with 3-4 choices
+
+3. "code_editor" - ANY exercise requiring writing/implementing CODE (THIS IS THE PRIMARY TYPE FOR PROGRAMMING)
+   Examples:
+   - "Write a Java method that returns the sum of two integers"
+   - "Implement a Python function to reverse a string"
+   - "Create a JavaScript function that checks if a number is prime"
+   - "Write a program that prints numbers 1 to 10"
+   - "Implement a method called isEven that takes an int and returns true if even"
+   - "Create a function to find the maximum value in an array"
+   CRITICAL: Use "code_editor" for ANY exercise where the learner needs to WRITE CODE in a programming language
+   This includes: methods, functions, classes, complete programs, implementing algorithms
+   Include starter_code (optional) and test_cases (optional). Provide correct_answer as complete working code.
+   Language can be: Java, Python, JavaScript, TypeScript, C++, or any programming language
+
+For ALL exercise types, you MUST include:
+- title: Short descriptive name
+- description: The ACTUAL PROBLEM with specific numbers/expressions
+- exercise_type: One of "short_answer", "multiple_choice", or "code_editor"
+- correct_answer: The exact correct answer for validation (for code_editor, include complete working code)
+- hints: 1-2 hints that guide without giving the answer
+
 ✗ WRONG exercise description examples (DO NOT DO THIS):
-  - "Students will practice solving equations" (too vague)
-  - "Using manipulatives, learners will explore..." (describes activity, not problem)
-  - "Work with a partner to discuss..." (not a problem to solve)
-  - "Count objects and record observations" (activity, not problem)
-
-For each exercise, you MUST include:
-1. title: Short name (e.g., "Solve Linear Equation", "Find the Derivative")
-2. description: The ACTUAL PROBLEM with specific numbers/expressions in LaTeX
-3. hints: 2-3 progressive hints that guide without giving the answer
-4. worked_example: Complete step-by-step solution
-5. common_mistakes: 1-2 mistakes learners often make
+  - "Students will practice solving equations" (no specific problem)
+  - "Using manipulatives, learners will explore..." (activity, not problem)
+  - "Identify the most appropriate primitive type for each scenario" (references scenarios but doesn't provide them)
+  - "Choose the correct answer for each case" (vague, no actual problem stated)
+  - Missing correct_answer field
+  
+CRITICAL: The description must be SELF-CONTAINED and include ALL information needed to solve the problem. 
+Do NOT reference external content like "each scenario", "the cases above", or "the following situations" unless you actually include that content in the description.
 
 ADAPTIVE EXAMPLES STRATEGY (CRITICAL):
 - Examples should be adaptive and intentional based on what best helps learners understand each specific concept
@@ -422,10 +571,38 @@ async function generatePathOutline(request) {
             }
             const client = ensureClient();
             const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
-            const titleInstruction = request.title
-                ? `Title: ${request.title}`
-                : `Generate an appropriate title based on the learning goals described below.`;
-            const userPrompt = `Generate a comprehensive learning path outline for:
+            let userPrompt;
+            if (request.context_files && request.context_files.length > 0) {
+                // When user provides files, those take absolute priority
+                const fileContents = request.context_files.map((file, idx) => `File ${idx + 1}: ${file.name}\n${file.content.substring(0, 3000)}${file.content.length > 3000 ? '...' : ''}`).join('\n\n---\n\n');
+                userPrompt = `🚨 CRITICAL INSTRUCTIONS FROM USER FILES 🚨
+
+The user has uploaded specific instructions for this learning path. These are MANDATORY requirements, NOT suggestions:
+
+${fileContents}
+
+---
+
+REQUIRED ACTIONS:
+1. Read the user's instructions above carefully
+2. If they specify a topic to cover FIRST, make that the FIRST module (order_index: 0)
+3. If they specify a custom order or structure, follow it EXACTLY
+4. If they mention specific topics to include, create modules for those topics
+5. Only add additional standard curriculum topics AFTER addressing all user requirements
+
+Additional Context:
+- Base Topic: ${request.description || 'Create a structured learning path'}
+- Difficulty: ${request.difficulty}
+${request.topics && request.topics.length > 0 ? `- Focus Areas: ${request.topics.join(', ')}` : ''}
+
+REMEMBER: User instructions in the files above override standard curriculum design. Follow them precisely.`;
+            }
+            else {
+                // Standard generation without custom files
+                const titleInstruction = request.title
+                    ? `Title: ${request.title}`
+                    : `Generate an appropriate title based on the learning goals described below.`;
+                userPrompt = `Generate a comprehensive learning path outline for:
 
 ${titleInstruction}
 Description: ${request.description || 'Create a structured learning path'}
@@ -434,6 +611,7 @@ ${request.topics && request.topics.length > 0 ? `Focus Topics: ${request.topics.
 
 Note: Determine an appropriate total duration (in hours) based on the content scope and difficulty level.
 Create module titles and descriptions that build on each other progressively.`;
+            }
             const completion = await client.chat.completions.create({
                 model,
                 messages: [
@@ -467,7 +645,7 @@ Create module titles and descriptions that build on each other progressively.`;
     }
     throw lastError;
 }
-async function generateModuleContent(moduleTitle, moduleDescription, pathContext, difficulty, orderIndex) {
+async function generateModuleContent(moduleTitle, moduleDescription, pathContext, difficulty, orderIndex, contextFiles) {
     const maxRetries = 1;
     let lastError;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -479,15 +657,18 @@ async function generateModuleContent(moduleTitle, moduleDescription, pathContext
             }
             const client = ensureClient();
             const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+            const contextFilesSection = contextFiles && contextFiles.length > 0
+                ? `\n\nUser-Provided Reference Materials:\n${contextFiles.map((file, idx) => `[${idx + 1}] ${file.name}:\n${file.content.substring(0, 2000)}${file.content.length > 2000 ? '...' : ''}`).join('\n\n')}\n\nUse these materials to inform the content of this module.`
+                : '';
             const userPrompt = `Generate detailed content for this learning module:
 
 Module Title: ${moduleTitle}
 Module Description: ${moduleDescription}
 Learning Path Context: ${pathContext}
-Difficulty Level: ${difficulty}
+Difficulty Level: ${difficulty}${contextFilesSection}
 Module Position: ${orderIndex + 1}
 
-Create comprehensive learning content with chapters, quizzes, concepts, exercises, and assessments.`;
+Create comprehensive, thorough learning content. Each chapter should be detailed and well-explained (800-1200 words), with clear progression and smooth flow. Use simple language and explain everything clearly. Don't rush through concepts - take the time to explain them properly with examples.`;
             const completion = await client.chat.completions.create({
                 model,
                 messages: [
@@ -495,7 +676,7 @@ Create comprehensive learning content with chapters, quizzes, concepts, exercise
                     { role: 'user', content: userPrompt }
                 ],
                 temperature: 0.7,
-                max_tokens: 12000,
+                max_tokens: 16000,
                 response_format: { type: 'json_object' },
             });
             const rawResponse = completion.choices[0]?.message?.content || '{}';
@@ -522,4 +703,78 @@ Create comprehensive learning content with chapters, quizzes, concepts, exercise
         }
     }
     throw lastError;
+}
+/**
+ * Generate structured module content from synthesized source material
+ * Takes content from the source registry and creates a full learning module
+ */
+async function generateModuleFromSourceContent(moduleTitle, moduleDescription, pathContext, difficulty, synthesizedContent) {
+    const client = ensureClient();
+    const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+    // Format the synthesized content for the AI
+    const sourceMaterial = `
+SYNTHESIZED CONTENT FROM SOURCE MATERIAL:
+
+Overview:
+${synthesizedContent.overview}
+
+Learning Objectives:
+${synthesizedContent.learning_objectives.map((obj, i) => `${i + 1}. ${obj}`).join('\n')}
+
+Sections:
+${synthesizedContent.sections.map((sec, i) => `
+Section ${i + 1}: ${sec.title}
+${sec.content}
+`).join('\n---\n')}
+
+Key Concepts:
+${synthesizedContent.key_concepts.map(kc => `
+Concept: ${kc.concept}
+Explanation: ${kc.explanation}
+${kc.example_sections ? `Examples: ${JSON.stringify(kc.example_sections)}` : ''}
+`).join('\n---\n')}
+`;
+    const userPrompt = `You are transforming educational content from a textbook into an engaging, structured learning module.
+
+Module Title: ${moduleTitle}
+Module Description: ${moduleDescription}
+Learning Path Context: ${pathContext}
+Difficulty Level: ${difficulty}
+
+IMPORTANT: The content below has been extracted from an authoritative educational source. Your job is to:
+1. Break it into 3-5 digestible chapters (each should be thorough and detailed: 800-1200 words)
+2. Explain concepts clearly using simple language with smooth, logical flow - don't jump around
+3. Create quiz questions for each chapter to test understanding
+4. Enhance the key concepts with detailed examples and step-by-step explanations
+5. Create practical exercises based on the material
+6. Generate visual diagrams to illustrate the concepts
+7. Add a comprehensive assessment at the end
+
+Remember: Write chapters that are thorough, well-explained, and easy to understand. Use clear transitions between ideas and build concepts incrementally.
+
+${sourceMaterial}
+
+Create a complete, structured learning module that makes this content engaging and easy to learn. Use the source material as your foundation - don't add external information, but DO structure it pedagogically with chapters, quizzes, examples, exercises, and visuals.`;
+    const completion = await client.chat.completions.create({
+        model,
+        messages: [
+            { role: 'system', content: MODULE_CONTENT_PROMPT },
+            { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.6,
+        max_tokens: 16000,
+        response_format: { type: 'json_object' },
+    });
+    const rawResponse = completion.choices[0]?.message?.content || '{}';
+    const finishReason = completion.choices[0]?.finish_reason;
+    console.log(`Registry-backed module "${moduleTitle}" structured (${rawResponse.length} chars, finish_reason: ${finishReason})`);
+    if (finishReason === 'length') {
+        console.error('WARNING: Response was truncated due to max_tokens limit!');
+    }
+    const parsed = tryParseJson(rawResponse);
+    if (!parsed || !parsed.content) {
+        console.error('Failed to parse module content. Raw response:', rawResponse.substring(0, 500));
+        throw new Error('Failed to parse AI response for registry-backed module content');
+    }
+    return fixLiteralNewlines(parsed.content);
 }

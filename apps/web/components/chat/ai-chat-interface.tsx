@@ -65,8 +65,10 @@ export default function AIChatInterface() {
 
 
   const handleSend = async () => {
-    if (!prompt.trim()) return;
-    const messageToSend = prompt;
+    if (!prompt.trim() && files.length === 0) return;
+    const messageToSend = prompt.trim()
+      ? prompt
+      : `Please analyze the attached file${files.length > 1 ? "s" : ""}.`;
     const filesToSend = files.length > 0 ? [...files] : undefined;
     setPrompt("");
     setFiles([]);
@@ -371,7 +373,7 @@ export default function AIChatInterface() {
                   size="icon"
                   className="size-8 rounded-full"
                   onClick={handleSend}
-                  disabled={!prompt.trim() || isSending}>
+                  disabled={(!prompt.trim() && files.length === 0) || isSending}>
                   <ArrowUpIcon />
                 </Button>
               </PromptInputAction>

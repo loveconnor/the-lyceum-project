@@ -19,7 +19,7 @@ let loaded = false;
 for (const envPath of possibleEnvPaths) {
     if (fs_1.default.existsSync(envPath)) {
         console.log(`Loading environment from: ${envPath}`);
-        dotenv_1.default.config({ path: envPath });
+        dotenv_1.default.config({ path: envPath, override: true });
         loaded = true;
         break;
     }

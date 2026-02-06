@@ -44,20 +44,19 @@ const tryParseJson = (text) => {
         return null;
     }
 };
-const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, an educational platform. Your job is to choose the best template type for a learning goal. Do not select "revise"; pick from the remaining templates only.
+const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, an educational platform. Your job is to choose the best template type for a learning goal. Do not select "revise" or "explore"; pick from the remaining templates only.
 
 Available templates:
 1. **analyze** - For data analysis, visualization, statistics, pattern recognition
 2. **build** - For hands-on coding practice, learning syntax, writing functions, implementing algorithms, practicing programming concepts. Use when someone wants to "learn how to code/write/implement" something.
 3. **derive** - For mathematical derivations, proofs, symbolic manipulation, step-by-step problem solving, and theoretical reasoning
 4. **explain** - For understanding and analyzing EXISTING code that's already written, code review, explaining how specific code works
-5. **explore** - For simulations, experiments, parameter exploration, interactive learning
 
 Key distinction: Use "build" when the learner wants to WRITE code to learn (e.g., "learn how to write X", "practice coding Y"). Use "explain" only when analyzing EXISTING code.
 
 Based on the learning goal, respond with JSON only:
 {
-  "template_type": "analyze" | "build" | "derive" | "explain" | "explore",
+  "template_type": "analyze" | "build" | "derive" | "explain",
   "reasoning": "Brief explanation of why this template fits"
 }`;
 const TEMPLATE_GENERATORS = {
@@ -84,13 +83,46 @@ const TEMPLATE_GENERATORS = {
       {
         "id": "step1",
         "title": "Step title",
+        "instruction": "Clear markdown explanation of what the learner should analyze in this step",
+        "keyQuestions": ["Key question 1?", "Key question 2?"],
         "description": "What to do",
-        "hints": ["hint1", "hint2"]
+        "hints": ["hint1", "hint2"],
+        "widgets": [
+          {
+            "type": "chart",
+            "config": {
+              "charts": [{
+                "title": "Data Visualization",
+                "chartOptions": {
+                  "data": (reference to dataset.rows),
+                  "series": [{
+                    "type": "bar" | "line" | "scatter" | "area",
+                    "xKey": "column_name",
+                    "yKey": "column_name",
+                    "stroke": "#3b82f6"
+                  }]
+                }
+              }]
+            }
+          }
+        ]
       }
     ]
   }
 }
-Include 5-10 realistic data rows and 4-5 analysis steps.`,
+Include 5-10 realistic data rows.
+
+CRITICAL - CREATE UNIQUE STEPS:
+Create 3-6 steps with titles SPECIFIC to THIS dataset and research question. DO NOT use generic titles like "Explore the Data" or "Analyze Patterns".
+
+Examples of good step titles:
+- For sales data: "Compare Q1 vs Q2 Revenue", "Identify Top-Selling Products", "Calculate Monthly Growth Rate"
+- For weather data: "Plot Temperature Trends", "Find Correlation with Humidity", "Predict Tomorrow's High"
+- For survey data: "Segment Responses by Age Group", "Calculate Response Rate", "Visualize Satisfaction Distribution"
+
+The number and type of steps should match the complexity of the analysis needed.
+Use "chart" widgets to visualize data patterns, trends, and relationships.
+Available chart types: bar, line, scatter, area, pie, histogram, heatmap.`,
     build: `Generate a coding challenge lab with this JSON structure:
 {
   "labTitle": string,
@@ -100,7 +132,7 @@ Include 5-10 realistic data rows and 4-5 analysis steps.`,
   "topics": string[],
   "data": {
     "problemStatement": "Detailed description of the coding challenge (use LaTeX for math: $x^2$)",
-    "initialCode": "// Starting code template with function signature and comments",
+    "initialCode": "// Starting code template with class/function signatures and comments",
     "language": "javascript" | "typescript" | "python" | "java" | "cpp",
     "testCases": [
       {
@@ -115,7 +147,13 @@ Include 5-10 realistic data rows and 4-5 analysis steps.`,
       {
         "id": "unique-id",
         "title": "Step title",
+        "instruction": "Clear markdown explanation of what the learner should do in this step and why (THIS IS THE MAIN INSTRUCTIONAL TEXT - always include this)",
+        "keyQuestions": ["Key question 1?", "Key question 2?"],
+        "skeletonCode": "// Skeleton code for THIS STEP ONLY (method signature + TODO comment)",
         "widgets": [
+          // WIDGETS ARE OPTIONAL - only include if the step requires interactive input beyond writing code
+          // Most coding steps only need the code editor and don't need additional widgets
+          // Only add widgets like text-input or multiple-choice if there's a specific conceptual question to answer
           {
             "type": "text-input",
             "config": {
@@ -147,22 +185,61 @@ Include 5-10 realistic data rows and 4-5 analysis steps.`,
     ]
   }
 }
-Create 4-6 structured steps for the coding process. Each step should use appropriate widgets to guide the learner.
+CRITICAL - CREATE UNIQUE STEPS:
+You MUST create unique, topic-specific steps tailored to THIS specific coding challenge. DO NOT use generic steps like "Understand the Problem", "Plan Your Approach", or "Analyze Time and Space Complexity". 
 
-Example step sequence:
-1. Understand the problem: Use text-input or multiple-choice to check understanding of requirements.
-2. Plan your approach: Use text-input for pseudocode or algorithm design.
-3. Implement solution: Use code-editor widget.
-4. Test and debug: Use code-editor widget and provide guidance on debugging.
-5. Analyze complexity: Use multiple-choice or text-input to discuss time/space complexity.
+DO NOT include a step about analyzing time/space complexity unless the user specifically asked about algorithm complexity.
+
+Instead, create 3-7 steps with titles that are SPECIFIC to the learning goal. Examples of good step titles:
+- For array iteration: "Write a for loop to sum array elements", "Handle empty array edge case", "Refactor using reduce()"
+- For recursion: "Define the base case", "Implement recursive call", "Add memoization"
+- For API calls: "Set up fetch request", "Parse JSON response", "Handle errors with try-catch"
+- For sorting: "Compare adjacent elements", "Implement swap logic", "Add optimization for sorted arrays"
+
+Each step should:
+1. Have a SPECIFIC, action-oriented title related to THIS problem (not generic titles)
+2. Include a clear "instruction" field with markdown text that is COMPLETE and SELF-CONTAINED:
+   - State exactly what needs to be implemented/returned/calculated
+   - Include all specific values, ranges, conditions, or formulas needed
+   - Provide concrete examples when helpful
+   - The learner should NOT need to reference the problem statement or lab overview to complete the step
+3. Include 2-4 "keyQuestions" to guide the learner's thinking - displayed as text, not as widgets
+4. Focus on ONE small concept or coding task
+5. Only include widgets if the step requires input BEYOND just writing code (most steps won't need extra widgets)
+6. Build progressively toward the complete solution
+
+EXAMPLE - Good step structure (for BMI category):
+{
+  "id": "implement-bmi-category",
+  "title": "Implement bmiCategory to map BMI to a weight class",
+  "instruction": "Complete the bmiCategory method so it returns the appropriate category string based on the BMI value:\\n\\n- If BMI < 18.5: return \\"Underweight\\"\\n- If BMI is between 18.5 and 24.9 (inclusive): return \\"Normal weight\\"\\n- If BMI is between 25.0 and 29.9 (inclusive): return \\"Overweight\\"\\n- If BMI >= 30.0: return \\"Obese\\"\\n- If BMI <= 0: return \\"Invalid\\"\\n\\nUse if-else statements to check each range in order.",
+  "keyQuestions": [
+    "Which relational operators should I use for the interval checks?",
+    "How can I ensure the conditions are evaluated in the correct order?",
+    "What string should be returned for an invalid BMI?"
+  ],
+  "skeletonCode": "public static String bmiCategory(double bmi) {\\n  // TODO: implement category logic\\n  return \\"\\";\\n}",
+}
+
+EXAMPLE - Bad step structure (do not do this):
+{
+  "id": "implement-bmi-category",
+  "title": "Implement bmiCategory",
+  "instruction": "Complete bmiCategory so that it returns the appropriate string based on the BMI value. Use a series of if-else statements to check the ranges defined in the problem statement.",
+  // BAD: Doesn't specify what the ranges are or what strings to return - forces learner to look elsewhere
+}
+
+The number of steps should match the complexity of the topic - simple topics need fewer steps (3-4), complex topics need more (5-7).
 
 WIDGET CONFIGURATION DETAILS:
-**text-input**: 
-  - label: Question or instruction (can use LaTeX)
-  - description: Helper text (can use LaTeX, optional)
-  - placeholder: Example text in PLAIN ENGLISH ONLY (no LaTeX)
-  - showPreview: true (for math) or false (for normal text/pseudocode)
-  - mathMode: true (for multi-line math equations) or false (default)
+**editor**: 
+  - label: Question or instruction
+  - description: Helper text (optional)
+  - placeholder: Example text
+  - readOnly: false for editable, true for display only
+  - variant: "default" (standard), "fullWidth" (wide layout), "aiChat" (compact)
+  - height: CSS height value (e.g., "300px") - optional
+  Use for: Rich text responses, essays, explanations, code documentation, formatted notes
 
 **multiple-choice**:
   - label: Question text (can use LaTeX)
@@ -170,8 +247,89 @@ WIDGET CONFIGURATION DETAILS:
   - multiSelect: true/false
   - showExplanation: true/false
 
+**chart**: (2D charts and graphs)
+  - type: "chart"
+  - config: {
+      charts: [{
+        title: "Chart Title",
+        description: "Chart description",
+        chartOptions: {
+          series: [{
+            type: "function" | "line" | "bar" | "scatter" | "area",
+            function: "sin(x)" (for function type - supports math expressions),
+            xMin: -10, xMax: 10 (for function type),
+            xKey: "x", yKey: "y" (for data types),
+            stroke: "#3b82f6",
+            strokeWidth: 3
+          }],
+          data: [{x: 1, y: 2}, ...] (optional, for non-function charts)
+        }
+      }]
+    }
+  Supports: Basic math (+,-,*,/,^), Trig (sin,cos,tan), exp, log, sqrt, abs, PI, E
+
+**chart3d**: (3D surface and parametric plots)
+  - type: "chart3d"
+  - config: {
+      charts: [{
+        title: "3D Visualization",
+        description: "Description",
+        chartOptions: {
+          series: [{
+            type: "surface" | "curve3d" | "scatter3d",
+            function: "sin(sqrt(x^2 + z^2))" (for surface: z=f(x,y)),
+            x: "cos(t)", y: "t", z: "sin(t)" (for curve3d: parametric),
+            xMin: -5, xMax: 5, zMin: -5, zMax: 5 (for surface),
+            tMin: 0, tMax: 6.28 (for curve3d),
+            resolution: 50 (surface density),
+            color: "#3b82f6",
+            wireframe: false,
+            opacity: 0.8
+          }],
+          data: [{x:1, y:2, z:3}, ...] (for scatter3d)
+        }
+      }]
+    }
+  Use for: 3D surfaces, parametric curves, mathematical visualizations
+
 Include 3-5 test cases with clear descriptions.
-Provide realistic starter code (5-15 lines) with function signature and helpful comments.`,
+Provide realistic starter code (5-15 lines) with function signature and helpful comments.
+
+CRITICAL - TEST CASES:
+Every step that includes a "code-editor" widget MUST have at least one corresponding test case in the "testCases" array.
+The "stepId" field in the test case MUST match the "id" of the step where the code is written.
+
+CRITICAL - WIDGETS VS INSTRUCTIONS:
+- The "instruction" field contains markdown text that EXPLAINS what to do - this is ALWAYS shown as text
+- The "keyQuestions" field contains questions to guide thinking - these are ALWAYS shown as text bullets
+- Widgets are for INTERACTIVE INPUT where the learner types, selects, or constructs something
+- Do NOT create widgets that just display information that should be in "instruction" or "keyQuestions"
+- If a step only needs the learner to READ and UNDERSTAND (not input anything), you can omit the "widgets" array entirely
+
+CRITICAL - SKELETON CODE PER STEP:
+For each step that involves coding, include a "skeletonCode" field with ONLY the code skeleton for that specific step.
+- Step 1 skeleton: Only the method/function signature for step 1 with a TODO comment
+- Step 2 skeleton: Only the method/function signature for step 2 with a TODO comment
+- And so on...
+
+Example for Java (4 steps - sign, parity, range, describe):
+Step 1 skeletonCode:
+  public static String sign(int n) {
+    // TODO: implement\n    return "";\n  }
+
+Step 2 skeletonCode:
+  public static String parity(int n) {
+    // TODO: implement\n    return "";\n  }
+
+Step 3 skeletonCode:
+  public static String rangeCategory(int n) {
+    // TODO: implement\n    return "";\n  }
+
+Step 4 skeletonCode:
+  public static String describe(int n) {
+    // TODO: implement using the above methods\n    return "";\n  }
+
+The learner will see skeleton code progressively as they complete each step. Keep each step's skeleton focused and concise.`,
     derive: `Generate a step-by-step problem-solving lab (for math derivations, proofs, symbolic manipulation, or step-by-step reasoning) with this JSON structure:
 {
   "labTitle": string,
@@ -190,6 +348,8 @@ Provide realistic starter code (5-15 lines) with function signature and helpful 
       {
         "id": "identify-parts",
         "title": "Identify $u$ and $dv$",
+        "instruction": "Clear markdown explanation of what to identify and why (can use LaTeX: $x^2$)",
+        "keyQuestions": ["What should you look for?", "Why does this choice matter?"],
         "widgets": [
           {
             "type": "multiple-choice",
@@ -211,6 +371,8 @@ Provide realistic starter code (5-15 lines) with function signature and helpful 
       {
         "id": "compute",
         "title": "Compute $du$ and $v$",
+        "instruction": "Differentiate $u = x$ to get $du = dx$, and integrate $dv = e^x dx$ to get $v = e^x$. Show your work step-by-step using the derivation widget below.",
+        "keyQuestions": ["What derivative rule applies to u = x?", "What is the antiderivative of e^x?"],
         "widgets": [
           {
             "type": "derivation-steps",
@@ -223,14 +385,16 @@ Provide realistic starter code (5-15 lines) with function signature and helpful 
       {
         "id": "apply-formula",
         "title": "Apply Integration by Parts",
+        "instruction": "Substitute your values (u = x, v = e^x, du = dx) into the integration by parts formula: $\\\\int u\\\\,dv = uv - \\\\int v\\\\,du$. This gives us $xe^x - \\\\int e^x dx$. Then evaluate the remaining integral.",
+        "keyQuestions": ["Are all values correctly substituted?", "Does the new integral look simpler?"],
         "widgets": [
           {
-            "type": "text-input",
+            "type": "editor",
             "config": {
               "label": "Write the integration by parts formula with your values",
               "description": "Substitute your u, du, v, and dv into the formula",
-              "placeholder": "Type your answer with LaTeX...",
-              "showPreview": true
+              "placeholder": "Type your answer...",
+              "height": "200px"
             }
           }
         ]
@@ -240,18 +404,23 @@ Provide realistic starter code (5-15 lines) with function signature and helpful 
 }
 
 CRITICAL - WIDGET REQUIREMENTS:
-1. EVERY step MUST have a "widgets" array with at least one widget
-2. Use "text-input" for: explaining concepts, restating problems, verification, conclusions
-3. Use "multiple-choice" for: selecting rules/methods/approaches (set multiSelect and showExplanation appropriately)
-4. Use "derivation-steps" for: step-by-step mathematical work, showing calculations
+1. EVERY step MUST have an "instruction" field (markdown text explaining what to do) - this is the PRIMARY instructional content
+2. EVERY step SHOULD have "keyQuestions" array (2-4 questions to guide thinking) - these are displayed as text, NOT as interactive widgets
+3. Widgets are OPTIONAL and should only be used when the learner needs to ACTIVELY INPUT something (write code, make selections, enter text responses)
+4. Use "editor" for: text responses where learners write explanations, essays, code documentation
+5. Use "multiple-choice" for: selecting between actual options that will be validated (NOT for displaying rhetorical questions)
+6. Use "derivation-steps" for: step-by-step mathematical work where learners show their calculations
+7. The "instruction" and "keyQuestions" fields are for DISPLAYING information. Widgets are for COLLECTING learner input.
 
 WIDGET CONFIGURATION DETAILS:
-**text-input**: 
-  - label: Question or instruction (can use LaTeX)
-  - description: Helper text (can use LaTeX, optional)
-  - placeholder: Example text in PLAIN ENGLISH ONLY (no LaTeX - placeholders can't render math)
-  - showPreview: true (for math) or false
-  - mathMode: true (for multi-line math equations where each line is a separate expression) or false (default - for prose/explanations)
+**editor**: 
+  - label: Question or instruction
+  - description: Helper text (optional)
+  - placeholder: Example text
+  - readOnly: false for editable, true for display only
+  - variant: "default" (standard), "fullWidth" (wide layout), "aiChat" (compact)
+  - height: CSS height value (e.g., "300px") - optional
+  Use for: Rich text responses, mathematical explanations, formatted proofs, detailed reasoning
 
 **multiple-choice**:
   - label: Question text (can use LaTeX)
@@ -264,6 +433,44 @@ WIDGET CONFIGURATION DETAILS:
 
 **derivation-steps**:
   - showInstructions: true
+
+**chart**: (2D mathematical function plots)
+  - type: "chart"
+  - config: {
+      charts: [{
+        title: "Function Graph",
+        description: "Visualization",
+        chartOptions: {
+          series: [{
+            type: "function",
+            function: "x^2",
+            xMin: -10, xMax: 10,
+            stroke: "#3b82f6",
+            label: "y = x²"
+          }]
+        }
+      }]
+    }
+  Supports: +,-,*,/,^,sin,cos,tan,exp,log,sqrt,abs,PI,E
+  Use to visualize functions, derivatives, integrals
+
+**chart3d**: (3D surface plots)
+  - type: "chart3d"
+  - config: {
+      charts: [{
+        title: "3D Surface",
+        chartOptions: {
+          series: [{
+            type: "surface",
+            function: "sin(sqrt(x^2 + z^2))",
+            xMin: -5, xMax: 5, zMin: -5, zMax: 5,
+            resolution: 50,
+            color: "#3b82f6"
+          }]
+        }
+      }]
+    }
+  Use for multivariable calculus, 3D visualization
 
 RESPONSE FORMAT:
 {
@@ -285,7 +492,42 @@ RESPONSE FORMAT:
   }
 }
 
-Use proper LaTeX notation ($...$). Include 5-8 calculus/algebra rules relevant to THIS specific problem. Include a conceptCheck with a question that helps students understand WHY they're using certain approaches. Create 3-5 steps where EACH step has widgets appropriate for its learning activity.`,
+Use proper LaTeX notation ($...$). Include 5-8 calculus/algebra rules relevant to THIS specific problem. Include a conceptCheck with a question that helps students understand WHY they're using certain approaches.
+
+CRITICAL - CREATE UNIQUE STEPS:
+Create 3-6 steps with titles SPECIFIC to THIS mathematical problem. DO NOT use generic titles like "Apply the Formula" or "Simplify the Expression".
+
+Examples of good step titles based on problem type:
+- For integration by parts: "Identify $u = x$ and $dv = e^x dx$", "Compute $du$ and $v$", "Apply $uv - \\int v\\,du$"
+- For derivative problems: "Apply Chain Rule to $\\sin(x^2)$", "Differentiate the Inner Function", "Combine Using Product Rule"
+- For limit problems: "Factor Out $(x-2)$", "Cancel Common Terms", "Evaluate at $x = 2$"
+
+CRITICAL - STEP STRUCTURE (APPLIES TO ALL TEMPLATES):
+EVERY step object MUST include:
+- "id": unique identifier (kebab-case)
+- "title": specific, action-oriented title (can use LaTeX)
+- "instruction": markdown text that is COMPLETE and SELF-CONTAINED (3-6 sentences):
+  * Must include ALL specific details needed to complete the step
+  * Must specify exact values, ranges, formulas, conditions, or outputs expected
+  * Should include concrete examples when helpful
+  * Learner should NOT need to reference problem statement or lab overview
+  * Example: Don't say "check the ranges" - instead say "If BMI < 18.5 return 'Underweight', if 18.5-24.9 return 'Normal'"
+- "keyQuestions": array of 2-4 thought-provoking questions (strings, plain English) - displayed as text to guide thinking
+- "widgets": array of widget configurations - OPTIONAL, only include if the step requires interactive input
+
+CRITICAL DISTINCTION:
+- "instruction" and "keyQuestions" = STATIC TEXT that teaches and guides (always displayed)
+- "widgets" = INTERACTIVE ELEMENTS where learners input answers, make selections, or construct solutions (only when needed)
+
+DO NOT use widgets to display questions that should be in "keyQuestions".
+DO NOT use multiple-choice widgets for rhetorical/conceptual questions - only use them when the selection will be validated.
+DO NOT write vague instructions that reference "the problem statement" or "as described above" - include ALL details directly.
+
+The "instruction" field is the PRIMARY teaching content that appears at the top of each step.
+The "keyQuestions" help learners think critically about the concepts.
+Widgets are for collecting and validating learner responses.
+
+Each step title should reference ACTUAL mathematical expressions from THIS problem. The number of steps should match the problem's complexity.`,
     explain: `Generate a code explanation lab with this JSON structure:
 {
   "labTitle": string,
@@ -311,13 +553,20 @@ Use proper LaTeX notation ($...$). Include 5-8 calculus/algebra rules relevant t
     ]
   }
 }
-Create 3-5 steps tailored to the code complexity. Each step should have:
-- Unique id (e.g., "read-structure", "trace-execution", "identify-patterns")
-- Clear title and instructions
-- 2-4 key questions specific to THIS code
-- Helpful prompts/hints
+CRITICAL - CREATE UNIQUE STEPS:
+Create 3-5 steps with titles SPECIFIC to THIS code and what it does. DO NOT use generic titles like "Analyze the Code" or "Understand the Structure".
 
-Example step types: analyze structure, predict output, trace execution, identify edge cases, optimize performance, explain complexity.
+Examples of good step titles based on code type:
+- For a sorting algorithm: "Trace the First Swap", "Identify the Pivot Selection", "Count Comparisons for Input [3,1,4,1,5]"
+- For an API handler: "Follow the Request Object", "Spot the Error Handling Gap", "Predict Response for Invalid Input"
+- For a recursive function: "Find the Base Case", "Trace the Call Stack for n=3", "Identify the Recursive Call Pattern"
+
+Each step should have:
+- A SPECIFIC title that references actual elements of THIS code
+- Clear instructions related to THIS specific implementation
+- 2-4 key questions specific to THIS code's logic
+- Helpful prompts/hints about THIS code's behavior
+
 Provide working, realistic code (10-30 lines).`,
     explore: `Generate an interactive exploration lab with this JSON structure:
 {
@@ -355,7 +604,15 @@ Provide working, realistic code (10-30 lines).`,
     ]
   }
 }
-Include 3-5 parameters and 3-4 exploration steps.`,
+CRITICAL - CREATE UNIQUE STEPS:
+Create 3-5 exploration steps with titles SPECIFIC to THIS simulation/topic. DO NOT use generic titles like "Explore Parameters" or "Observe the Results".
+
+Examples of good step titles based on simulation type:
+- For physics simulation: "Double the Mass and Measure Impact", "Find the Critical Velocity", "Compare Friction Coefficients"
+- For economics model: "Increase Interest Rate by 1%", "Find the Equilibrium Price", "Test Supply Shock Scenario"
+- For biology simulation: "Introduce a Predator", "Vary the Reproduction Rate", "Simulate Drought Conditions"
+
+Include 3-5 parameters with appropriate ranges for THIS specific simulation.`,
     revise: `Generate a writing revision lab with this JSON structure:
 {
   "labTitle": string,
@@ -394,7 +651,15 @@ Include 3-5 parameters and 3-4 exploration steps.`,
     ]
   }
 }
-Include a realistic draft with issues, 4-5 rubric criteria, and 3-4 revision steps.`
+CRITICAL - CREATE UNIQUE STEPS:
+Create 3-4 revision steps with focus areas SPECIFIC to THIS draft's actual problems. DO NOT use generic steps like "Improve Clarity" or "Fix Grammar".
+
+Examples of good step focuses based on actual issues in the draft:
+- For an argument essay: "Strengthen the Thesis in Paragraph 1", "Add Evidence for the Climate Claim", "Address the Counterargument"
+- For a narrative: "Show the Character's Fear, Don't Tell It", "Add Sensory Details to the Forest Scene", "Vary Sentence Length in the Action Sequence"
+- For technical writing: "Define 'API' Before First Use", "Break the 50-Word Sentence Into Three", "Add a Code Example for the Setup Step"
+
+Include a realistic draft with specific issues, 4-5 rubric criteria relevant to THIS writing type.`
 };
 const generateLab = async (request) => {
     const maxRetries = 2;
@@ -426,9 +691,13 @@ ${request.userProfile?.level ? `User level: ${request.userProfile.level}` : ''}`
                 throw new Error('Failed to select template type');
             }
             let templateType = selection.template_type;
-            // Temporarily disable generating "revise" labs; fall back to "build" if chosen
+            // Temporarily disable generating "revise" and "explore" labs; fall back to "build" if chosen
             if (templateType === 'revise') {
                 console.warn('Template selector returned "revise" which is disabled; falling back to "build".');
+                templateType = 'build';
+            }
+            if (templateType === 'explore') {
+                console.warn('Template selector returned "explore" which is disabled; falling back to "build".');
                 templateType = 'build';
             }
             const generatorPrompt = TEMPLATE_GENERATORS[templateType];
@@ -443,6 +712,8 @@ ${request.context ? `Additional context: ${request.context}` : ''}
 ${request.userProfile?.level ? `User level: ${request.userProfile.level}` : ''}
 ${request.userProfile?.interests?.length ? `User interests: ${request.userProfile.interests.join(', ')}` : ''}
 ${request.userProfile?.completedTopics?.length ? `Completed topics: ${request.userProfile.completedTopics.join(', ')}` : ''}
+
+CRITICAL: If the context above includes a list of "CONCEPTS COVERED IN PREVIOUS MODULES", you MUST only use those concepts in this lab. Do not introduce any new concepts, techniques, or knowledge not listed. This ensures proper pedagogical sequencing.
 
 IMPORTANT: The "topics" field must contain 2-5 specific, relevant topic tags (e.g., ["JavaScript", "Algorithms", "Data Structures"] for a coding lab, ["Statistics", "Data Visualization"] for analysis, ["Calculus", "Derivatives"] for math).
 

@@ -1,10 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const pdf_utils_1 = require("../pdf-utils");
 const ai_1 = require("../ai");
 const assistantStore_1 = require("../assistantStore");
 const supabaseAdmin_1 = require("../supabaseAdmin");
+const visual_enrichment_1 = require("../visual-enrichment");
 const aiRouter = (0, express_1.Router)();
+const MAX_CONTEXT_FILE_CHARS = 12000;
 const assistantSystemPrompt = process.env.ASSISTANT_SYSTEM_PROMPT ||
     'You are Lyceum, a concise AI study partner. Prioritize clarity, short sentences, and actionable next steps. ' +
         'For math topics: explain concepts clearly using proper LaTeX notation (wrap all math in $...$ or $$...$$). ' +
@@ -116,8 +119,156 @@ const assistantSystemPrompt = process.env.ASSISTANT_SYSTEM_PROMPT ||
         '✓ ALWAYS use <Chart> when the user asks "how to read [chart type]" to provide a concrete example\n' +
         '✗ Conceptual flows (use <Visual> instead)\n' +
         '✗ Non-numeric information\n' +
+        '\n\n' +
+        '=== MATHEMATICAL FUNCTION PLOTS (2D) ===\n' +
+        'You can plot mathematical functions y = f(x) using the <Chart> tag with "function" type.\n' +
+        'Use this for: teaching calculus, algebra, trigonometry, visualizing equations, derivatives, integrals.\n' +
         '\n' +
-        'If unsure whether the user wants mathematical theory or code implementation, ask a brief clarifying question.';
+        'SYNTAX:\n' +
+        '<Chart>\n' +
+        '{\n' +
+        '  "title": "Sine Function",\n' +
+        '  "description": "Graph of y = sin(x)",\n' +
+        '  "chartOptions": {\n' +
+        '    "series": [\n' +
+        '      {\n' +
+        '        "type": "function",\n' +
+        '        "function": "sin(x)",\n' +
+        '        "xMin": -10,\n' +
+        '        "xMax": 10,\n' +
+        '        "stroke": "#3b82f6",\n' +
+        '        "strokeWidth": 3,\n' +
+        '        "label": "y = sin(x)"\n' +
+        '      }\n' +
+        '    ]\n' +
+        '  }\n' +
+        '}\n' +
+        '</Chart>\n' +
+        '\n' +
+        'SUPPORTED MATH OPERATIONS:\n' +
+        '• Basic: +, -, *, /, ^ (power)\n' +
+        '• Trig: sin(x), cos(x), tan(x), asin(x), acos(x), atan(x)\n' +
+        '• Hyperbolic: sinh(x), cosh(x), tanh(x)\n' +
+        '• Other: exp(x), log(x), ln(x), sqrt(x), abs(x), floor(x), ceil(x)\n' +
+        '• Constants: PI, E\n' +
+        '• Examples: "x^2", "sin(x)*cos(x)", "exp(-x^2)", "1/x", "sqrt(abs(x))"\n' +
+        '\n' +
+        'FUNCTION PLOT GUIDELINES:\n' +
+        '• Multiple functions: Add multiple series objects to compare functions\n' +
+        '• Set appropriate xMin/xMax for the domain (avoid division by zero, negative logs, etc.)\n' +
+        '• Use different colors for multiple functions: "#3b82f6", "#10b981", "#f59e0b", "#ef4444"\n' +
+        '• Add labels to identify each function\n' +
+        '• Use for teaching: derivatives (show f and f\'), integrals, transformations\n' +
+        '\n' +
+        'WHEN TO USE FUNCTION PLOTS:\n' +
+        '✓ Teaching mathematical concepts: limits, continuity, derivatives, integrals\n' +
+        '✓ Showing function behavior: asymptotes, zeros, maxima, minima\n' +
+        '✓ Comparing multiple functions\n' +
+        '✓ Illustrating transformations: f(x) vs f(x+1) vs 2f(x)\n' +
+        '✓ When user asks about "graphing", "plotting", or "visualizing" any function y=f(x)\n' +
+        '\n\n' +
+        '=== 3D PLOTS (SURFACES & CURVES) ===\n' +
+        'You can create 3D visualizations using the <Chart3D> tag.\n' +
+        'Use this for: multivariable calculus, 3D surfaces z=f(x,y), parametric curves, spatial relationships.\n' +
+        '\n' +
+        'SYNTAX FOR 3D SURFACE (z = f(x,y)):\n' +
+        '<Chart3D>\n' +
+        '{\n' +
+        '  "title": "Paraboloid",\n' +
+        '  "description": "Surface z = x² + y²",\n' +
+        '  "chartOptions": {\n' +
+        '    "series": [\n' +
+        '      {\n' +
+        '        "type": "surface",\n' +
+        '        "function": "x^2 + z^2",\n' +
+        '        "xMin": -5,\n' +
+        '        "xMax": 5,\n' +
+        '        "zMin": -5,\n' +
+        '        "zMax": 5,\n' +
+        '        "resolution": 50,\n' +
+        '        "color": "#3b82f6",\n' +
+        '        "wireframe": false,\n' +
+        '        "opacity": 0.8\n' +
+        '      }\n' +
+        '    ]\n' +
+        '  }\n' +
+        '}\n' +
+        '</Chart3D>\n' +
+        '\n' +
+        'SYNTAX FOR 3D PARAMETRIC CURVE:\n' +
+        '<Chart3D>\n' +
+        '{\n' +
+        '  "title": "Helix",\n' +
+        '  "description": "3D spiral curve",\n' +
+        '  "chartOptions": {\n' +
+        '    "series": [\n' +
+        '      {\n' +
+        '        "type": "curve3d",\n' +
+        '        "x": "cos(t)",\n' +
+        '        "y": "t",\n' +
+        '        "z": "sin(t)",\n' +
+        '        "tMin": 0,\n' +
+        '        "tMax": 12.56,\n' +
+        '        "numPoints": 200,\n' +
+        '        "color": "#10b981",\n' +
+        '        "lineWidth": 3\n' +
+        '      }\n' +
+        '    ]\n' +
+        '  }\n' +
+        '}\n' +
+        '</Chart3D>\n' +
+        '\n' +
+        '3D PLOT GUIDELINES:\n' +
+        '• Surface plots use "function": write z as a function of x and z (note: z is used for y-axis)\n' +
+        '• Parametric curves use "x", "y", "z": each as a function of parameter t\n' +
+        '• Same math operations as 2D: +,-,*,/,^,sin,cos,exp,sqrt, etc.\n' +
+        '• resolution: 30-50 (fast), 60-80 (smooth), higher = slower\n' +
+        '• wireframe: true shows mesh structure, false shows solid surface\n' +
+        '• Multiple surfaces: add multiple series objects\n' +
+        '\n' +
+        'COMMON 3D SURFACES:\n' +
+        '• Paraboloid: "x^2 + z^2"\n' +
+        '• Saddle: "x^2 - z^2"\n' +
+        '• Wave: "sin(sqrt(x^2 + z^2))"\n' +
+        '• Gaussian: "exp(-(x^2 + z^2))"\n' +
+        '• Ripple: "cos(sqrt(x^2 + z^2))"\n' +
+        '\n' +
+        'WHEN TO USE 3D PLOTS:\n' +
+        '✓ Teaching multivariable calculus: partial derivatives, gradients, level curves\n' +
+        '✓ Visualizing functions of two variables z = f(x,y)\n' +
+        '✓ Parametric curves in 3D space\n' +
+        '✓ When user asks about "3D", "surface", "three dimensional", "parametric curves"\n' +
+        '✓ Showing geometric objects: spheres, cones, tori, helixes\n' +
+        '✓ ALWAYS use when user asks "teach me about", "show me", "explain", "what is" related to 3D surfaces\n' +
+        '✗ Use 2D charts for simple y=f(x) functions\n' +
+        '\n' +
+        'CRITICAL VISUALIZATION PRIORITY:\n' +
+        '**WHEN USER ASKS TO LEARN/UNDERSTAND VISUAL CONCEPTS:**\n' +
+        '1. ALWAYS show the visualization FIRST using <Chart>, <Chart3D>, or <Visual> tags\n' +
+        '2. THEN explain the concept with text ONLY\n' +
+        '3. NEVER show code examples, programming steps, or "next steps" involving code\n' +
+        '4. NEVER mention programming libraries (matplotlib, Three.js, etc.) unless user explicitly asks "how to code"\n' +
+        '5. If user asks "teach me about X" where X is visual/mathematical, respond with INTERACTIVE VISUALS + EXPLANATION\n' +
+        '\n' +
+        '**DISTINGUISH BETWEEN LEARNING VS CODING:**\n' +
+        '• "teach me about 3D plots" = EDUCATIONAL → Use <Chart3D>, explain mathematically, NO code\n' +
+        '• "how to create 3D plots in Python" = CODING → Show code examples\n' +
+        '• "explain surfaces" = EDUCATIONAL → Use <Chart3D>, explain concept, NO code\n' +
+        '• "implement a 3D surface" = CODING → Show code\n' +
+        '\n' +
+        'EXAMPLES OF CORRECT RESPONSES:\n' +
+        '• "teach me about 3D plots" → Show <Chart3D> with 2-3 examples (paraboloid, saddle, wave), explain what they represent mathematically, explain how to interpret x/y/z axes, discuss types of surfaces. NO programming steps.\n' +
+        '• "explain sine waves" → Use <Chart> with sin(x), cos(x), explain amplitude/frequency/period. NO code.\n' +
+        '• "what is a derivative" → Use <Chart> showing f(x) and f\'(x) together, explain slope interpretation. NO code.\n' +
+        '• "show me a helix" → Use <Chart3D> with parametric curve, explain parametric equations. NO code.\n' +
+        '\n' +
+        'CRITICAL FOR ALL VISUAL TAGS:\n' +
+        '• NO TRAILING COMMAS in JSON\n' +
+        '• DO NOT wrap JSON in markdown code blocks (```) inside tags\n' +
+        '• Always validate JSON syntax\n' +
+        '• Use LaTeX in "description" fields (e.g. "Surface $z = x^2 + y^2$")\n' +
+        '\n' +
+        'If unsure whether the user wants mathematical theory or code implementation, PREFER VISUALS for mathematical concepts.';
 const buildAssistantContext = async (userId) => {
     const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
     const [{ data: profile }, { data: dashboard }] = await Promise.all([
@@ -177,7 +328,8 @@ aiRouter.post('/courses/outline', async (req, res) => {
     }
 });
 aiRouter.post('/assistant/chat', async (req, res) => {
-    const { messages, message, conversationId, context, systemPrompt, } = req.body;
+    const { messages, message, conversationId, context, systemPrompt, files, visualAids, // NEW: Visual aids context for module-based assistant
+     } = req.body;
     const stream = req.query.stream === 'true';
     const userId = req.user?.id;
     if (!userId) {
@@ -193,6 +345,90 @@ aiRouter.post('/assistant/chat', async (req, res) => {
         const history = await (0, assistantStore_1.getAssistantMessages)(conversation.id, userId);
         // Check if this is the first message (no history, or only the current message)
         const isFirstMessage = history.length === 0;
+        // Parse PDF payloads and build file context if files are provided
+        let fileContext = '';
+        if (files && files.length > 0) {
+            const parsedFiles = await Promise.all(files.map(async (file) => {
+                if (!file?.content?.startsWith?.('[PDF_BASE64]')) {
+                    return file;
+                }
+                try {
+                    const base64Data = file.content.substring('[PDF_BASE64]'.length);
+                    const buffer = Buffer.from(base64Data, 'base64');
+                    const parsedText = await (0, pdf_utils_1.extractPdfText)(buffer);
+                    return {
+                        ...file,
+                        content: parsedText.trim().length > 0
+                            ? parsedText
+                            : `[PDF parsed but returned no text: ${file.name}]`,
+                    };
+                }
+                catch (error) {
+                    console.error(`Failed to parse assistant PDF ${file.name}:`, error);
+                    return {
+                        ...file,
+                        content: `[PDF parsing failed: ${file.name}]`,
+                    };
+                }
+            }));
+            console.log(`Received ${parsedFiles.length} file(s):`, parsedFiles.map((f) => ({ name: f.name, type: f.type, contentLength: f.content?.length })));
+            fileContext = '=== UPLOADED FILES ===\n' +
+                'The user has uploaded the following file(s) for you to reference:\n\n' +
+                parsedFiles.map((file) => `📎 File: ${file.name}\nType: ${file.type}\n\nContent:\n${(file.content || '').slice(0, MAX_CONTEXT_FILE_CHARS)}\n${'='.repeat(80)}`).join('\n\n');
+            console.log(`Built file context: ${fileContext.length} characters`);
+        }
+        // Build visual aids context if visual aids are provided
+        // CRITICAL: Visual aids are illustrative only - not authoritative
+        let visualAidsContext = '';
+        let dynamicVisualAids = [];
+        if (visualAids && visualAids.length > 0) {
+            // Use provided visual aids (from module context)
+            dynamicVisualAids = visualAids;
+            const visualContext = (0, visual_enrichment_1.buildVisualAidContext)(visualAids);
+            if (visualContext.instruction) {
+                visualAidsContext = '=== ILLUSTRATIVE VISUAL AIDS ===\n' +
+                    visualContext.instruction + '\n' +
+                    '='.repeat(80);
+                console.log(`Built visual aids context for ${visualAids.length} visual(s)`);
+            }
+        }
+        else if (stream && userMessage) {
+            // Try to dynamically generate and fetch visuals for this question
+            // Only do this for streaming responses to avoid blocking
+            try {
+                console.log('[VISUALS] Checking if question needs visual aids...');
+                const intentResult = await (0, visual_enrichment_1.generateVisualIntentFromQuestion)(userMessage);
+                if (intentResult.visuals_recommended && intentResult.intents.length > 0) {
+                    console.log(`[VISUALS] Found ${intentResult.intents.length} visual intent(s), fetching images...`);
+                    const visualService = new visual_enrichment_1.VisualAidService({
+                        max_per_intent: 2,
+                        diagrams_only: false, // Allow more results for chat
+                        timeout_ms: 5000
+                    });
+                    const aidResult = await visualService.fetchVisualAids(intentResult.intents);
+                    if (aidResult.has_visuals && aidResult.visual_aids.length > 0) {
+                        dynamicVisualAids = aidResult.visual_aids;
+                        const visualContext = (0, visual_enrichment_1.buildVisualAidContext)(dynamicVisualAids);
+                        if (visualContext.instruction) {
+                            visualAidsContext = '=== ILLUSTRATIVE VISUAL AIDS ===\n' +
+                                visualContext.instruction + '\n' +
+                                '='.repeat(80);
+                        }
+                        console.log(`[VISUALS] Fetched ${dynamicVisualAids.length} visual aid(s) for question`);
+                    }
+                    else {
+                        console.log('[VISUALS] No suitable images found');
+                    }
+                }
+                else {
+                    console.log(`[VISUALS] Visuals not recommended: ${intentResult.reasoning}`);
+                }
+            }
+            catch (visualError) {
+                // Visual enrichment should never block chat - graceful degradation
+                console.warn('[VISUALS] Dynamic visual fetch failed (non-blocking):', visualError.message);
+            }
+        }
         const chatMessages = [
             ...history.map((m) => ({ role: m.role, content: m.content })),
             ...(messages || []),
@@ -205,15 +441,53 @@ aiRouter.post('/assistant/chat', async (req, res) => {
             res.setHeader('Cache-Control', 'no-cache');
             res.setHeader('Connection', 'keep-alive');
             res.flushHeaders?.();
+            // Send visual aids as a separate event BEFORE the text response
+            if (dynamicVisualAids.length > 0) {
+                const visualsPayload = dynamicVisualAids.map(aid => ({
+                    src: aid.thumbnail_src || aid.src,
+                    fullSrc: aid.src,
+                    alt: aid.alt,
+                    caption: aid.caption,
+                    attribution: aid.attribution,
+                    usageLabel: aid.usage_label,
+                }));
+                res.write(`event: visuals\ndata: ${JSON.stringify(visualsPayload)}\n\n`);
+                console.log(`[VISUALS] Streamed ${visualsPayload.length} visuals to client`);
+            }
             let full = '';
             try {
+                // Add file instruction to system prompt if files are present
+                let enhancedSystemPrompt = systemPrompt || assistantSystemPrompt;
+                if (files && files.length > 0) {
+                    enhancedSystemPrompt += '\n\n⚠️ IMPORTANT: The user has uploaded file(s). These files contain content they want you to reference, analyze, teach, or explain. Always acknowledge and use the file content in your response when the user asks about it.';
+                }
+                // Add visual aids instruction if visuals are present (dynamic or provided)
+                if (dynamicVisualAids.length > 0) {
+                    enhancedSystemPrompt += `\n\n${visual_enrichment_1.VISUAL_AID_INSTRUCTION}`;
+                }
                 const generator = await (0, ai_1.runAssistantChatStream)(chatMessages, {
-                    context: [contextString, context].filter(Boolean).join('\n\n') || undefined,
-                    systemPrompt: systemPrompt || assistantSystemPrompt,
+                    context: [visualAidsContext, fileContext, contextString, context].filter(Boolean).join('\n\n') || undefined,
+                    systemPrompt: enhancedSystemPrompt,
                 });
                 for await (const chunk of generator) {
                     full += chunk;
-                    res.write(`data: ${chunk}\n\n`);
+                    res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                }
+                // Some local/OpenAI-compatible providers may return an empty stream.
+                // Fallback once to non-stream completion so the UI still receives content.
+                if (!full.trim()) {
+                    console.warn('AI stream returned empty content; attempting non-stream fallback');
+                    const fallback = await (0, ai_1.runAssistantChat)(chatMessages, {
+                        context: [visualAidsContext, fileContext, contextString, context].filter(Boolean).join('\n\n') || undefined,
+                        systemPrompt: enhancedSystemPrompt,
+                    });
+                    if (fallback.reply?.trim()) {
+                        full = fallback.reply;
+                        res.write(`data: ${JSON.stringify(full)}\n\n`);
+                    }
+                }
+                if (!full.trim()) {
+                    throw new Error('Model returned an empty response. Please try again.');
                 }
                 await (0, assistantStore_1.appendAssistantMessages)(conversation.id, userId, [
                     { role: 'user', content: userMessage, conversation_id: conversation.id },
@@ -221,9 +495,15 @@ aiRouter.post('/assistant/chat', async (req, res) => {
                 ], full.slice(0, 200));
                 // Generate title for new conversations after first exchange
                 if (isFirstMessage || !conversation.title || conversation.title === 'New chat' || conversation.title === 'Untitled chat') {
-                    const title = await (0, ai_1.generateChatTitle)(userMessage, full);
+                    // Wait to reduce rate limit issues
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    let title = await (0, ai_1.generateChatTitle)(userMessage, full);
                     if (title && title !== 'New chat' && title !== 'Untitled chat') {
                         await (0, assistantStore_1.updateConversationTitle)(conversation.id, userId, title);
+                        res.write(`event: title\ndata: ${JSON.stringify(title)}\n\n`);
+                    }
+                    else {
+                        console.log("Failed to generate title, title was:", title);
                     }
                 }
                 res.write(`event: end\ndata: done\n\n`);
@@ -236,9 +516,18 @@ aiRouter.post('/assistant/chat', async (req, res) => {
             }
         }
         else {
+            // Add file instruction to system prompt if files are present
+            let enhancedSystemPrompt = systemPrompt || assistantSystemPrompt;
+            if (files && files.length > 0) {
+                enhancedSystemPrompt += '\n\n⚠️ IMPORTANT: The user has uploaded file(s). These files contain content they want you to reference, analyze, teach, or explain. Always acknowledge and use the file content in your response when the user asks about it.';
+            }
+            // Add visual aids instruction if visuals are present
+            if (visualAids && visualAids.length > 0) {
+                enhancedSystemPrompt += `\n\n${visual_enrichment_1.VISUAL_AID_INSTRUCTION}`;
+            }
             const result = await (0, ai_1.runAssistantChat)(chatMessages, {
-                context: [contextString, context].filter(Boolean).join('\n\n') || undefined,
-                systemPrompt: systemPrompt || assistantSystemPrompt,
+                context: [visualAidsContext, fileContext, contextString, context].filter(Boolean).join('\n\n') || undefined,
+                systemPrompt: enhancedSystemPrompt,
             });
             await (0, assistantStore_1.appendAssistantMessages)(conversation.id, userId, [
                 { role: 'user', content: userMessage, conversation_id: conversation.id },
