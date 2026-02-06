@@ -7,6 +7,7 @@
  */
 
 import * as cheerio from 'cheerio';
+import type { AnyNode } from 'domhandler';
 import { BaseAdapter } from './base-adapter';
 import type { AssetCandidate, ValidationResult, TocNode, SourceType, NodeType, SelectorHints } from '../types';
 import { fetcher } from '../fetcher';
@@ -216,7 +217,7 @@ export class GenericHtmlTocAdapter extends BaseAdapter {
    */
   private parseList(
     $: cheerio.CheerioAPI,
-    $list: cheerio.Cheerio<cheerio.Element>,
+    $list: cheerio.Cheerio<AnyNode>,
     assetSlug: string,
     baseUrl: string,
     depth: number
@@ -380,5 +381,3 @@ export class GenericHtmlTocAdapter extends BaseAdapter {
 }
 
 export const genericHtmlAdapter = new GenericHtmlTocAdapter();
-
-

@@ -106,7 +106,7 @@ export interface BuildLabData {
     prompt?: string;
     widgets?: Array<{
       type: "editor" | "multiple-choice" | "code-editor";
-      config: any;
+      config: Record<string, unknown>;
     }>;
   }>;
   visuals?: VisualDiagramData[];
@@ -138,7 +138,7 @@ export interface DeriveLabData {
     title: string;
     widgets?: Array<{
       type: "editor" | "multiple-choice" | "derivation-steps";
-      config: any;
+      config: Record<string, unknown>;
     }>;
   }>;
   visuals?: VisualDiagramData[];
@@ -223,7 +223,7 @@ export interface ReviseLabData {
     prompt?: string;
     widgets?: Array<{
       type: "editor" | "multiple-choice";
-      config: any;
+      config: Record<string, unknown>;
     }>;
   }>;
   visuals?: VisualDiagramData[];

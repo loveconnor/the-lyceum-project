@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
@@ -340,7 +341,7 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
             
             const lines = part.split("\n");
             let event = "";
-            let dataLines: string[] = [];
+            const dataLines: string[] = [];
 
             for (const line of lines) {
               if (line.startsWith("event:")) {

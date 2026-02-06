@@ -22,7 +22,7 @@ export interface Notification {
     module_title?: string;
     days_since_activity?: number;
     streak_count?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   is_read: boolean;
   created_at: string;

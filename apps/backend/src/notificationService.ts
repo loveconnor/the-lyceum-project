@@ -6,7 +6,7 @@
  */
 
 import { getSupabaseAdmin } from './supabaseAdmin';
-import { NotificationType } from '../types/notifications';
+import { NotificationType } from './types/notifications';
 
 interface CreateNotificationParams {
   userId: string;

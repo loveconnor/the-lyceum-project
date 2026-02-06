@@ -85,10 +85,14 @@ const normalizeTopics = (
   return normalized;
 };
 
-const computeMostActiveMonth = (monthlyActivity: Record<string, number>): string | null => {
+const computeMostActiveMonth = (
+  monthlyActivity: Record<string, number | { labs: number; paths: number }>
+): string | null => {
   const entries = Object.entries(monthlyActivity || {});
   if (!entries.length) return null;
-  return entries.sort((a, b) => b[1] - a[1])[0][0];
+  const getCount = (value: number | { labs: number; paths: number }) =>
+    typeof value === 'number' ? value : (value.labs || 0) + (value.paths || 0);
+  return entries.sort((a, b) => getCount(b[1]) - getCount(a[1]))[0][0];
 };
 
 const getOnboardingData = async (userId: string) => {
@@ -404,6 +408,7 @@ const recalculateStatsFromLabs = async (userId: string): Promise<Partial<Dashboa
       category: 'Topic',
       confidence: 'From activity',
       progress: Math.min(100, count * 20), // 20% per completion, max 100%
+      description: `Progress and completion trend for ${name}.`,
       count
     }));
 
@@ -594,7 +599,14 @@ router.post('/activity', async (req, res) => {
       if (existingIndex >= 0) {
         top_topics[existingIndex].count = (top_topics[existingIndex].count || 0) + 1;
       } else {
-        top_topics.push({ name: topic, category: 'General', confidence: 'n/a', progress: 0, count: 1 });
+        top_topics.push({
+          name: topic,
+          category: 'General',
+          confidence: 'n/a',
+          progress: 0,
+          description: `Learner activity detected for ${topic}.`,
+          count: 1,
+        });
       }
     }
 

@@ -4,8 +4,7 @@ import {
   FilterTab,
   ViewMode,
   Difficulty,
-  LabTemplateType,
-  LabStatus
+  LabTemplateType
 } from "./types";
 import {
   fetchLabs,
@@ -64,7 +63,7 @@ interface LabStore {
   setFilterLabType: (labType: LabTemplateType | null) => void;
   setFilterEstimatedTime: (time: string | null) => void;
   setSearchQuery: (query: string) => void;
-  updateProgress: (labId: string, stepId: string, stepData?: any, completed?: boolean, onSuccess?: () => void) => Promise<void>;
+  updateProgress: (labId: string, stepId: string, stepData?: unknown, completed?: boolean, onSuccess?: () => void) => Promise<void>;
   toggleStarred: (labId: string) => Promise<void>;
 }
 
@@ -162,7 +161,7 @@ export const useLabStore = create<LabStore>((set, get) => ({
                 )
               )
             : null,
-          retries_count: updated.lab_progress?.filter((p: any) => p.completed === false).length ?? null
+          retries_count: updated.lab_progress?.filter((p) => p.completed === false).length ?? null
         });
       }
       set((state) => ({

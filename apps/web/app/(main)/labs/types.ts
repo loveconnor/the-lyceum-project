@@ -15,7 +15,7 @@ export interface Comment {
 export interface LabProgress {
   id: string;
   step_id: string;
-  step_data?: any;
+  step_data?: unknown;
   completed: boolean;
   updated_at: string;
 }

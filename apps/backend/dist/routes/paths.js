@@ -20,6 +20,9 @@ const firecrawlEnabled = process.env.USE_FIRECRAWL !== 'false' && Boolean(firecr
 const MAX_FIRECRAWL_FILE_CONTEXT_CHARS = 18000;
 const MAX_FIRECRAWL_FILE_COUNT = 5;
 const MAX_FIRECRAWL_FILE_CHARS_EACH = 3500;
+const MAX_LEARN_BY_DOING_FILE_CONTEXT_CHARS = 30000;
+const MAX_LEARN_BY_DOING_FILE_COUNT = 8;
+const MAX_LEARN_BY_DOING_FILE_CHARS_EACH = 5000;
 const buildFirecrawlFileContext = (contextFiles) => {
     if (!Array.isArray(contextFiles) || contextFiles.length === 0)
         return '';
@@ -53,6 +56,35 @@ const buildFirecrawlFileContext = (contextFiles) => {
         '',
         ...sections,
     ].join('\n');
+};
+const buildLearnByDoingFileContext = (contextFiles) => {
+    if (!Array.isArray(contextFiles) || contextFiles.length === 0)
+        return '';
+    const usableFiles = contextFiles
+        .filter((file) => typeof file?.content === 'string' && file.content.trim().length > 0)
+        .slice(0, MAX_LEARN_BY_DOING_FILE_COUNT);
+    if (usableFiles.length === 0)
+        return '';
+    const sections = [];
+    let usedChars = 0;
+    for (const file of usableFiles) {
+        if (usedChars >= MAX_LEARN_BY_DOING_FILE_CONTEXT_CHARS)
+            break;
+        const remaining = MAX_LEARN_BY_DOING_FILE_CONTEXT_CHARS - usedChars;
+        const budgetForFile = Math.min(remaining, MAX_LEARN_BY_DOING_FILE_CHARS_EACH);
+        if (budgetForFile <= 0)
+            break;
+        const excerpt = file.content.slice(0, budgetForFile);
+        const truncationNote = file.content.length > budgetForFile ? '\n[...truncated to stay within context budget...]' : '';
+        const section = `File: ${file.name}\n` +
+            `Type: ${file.type}\n` +
+            `Excerpt:\n${excerpt}${truncationNote}\n`;
+        sections.push(section);
+        usedChars += section.length;
+    }
+    if (sections.length === 0)
+        return '';
+    return sections.join('\n');
 };
 const extractFirecrawlSources = (payload) => {
     if (!payload)
@@ -318,8 +350,17 @@ const firecrawlAgentSources = async (query, limit = 5, options) => {
         }
         // Poll for results
         const pollIntervalMs = 2500;
+        const parsedPollTimeoutMs = process.env.FIRECRAWL_AGENT_POLL_TIMEOUT_MS
+            ? Number(process.env.FIRECRAWL_AGENT_POLL_TIMEOUT_MS)
+            : NaN;
+        const pollTimeoutMs = Number.isFinite(parsedPollTimeoutMs)
+            ? Math.max(5000, parsedPollTimeoutMs)
+            : 90000;
+        const maxPollAttempts = Math.max(1, Math.ceil(pollTimeoutMs / pollIntervalMs));
         let lastStatusError;
-        while (true) {
+        let attempts = 0;
+        while (attempts < maxPollAttempts) {
+            attempts += 1;
             const statusResponse = await fetch(`${firecrawlAgentBaseUrl}/agent/${agentId}`, {
                 method: 'GET',
                 headers: {
@@ -347,6 +388,8 @@ const firecrawlAgentSources = async (query, limit = 5, options) => {
                 details: {
                     agentId,
                     status,
+                    attempts,
+                    maxPollAttempts,
                     hasSources: sources.length > 0,
                 },
             });
@@ -374,10 +417,10 @@ const firecrawlAgentSources = async (query, limit = 5, options) => {
             }
             await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
         }
-        logger_1.logger.warn('firecrawl', 'Agent returned no sources', {
-            details: { query, agentId, error: lastStatusError },
+        logger_1.logger.warn('firecrawl', 'Agent polling timed out before completion', {
+            details: { query, agentId, timeoutMs: pollTimeoutMs, error: lastStatusError },
         });
-        return { sources: [], error: lastStatusError || 'No sources returned' };
+        return { sources: [], error: lastStatusError || 'Agent polling timed out' };
     }
     catch (error) {
         if (error.name === 'AbortError') {
@@ -837,19 +880,18 @@ router.post("/generate", async (req, res) => {
                 : moduleOutline.title;
             // Include context from uploaded files if available
             if (contextFiles.length > 0) {
-                // Combine all file contents - no limit
-                const fullContent = contextFiles
-                    .map(f => f.content)
-                    .join('\n\n')
-                    .trim();
-                // Create structured prompt for learn-by-doing with full content
+                const fileContext = buildLearnByDoingFileContext(contextFiles);
+                if (!fileContext) {
+                    return base;
+                }
+                // Create structured prompt for learn-by-doing with bounded content
                 // Add explicit formatting instructions
                 const instruction = `IMPORTANT: You must respond ONLY with JSONL patches in the exact format specified in the system prompt. Do not include explanatory text.
 
 Create an interactive learn-by-doing lesson on: ${base}
 
-Use this content as source material:
-${fullContent}
+Use this content as source material (excerpted from uploaded files to fit context limits):
+${fileContext}
 
 Generate 10-15 interactive steps that:
 1. Break down the concepts from the source material
@@ -1332,7 +1374,7 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
         }
         console.log(`[Generate] 🤖 Using AI-GENERATED content (no registry match)`);
         if (stream) {
-            res.write(`data: ${JSON.stringify({ type: 'status', message: shouldUseWebSearch ? 'Generating content with AI + web sources...' : 'Generating content with AI...' })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: 'status', message: shouldUseWebSearch ? '🤖 Generating content with AI + web sources...' : '🤖 Generating content with AI...' })}\n\n`);
         }
         const outline = await (0, ai_path_generator_1.generatePathOutline)({
             title: title || "",

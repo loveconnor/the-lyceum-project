@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarIcon, CaretSortIcon, CheckIcon } from "@radix-ui/react-icons";
 import { format } from "date-fns";
@@ -59,9 +59,10 @@ type AccountFormValues = z.infer<typeof accountFormSchema>;
 export default function Page() {
   const { settings, saveSettings, isSaving } = useUserSettings();
   const { t, locale } = useI18n();
-  const [mounted, setMounted] = useState(false);
-  const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(
-    settings.profile.avatarUrl ?? null
+  const isMounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
   );
   const languages = useMemo(
     () =>
@@ -104,30 +105,14 @@ export default function Page() {
       dob: settings.account.dob ? new Date(settings.account.dob) : undefined,
       language: settings.account.language || "en"
     });
-    setAvatarDataUrl(settings.profile.avatarUrl ?? null);
   }, [form, settings]);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    const file = files[0]?.file;
-    if (file instanceof File) {
-      const reader = new FileReader();
-      reader.onload = () => setAvatarDataUrl(reader.result as string);
-      reader.readAsDataURL(file);
-    } else if (files[0]?.preview) {
-      setAvatarDataUrl(files[0].preview);
-    }
-  }, [files]);
-
   const avatarPreview = useMemo(
-    () => avatarDataUrl || settings.profile.avatarUrl || null,
-    [avatarDataUrl, settings.profile.avatarUrl]
+    () => files[0]?.preview || settings.profile.avatarUrl || null,
+    [files, settings.profile.avatarUrl]
   );
 
-  if (!mounted) {
+  if (!isMounted) {
     return null;
   }
 
@@ -146,8 +131,9 @@ export default function Page() {
         }
       });
       toast.success(t("account.toast.success"));
-    } catch (error: any) {
-      toast.error(error.message || t("account.toast.error"));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : t("account.toast.error");
+      toast.error(message || t("account.toast.error"));
     }
   }
 

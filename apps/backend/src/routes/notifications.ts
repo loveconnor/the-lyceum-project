@@ -1,18 +1,21 @@
-import express, { Router } from 'express';
-import { supabaseAdmin } from '../supabaseAdmin';
+import { Router } from 'express';
+import { getSupabaseAdmin } from '../supabaseAdmin';
 import { requireAuth } from '../auth';
 
-const router: Router = express.Router();
+const router: Router = Router();
+
+const getUserId = (req: any): string | undefined => req.user?.id;
 
 // Get all notifications for the authenticated user
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = getUserId(req);
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { data: notifications, error } = await supabaseAdmin
+    const supabase = getSupabaseAdmin();
+    const { data: notifications, error } = await supabase
       .from('notifications')
       .select('*')
       .eq('user_id', userId)
@@ -31,12 +34,13 @@ router.get('/', requireAuth, async (req, res) => {
 // Get unread notification count
 router.get('/unread-count', requireAuth, async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = getUserId(req);
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { count, error } = await supabaseAdmin
+    const supabase = getSupabaseAdmin();
+    const { count, error } = await supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
@@ -54,14 +58,15 @@ router.get('/unread-count', requireAuth, async (req, res) => {
 // Mark notification as read
 router.patch('/:id/read', requireAuth, async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = getUserId(req);
     const { id } = req.params;
 
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { data, error } = await supabaseAdmin
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
       .from('notifications')
       .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('id', id)
@@ -81,12 +86,13 @@ router.patch('/:id/read', requireAuth, async (req, res) => {
 // Mark all notifications as read
 router.post('/mark-all-read', requireAuth, async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = getUserId(req);
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { error } = await supabaseAdmin
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase
       .from('notifications')
       .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('user_id', userId)
@@ -104,14 +110,15 @@ router.post('/mark-all-read', requireAuth, async (req, res) => {
 // Delete a notification
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = getUserId(req);
     const { id } = req.params;
 
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { error } = await supabaseAdmin
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase
       .from('notifications')
       .delete()
       .eq('id', id)
@@ -129,7 +136,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 // Create a notification (typically called by system/background jobs)
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = getUserId(req);
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -145,7 +152,8 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(400).json({ error: `Invalid notification type. Must be one of: ${validTypes.join(', ')}` });
     }
 
-    const { data, error } = await supabaseAdmin
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
       .from('notifications')
       .insert({
         user_id: userId,

@@ -5,7 +5,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -25,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { useTheme } from "next-themes";
 import { useUserSettings } from "@/components/providers/settings-provider";
 import {
   PresetSelector,
@@ -48,7 +46,6 @@ const appearanceFormSchema = z.object({
 type AppearanceFormValues = z.infer<typeof appearanceFormSchema>;
 
 export default function Page() {
-  const { setTheme } = useTheme();
   const { settings, saveSettings, isSaving } = useUserSettings();
   const { t } = useI18n();
 
@@ -79,8 +76,9 @@ export default function Page() {
       });
       
       toast.success(t("appearance.toast.success"));
-    } catch (error: any) {
-      toast.error(error.message || t("appearance.toast.error"));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : t("appearance.toast.error");
+      toast.error(message || t("appearance.toast.error"));
     }
   }
 

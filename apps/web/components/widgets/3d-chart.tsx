@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useRef, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useRef, useMemo } from 'react';
+import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Text, Line } from '@react-three/drei';
 import { useTheme } from 'next-themes';
 import * as THREE from 'three';
@@ -39,7 +40,7 @@ const evaluateMathFunction = (expression: string, x: number, z?: number): number
     };
 
     // Replace common math notation with JavaScript equivalents
-    let jsExpression = expression
+    const jsExpression = expression
       .replace(/\^/g, '**')
       .replace(/π/g, 'PI')
       .replace(/√/g, 'sqrt')
@@ -335,7 +336,8 @@ function Scene({
   // Calculate bounds
   const bounds = useMemo(() => {
     let xMin = -10, xMax = 10;
-    let yMin = -10, yMax = 10;
+      const yMin = -10;
+      const yMax = 10;
     let zMin = -10, zMax = 10;
 
     series?.forEach((s: any) => {
@@ -472,4 +474,3 @@ export function Chart3D({ options, height }: Chart3DProps) {
     </div>
   );
 }
-

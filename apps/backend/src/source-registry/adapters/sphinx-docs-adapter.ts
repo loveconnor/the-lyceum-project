@@ -7,6 +7,7 @@
  */
 
 import * as cheerio from 'cheerio';
+import type { AnyNode } from 'domhandler';
 import { BaseAdapter } from './base-adapter';
 import type { AssetCandidate, ValidationResult, TocNode, SourceType, NodeType } from '../types';
 import { fetcher } from '../fetcher';
@@ -188,7 +189,7 @@ export class SphinxDocsAdapter extends BaseAdapter {
       'nav.sphinxsidebarwrapper',
     ];
     
-    let $toc: cheerio.Cheerio<cheerio.Element> | null = null;
+    let $toc: cheerio.Cheerio<AnyNode> | null = null;
     for (const selector of tocSelectors) {
       const found = $(selector);
       if (found.length > 0) {
@@ -331,7 +332,7 @@ export class SphinxDocsAdapter extends BaseAdapter {
       'nav.contents ul',
     ];
     
-    let $toc: cheerio.Cheerio<cheerio.Element> | null = null;
+    let $toc: cheerio.Cheerio<AnyNode> | null = null;
     for (const selector of selectors) {
       const found = $(selector).first();
       if (found.length > 0 && found.find('a').length > 0) {
@@ -346,7 +347,7 @@ export class SphinxDocsAdapter extends BaseAdapter {
     }
     
     // Parse the TOC tree
-    const parseTocTree = ($ul: cheerio.Cheerio<cheerio.Element>, depth: number): TocNode[] => {
+    const parseTocTree = ($ul: cheerio.Cheerio<AnyNode>, depth: number): TocNode[] => {
       const levelNodes: TocNode[] = [];
       
       $ul.children('li').each((_, li) => {
@@ -419,5 +420,3 @@ export class SphinxDocsAdapter extends BaseAdapter {
 }
 
 export const sphinxDocsAdapter = new SphinxDocsAdapter();
-
-

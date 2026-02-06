@@ -52,7 +52,8 @@ const computeMostActiveMonth = (monthlyActivity) => {
     const entries = Object.entries(monthlyActivity || {});
     if (!entries.length)
         return null;
-    return entries.sort((a, b) => b[1] - a[1])[0][0];
+    const getCount = (value) => typeof value === 'number' ? value : (value.labs || 0) + (value.paths || 0);
+    return entries.sort((a, b) => getCount(b[1]) - getCount(a[1]))[0][0];
 };
 const getOnboardingData = async (userId) => {
     const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
@@ -311,6 +312,7 @@ const recalculateStatsFromLabs = async (userId) => {
         category: 'Topic',
         confidence: 'From activity',
         progress: Math.min(100, count * 20), // 20% per completion, max 100%
+        description: `Progress and completion trend for ${name}.`,
         count
     }));
     // Calculate activity counts
@@ -475,7 +477,14 @@ router.post('/activity', async (req, res) => {
                 top_topics[existingIndex].count = (top_topics[existingIndex].count || 0) + 1;
             }
             else {
-                top_topics.push({ name: topic, category: 'General', confidence: 'n/a', progress: 0, count: 1 });
+                top_topics.push({
+                    name: topic,
+                    category: 'General',
+                    confidence: 'n/a',
+                    progress: 0,
+                    description: `Learner activity detected for ${topic}.`,
+                    count: 1,
+                });
             }
         }
         const sortedTopTopics = top_topics

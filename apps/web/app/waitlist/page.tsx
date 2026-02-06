@@ -114,11 +114,10 @@ export default function WaitlistPage() {
 
         <div className="text-center text-sm text-muted-foreground">
           <p>
-            We're working hard to bring you the best learning experience.
+            We&apos;re working hard to bring you the best learning experience.
           </p>
         </div>
       </div>
     </div>
   );
 }
-

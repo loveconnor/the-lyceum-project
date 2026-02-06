@@ -34,8 +34,8 @@ export default async function ReflectionsPage() {
     .filter(r => r.context_type === 'module' || r.context_type === 'path_item')
     .map(r => r.context_id);
     
-  let pathTitleMap = new Map<string, string>();
-  let pathIdMap = new Map<string, string>();
+  const pathTitleMap = new Map<string, string>();
+  const pathIdMap = new Map<string, string>();
 
   if (moduleContextIds.length > 0) {
     const { data: pathItems } = await supabase
@@ -50,7 +50,7 @@ export default async function ReflectionsPage() {
       .in("id", moduleContextIds);
 
     if (pathItems) {
-      pathItems.forEach((item: any) => {
+      pathItems.forEach((item: { id: string; path_id?: string | null; learning_paths?: { title?: string | null } | null }) => {
         if (item.learning_paths?.title) {
           pathTitleMap.set(item.id, item.learning_paths.title);
         }

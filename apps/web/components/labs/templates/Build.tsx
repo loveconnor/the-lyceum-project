@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useState } from "react";
 import { BuildLabData } from "@/types/lab-templates";
@@ -173,7 +174,7 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
   // AI feedback state
   const [stepFeedback, setStepFeedback] = useState<Record<string, { text: string; approved: boolean; correctIds?: string[]; incorrectIds?: string[] }>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { getAssistance, loading: aiLoading } = labId ? useLabAI(labId) : { getAssistance: null, loading: false };
+  const { getAssistance, loading: aiLoading } = useLabAI(labId);
   const currentStepRef = React.useRef<HTMLButtonElement>(null);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [hasShownCompletionModal, setHasShownCompletionModal] = useState(false);
@@ -305,7 +306,7 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
     });
     
     // Build code from completed steps
-    let composedLines: string[] = [];
+    const composedLines: string[] = [];
     
     // Add any imports and class header (only once!)
     if (classStart >= 0) {
@@ -1255,12 +1256,12 @@ Approve if they show reasonable understanding or selected the correct option. If
                       <Terminal className="w-3.5 h-3.5 text-muted-foreground/40" />
                       <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Console Output</span>
                     </div>
-                    <span className="text-[10px] text-muted-foreground/20 font-mono">Type 'help' for commands</span>
+                    <span className="text-[10px] text-muted-foreground/20 font-mono">Type &apos;help&apos; for commands</span>
                   </div>
                   <ScrollArea className="flex-1 h-0">
                     <div className="p-4 font-mono text-xs space-y-1.5">
                       {output.length === 0 ? (
-                        <p className="text-muted-foreground/40 italic">Click "Run Tests" or type 'test' in the console...</p>
+                        <p className="text-muted-foreground/40 italic">Click &quot;Run Tests&quot; or type &apos;test&apos; in the console...</p>
                       ) : (
                         output.map((line, i) => (
                           <div key={i} className={cn(

@@ -18,7 +18,7 @@ import { Separator } from '@/components/ui/separator';
 
 export default function ReflectionDemoPage() {
   const [showModal, setShowModal] = useState(false);
-  const [editorValues, setEditorValues] = useState<any>(null);
+  const [editorValues, setEditorValues] = useState<unknown>(null);
 
   return (
     <div className="container max-w-5xl py-10 space-y-10">

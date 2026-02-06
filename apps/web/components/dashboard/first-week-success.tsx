@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { CheckCircle2, Circle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,23 +62,27 @@ export function FirstWeekSuccessLoop({ status }: { status: FirstWeekStatus }) {
   const progress = Math.round((completedCount / steps.length) * 100);
   const nextStep = steps.find((step) => !status[step.key]);
   const allComplete = completedCount === steps.length;
-  const [isHidden, setIsHidden] = useState(false);
-
-  useEffect(() => {
-    if (!allComplete) return;
-    try {
-      const stored = window.localStorage.getItem(hideKey) === "1";
-      setIsHidden(stored);
-    } catch (error) {
-      console.error("Failed to read getting-started visibility", error);
-    }
-  }, [allComplete]);
+  const [isHiddenOverride, setIsHiddenOverride] = useState(false);
+  const isHiddenFromStore = useSyncExternalStore(
+    () => () => undefined,
+    () => {
+      if (!allComplete) return false;
+      try {
+        return window.localStorage.getItem(hideKey) === "1";
+      } catch (error) {
+        console.error("Failed to read getting-started visibility", error);
+        return false;
+      }
+    },
+    () => false
+  );
+  const isHidden = isHiddenFromStore || isHiddenOverride;
 
   const handleHide = () => {
     if (!allComplete) return;
     try {
       window.localStorage.setItem(hideKey, "1");
-      setIsHidden(true);
+      setIsHiddenOverride(true);
     } catch (error) {
       console.error("Failed to hide getting-started plan", error);
     }

@@ -31,7 +31,7 @@ interface UpdateLabPayload {
 
 interface UpdateProgressPayload {
   step_id: string;
-  step_data?: any;
+  step_data?: unknown;
   completed: boolean;
 }
 
@@ -132,7 +132,7 @@ export async function updateLabProgress(
   }
 }
 
-export async function fetchLabProgress(labId: string): Promise<any[]> {
+export async function fetchLabProgress(labId: string): Promise<NonNullable<Lab["lab_progress"]>> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/labs/${labId}`, { headers });
   const lab = await handleResponse<Lab>(response);
@@ -202,7 +202,7 @@ export async function generateLab(payload: {
 export async function getLabAIAssistance(
   labId: string,
   prompt: string,
-  context?: any
+  context?: unknown
 ): Promise<{ assistance: string }> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/labs/${labId}/ai-assist`, {

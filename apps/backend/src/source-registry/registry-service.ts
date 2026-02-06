@@ -545,7 +545,7 @@ export class RegistryService {
             action: 'validate',
             status: 'completed',
             message: `Validation complete for ${candidate.title}`,
-            details: validationReport,
+            details: validationReport as unknown as Record<string, unknown>,
           });
 
         } catch (err) {
@@ -686,5 +686,4 @@ export class RegistryService {
     return data as ScanLog[];
   }
 }
-
 

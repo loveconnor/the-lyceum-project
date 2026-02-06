@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
@@ -43,7 +44,7 @@ const evaluateMathFunction = (
     };
 
     // Replace common math notation with JavaScript equivalents
-    let jsExpression = expression
+    const jsExpression = expression
       .replace(/\^/g, "**") // x^2 -> x**2
       .replace(/π/g, "PI") // π -> PI
       .replace(/√/g, "sqrt") // √ -> sqrt
@@ -123,7 +124,8 @@ export function D3Chart({ options, height }: D3ChartProps) {
     )
       return;
 
-    let { data, series } = options;
+    let data = options.data;
+    const series = options.series;
     if (!series || series.length === 0) return;
 
     const svg = d3.select(svgRef.current);
@@ -230,7 +232,7 @@ export function D3Chart({ options, height }: D3ChartProps) {
       .range([height, 0]);
 
     // Grid lines
-    const yGrid = g
+    g
       .append("g")
       .attr("class", "grid grid-y")
       .attr("stroke-opacity", 0.1)

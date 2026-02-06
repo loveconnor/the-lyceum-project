@@ -13,7 +13,6 @@ import {
   Presentation,
   Headphones,
   Network,
-  PlayCircle,
   Lock
 } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
@@ -84,18 +83,6 @@ export default function ModuleCard({ module, moduleNumber, pathId, isLocked = fa
 
   // Check if this is a learn-by-doing module
   const isLearnByDoing = module.content_mode === 'learn_by_doing';
-  
-  // Debug logging
-  useEffect(() => {
-    console.log('ModuleCard Debug:', {
-      moduleId: module.id,
-      title: module.title,
-      content_mode: module.content_mode,
-      isLearnByDoing,
-      has_content_data: !!module.content_data,
-      status: module.status
-    });
-  }, [module, isLearnByDoing]);
   
   // For learn-by-doing: calculate total steps from tree structure
   const learnByDoingTree = isLearnByDoing ? module.content_data?.tree : null;
@@ -180,14 +167,6 @@ export default function ModuleCard({ module, moduleNumber, pathId, isLocked = fa
   const lbdProgressPercentage = totalSteps > 0 && lbdProgress 
     ? (lbdProgress.completed_steps.length / totalSteps) * 100 
     : 0;
-
-  // Calculate total content items
-  const totalContent =
-    (module.labCount || 0) +
-    (module.textCount || 0) +
-    (module.slideCount || 0) +
-    (module.audioCount || 0) +
-    (module.mindmapCount || 0);
 
   // For demo purposes, showing content breakdown
   const contentItems = [

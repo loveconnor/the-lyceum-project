@@ -5,6 +5,37 @@ import { notFound } from "next/navigation";
 
 import ModulesView from "@/components/modules/modules-view";
 
+type PathStatusValue = "not-started" | "in-progress" | "completed";
+
+type LearningPathItemRecord = {
+  id: string;
+  lab_id?: string | null;
+  order_index: number;
+  title: string;
+  description?: string | null;
+  item_type?: string | null;
+  status?: string | null;
+  progress_data?: Record<string, unknown> | null;
+  content_data?: Record<string, unknown> | null;
+  content_mode?: "ai_generated" | "registry_backed" | "learn_by_doing" | null;
+  labs?: {
+    id: string;
+    title: string;
+    description?: string | null;
+    status: string;
+    difficulty?: string | null;
+    estimated_duration?: number | null;
+  } | null;
+};
+
+type LearningPathRecord = {
+  id: string;
+  status?: string | null;
+  learning_path_items?: LearningPathItemRecord[] | null;
+} & Record<string, unknown>;
+
+type ModulesViewPath = React.ComponentProps<typeof ModulesView>["path"];
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id: pathId } = await params;
   const supabase = await createClient();
@@ -42,6 +73,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function PathModulesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: pathId } = await params;
   const supabase = await createClient();
+  let pathWithModules: ModulesViewPath | null = null;
   
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -85,42 +117,45 @@ export default async function PathModulesPage({ params }: { params: Promise<{ id
       notFound();
     }
     
-    // Calculate path status based on items
-    const items = learningPath.learning_path_items || [];
-    let calculatedStatus = 'not-started';
+    const typedPath = learningPath as LearningPathRecord;
+    const items = typedPath.learning_path_items ?? [];
+    let calculatedStatus: PathStatusValue = "not-started";
     
     if (items.length > 0) {
-      const completedCount = items.filter((item: any) => item.status === 'completed').length;
-      const inProgressCount = items.filter((item: any) => item.status === 'in-progress').length;
+      const completedCount = items.filter((item) => item.status === "completed").length;
+      const inProgressCount = items.filter((item) => item.status === "in-progress").length;
       
       if (completedCount === items.length) {
-        calculatedStatus = 'completed';
+        calculatedStatus = "completed";
       } else if (inProgressCount > 0 || completedCount > 0) {
-        calculatedStatus = 'in-progress';
+        calculatedStatus = "in-progress";
       }
     }
     
     // Update path status in database if it has changed
-    if (calculatedStatus !== learningPath.status) {
+    if (calculatedStatus !== typedPath.status) {
       await supabase
         .from("learning_paths")
         .update({ status: calculatedStatus })
         .eq("id", pathId)
         .eq("user_id", user.id);
       
-      learningPath.status = calculatedStatus;
+      typedPath.status = calculatedStatus;
     }
     
     // Map learning_path_items to modules format
-    const modules = (learningPath.learning_path_items || [])
-      .sort((a: any, b: any) => a.order_index - b.order_index)
-      .map((item: any) => ({
+    const modules = [...items]
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((item) => ({
         id: item.id,
         title: item.title,
         description: item.description,
-        completed: item.status === 'completed',
+        completed: item.status === "completed",
         item_type: item.item_type,
-        status: item.status,
+        status:
+          item.status === "completed" || item.status === "in-progress"
+            ? item.status
+            : "not-started",
         progress_data: item.progress_data,
         content_data: item.content_data,
         content_mode: item.content_mode,
@@ -128,14 +163,18 @@ export default async function PathModulesPage({ params }: { params: Promise<{ id
         labs: item.labs
       }));
     
-    const pathWithModules = {
-      ...learningPath,
+    pathWithModules = {
+      ...(typedPath as ModulesViewPath),
       modules
     };
-    
-    return <ModulesView path={pathWithModules as any} />;
   } catch (error) {
     console.error("Error fetching learning path:", error);
     notFound();
   }
+
+  if (!pathWithModules) {
+    notFound();
+  }
+
+  return <ModulesView path={pathWithModules} />;
 }

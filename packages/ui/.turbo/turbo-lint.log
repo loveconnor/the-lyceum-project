@@ -1,0 +1,4 @@
+
+> @repo/ui@0.0.0 lint /Users/connorlove/projects/the-lyceum-project/packages/ui
+> eslint . --max-warnings 0
+

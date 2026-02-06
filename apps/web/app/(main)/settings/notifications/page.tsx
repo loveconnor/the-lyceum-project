@@ -14,7 +14,6 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage
 } from "@/components/ui/form";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
@@ -60,8 +59,9 @@ export default function Page() {
         notifications: data
       });
       toast.success(t("settings.notifications.toast.success"));
-    } catch (error: any) {
-      toast.error(error.message || t("settings.notifications.toast.error"));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : t("settings.notifications.toast.error");
+      toast.error(message || t("settings.notifications.toast.error"));
     }
   }
 

@@ -23,15 +23,26 @@ export function mapUserToProfile(user?: User | null): UserProfile {
     return DEFAULT_USER_PROFILE;
   }
 
-  const metadata = (user as any)?.user_metadata ?? {};
+  const metadataSource = user.user_metadata;
+  const metadata =
+    metadataSource && typeof metadataSource === "object"
+      ? (metadataSource as Record<string, unknown>)
+      : {};
+  const getMetadataString = (key: string) => {
+    const value = metadata[key];
+    return typeof value === "string" ? value : undefined;
+  };
   const name =
-    metadata.full_name ??
-    metadata.name ??
-    metadata.display_name ??
+    getMetadataString("full_name") ??
+    getMetadataString("name") ??
+    getMetadataString("display_name") ??
     user.email?.split("@")?.[0] ??
     DEFAULT_USER_PROFILE.name;
 
-  const avatarUrl = metadata.avatar_url ?? metadata.picture ?? DEFAULT_USER_PROFILE.avatarUrl;
+  const avatarUrl =
+    getMetadataString("avatar_url") ??
+    getMetadataString("picture") ??
+    DEFAULT_USER_PROFILE.avatarUrl;
 
   return {
     id: user.id,

@@ -77,11 +77,17 @@ export const REFLECTION_PROMPTS = {
  */
 export function hasReflectionContent(value: Value): boolean {
   if (!value || value.length === 0) return false;
+
+  type ReflectionTextNode = {
+    text?: string;
+    children?: ReflectionTextNode[];
+  };
   
   // Check if there's any non-empty text
-  const hasText = value.some((node: any) => {
-    if (node.children) {
-      return node.children.some((child: any) => {
+  const hasText = value.some((node) => {
+    const typedNode = node as ReflectionTextNode;
+    if (typedNode.children) {
+      return typedNode.children.some((child) => {
         return child.text && child.text.trim().length > 0;
       });
     }

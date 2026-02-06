@@ -26,7 +26,8 @@ export default async function MainLayout({
       data: { user }
     } = await supabase.auth.getUser();
     userProfile = mapUserToProfile(user);
-    userSettings = coerceSettings((user as any)?.user_metadata?.settings);
+    const metadata = user?.user_metadata as { settings?: unknown } | undefined;
+    userSettings = coerceSettings(metadata?.settings);
 
     if (user) {
       const { data: profileRow } = await supabase

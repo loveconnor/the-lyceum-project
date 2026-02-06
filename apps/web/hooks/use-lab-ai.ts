@@ -3,15 +3,21 @@ import { getLabAIAssistance } from "@/lib/api/labs";
 import { ANALYTICS_CONFIG } from "@/lib/analytics/config";
 import { markAiUsed, trackEvent } from "@/lib/analytics";
 
-export function useLabAI(labId: string) {
+export function useLabAI(labId?: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getAssistance = async (prompt: string, context?: any): Promise<string> => {
+  const getAssistance = async (prompt: string, context?: unknown): Promise<string> => {
     setLoading(true);
     setError(null);
 
     try {
+      if (!labId) {
+        const missingIdError = "Cannot request AI help without a lab id.";
+        setError(missingIdError);
+        throw new Error(missingIdError);
+      }
+
       markAiUsed();
       trackEvent("ai_widget_used", {
         context: "lab",

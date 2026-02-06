@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Clock, Eye, MoreVertical, RotateCcw, Star, Trash2, Info } from "lucide-react";
@@ -8,7 +8,7 @@ import { statusClasses } from "@/app/(main)/labs/enum";
 import { Lab, LabStatus } from "@/app/(main)/labs/types";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
 
-import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,18 +38,17 @@ interface LabCardProps {
 const LabCard: React.FC<LabCardProps> = ({
   lab,
   onView,
-  onStatusChange,
   viewMode,
   onCoreToggle,
   onRestart,
   onDelete
 }) => {
   const router = useRouter();
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  const isMounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  );
 
   // Helper function to auto-wrap LaTeX patterns
   const wrapMath = (text: string): string => {
@@ -59,7 +58,7 @@ const LabCard: React.FC<LabCardProps> = ({
     if (text.includes('$')) return text;
     
     // Wrap expressions in parentheses that contain LaTeX (backslash commands or special chars)
-    let result = text.replace(/\(([^)]*(?:\\[a-z]+|[\^_{}])[^)]*)\)/g, (match, inner) => {
+    const result = text.replace(/\(([^)]*(?:\\[a-z]+|[\^_{}])[^)]*)\)/g, (match, inner) => {
       // Only wrap if it contains LaTeX syntax
       if (/\\[a-z]+|[\^_{}]/.test(inner)) {
         return `$${match}$`;
@@ -71,7 +70,7 @@ const LabCard: React.FC<LabCardProps> = ({
   };
 
   // Calculate step progress from lab_progress
-  const completedSteps = lab.lab_progress?.filter((p: any) => p.completed).length || 0;
+  const completedSteps = lab.lab_progress?.filter((p) => p.completed).length || 0;
   // Get total steps dynamically from template_data
   const aiSteps = lab.template_data?.steps || [];
   const totalSteps = aiSteps.length > 0 ? aiSteps.length : 4; // Default to 4 if no steps provided

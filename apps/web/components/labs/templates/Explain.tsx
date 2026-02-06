@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useState } from "react";
 import { ExplainLabData } from "@/types/lab-templates";
@@ -101,7 +102,7 @@ export default function ExplainTemplate({ data, labId, moduleContext }: ExplainT
   const [showLabOverview, setShowLabOverview] = useState(false);
   const [hasLoadedProgress, setHasLoadedProgress] = useState(false);
   const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
-  const { getAssistance, loading: aiLoading } = labId ? useLabAI(labId) : { getAssistance: null, loading: false };
+  const { getAssistance, loading: aiLoading } = useLabAI(labId);
 
   // Dynamic explanations object based on step IDs
   const [explanations, setExplanations] = useState<Record<string, string>>({});

@@ -137,8 +137,8 @@ const useAutoScroll = (
   return {
     autoScrollEnabled,
     scrollToBottom,
-    isScrolling: autoScrollingRef.current,
-    scrollTriggered: scrollTriggeredRef.current,
+    autoScrollingRef,
+    scrollTriggeredRef,
     newMessageAdded,
     setNewMessageAdded,
     prevChildrenCountRef,
@@ -171,8 +171,8 @@ function ChatContainer({
   const {
     autoScrollEnabled,
     scrollToBottom,
-    isScrolling,
-    scrollTriggered,
+    autoScrollingRef,
+    scrollTriggeredRef,
     newMessageAdded,
     setNewMessageAdded,
     prevChildrenCountRef,
@@ -203,8 +203,8 @@ function ChatContainer({
       } else if (
         contentChangedWithoutNewMessageRef.current &&
         autoScrollEnabled &&
-        !isScrolling &&
-        !scrollTriggered
+        !autoScrollingRef.current &&
+        !scrollTriggeredRef.current
       ) {
         scrollToBottom("smooth")
         contentChangedWithoutNewMessageRef.current = false
@@ -216,8 +216,8 @@ function ChatContainer({
     children,
     autoScroll,
     autoScrollEnabled,
-    isScrolling,
-    scrollTriggered,
+    autoScrollingRef,
+    scrollTriggeredRef,
     scrollToBottom,
     newMessageAdded,
     setNewMessageAdded,

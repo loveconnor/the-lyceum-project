@@ -1,14 +1,11 @@
 import {
-  Bell,
-  Clock3,
   Compass,
   FlaskConical,
   LayoutDashboard,
   Link as LinkIcon,
   NotebookPen,
   Sparkles,
-  Target,
-  Users
+  type LucideIcon
 } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n";
 
@@ -57,7 +54,7 @@ export type UserSettings = {
 export type SidebarItemDefinition = {
   id: SidebarItemId;
   labelKey: MessageKey;
-  icon: any;
+  icon: LucideIcon;
   href?: string;
   group: "primary" | "quick_links";
 };

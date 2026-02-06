@@ -241,7 +241,7 @@ export default function Page() {
 
       const interests = profile?.onboarding_data?.interests || [];
       setSelectedInterests(interests);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error loading interests:", error);
       toast.error(t("interests.toast.loadError"));
     } finally {
@@ -304,9 +304,10 @@ export default function Page() {
       if (updateError) throw new Error(updateError.message);
 
       toast.success(t("interests.toast.success"));
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error saving interests:", error);
-      toast.error(error.message || t("interests.toast.error"));
+      const message = error instanceof Error ? error.message : t("interests.toast.error");
+      toast.error(message || t("interests.toast.error"));
     } finally {
       setIsSaving(false);
     }

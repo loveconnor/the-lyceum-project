@@ -211,17 +211,22 @@ export function StatefulEditorExample() {
 
 // Helper function for extracting plain text (imported from widget)
 function extractPlainText(value: Value): string {
-  const getText = (node: any): string => {
-    if (node.text !== undefined) {
+  type EditorTextNode = {
+    text?: string;
+    children?: EditorTextNode[];
+  };
+
+  const getText = (node: EditorTextNode): string => {
+    if (typeof node.text === "string") {
       return node.text;
     }
-    if (node.children) {
+    if (Array.isArray(node.children)) {
       return node.children.map(getText).join('');
     }
     return '';
   };
-  
-  return value.map(getText).join('\n');
+
+  return (value as EditorTextNode[]).map(getText).join('\n');
 }
 
 /**

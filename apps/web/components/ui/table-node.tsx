@@ -477,7 +477,7 @@ export function TableRowElement({
   );
 }
 
-function RowDragHandle({ dragRef }: { dragRef: React.Ref<any> }) {
+function RowDragHandle({ dragRef }: { dragRef: React.Ref<HTMLButtonElement> }) {
   const editor = useEditorRef();
   const element = useElement();
 
@@ -609,7 +609,9 @@ export function TableCellElement({
                 className={cn(
                   'absolute top-0 z-30 hidden h-full w-1 bg-ring',
                   'right-[-1.5px]',
-                  columnResizeVariants({ colIndex: colIndex as any })
+                  columnResizeVariants({
+                    colIndex: String(colIndex) as ColumnResizeKey,
+                  })
                 )}
               />
               {colIndex === 0 && (
@@ -638,6 +640,19 @@ export function TableCellHeaderElement(
 ) {
   return <TableCellElement {...props} isHeader />;
 }
+
+type ColumnResizeKey =
+  | "0"
+  | "1"
+  | "2"
+  | "3"
+  | "4"
+  | "5"
+  | "6"
+  | "7"
+  | "8"
+  | "9"
+  | "10";
 
 const columnResizeVariants = cva('fade-in hidden animate-in', {
   variants: {

@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useState, useEffect } from "react";
 import { ReviseLabData } from "@/types/lab-templates";
@@ -111,7 +112,7 @@ export default function ReviseTemplate({ data, labId, moduleContext }: ReviseTem
   const [showLabOverview, setShowLabOverview] = useState(false);
   const [hasLoadedProgress, setHasLoadedProgress] = useState(false);
   const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
-  const { getAssistance, loading: aiLoading } = labId ? useLabAI(labId) : { getAssistance: null, loading: false };
+  const { getAssistance, loading: aiLoading } = useLabAI(labId);
   
   const currentStep = steps.find(s => s.status === "current");
   const currentStepIndex = steps.findIndex(s => s.status === "current");

@@ -1,5 +1,6 @@
 'use client';
 /* eslint-disable react-hooks/refs */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import * as React from 'react';
 

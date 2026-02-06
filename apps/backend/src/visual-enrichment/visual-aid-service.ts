@@ -651,25 +651,22 @@ export class VisualAidService {
     const conceptTerms = this.extractKeyTerms(intent.concept);
     const queryTerms = this.extractKeyTerms(intent.search_query);
     const allRelevantTerms = [...new Set([...conceptTerms, ...queryTerms])];
+    const lowSignalTerms = [
+      'system', 'systems', 'diagram', 'illustration', 'chart', 'graph', 'schematic',
+      'overview', 'introduction', 'basic', 'basics', 'concept', 'concepts'
+    ];
+    const coreRelevantTerms = allRelevantTerms.filter((term) => !lowSignalTerms.includes(term));
+    const effectiveTerms = coreRelevantTerms.length > 0 ? coreRelevantTerms : allRelevantTerms;
     
     logger.debug('visual-aid-service', `Filtering with relevance terms: ${allRelevantTerms.join(', ')}`);
+    if (effectiveTerms.length === 0) {
+      logger.debug('visual-aid-service', 'Rejected all candidates (no effective relevance terms)');
+      return [];
+    }
 
     const filtered = candidates.filter(candidate => {
       const title = candidate.title?.toLowerCase() || '';
 
-      // Treat overly-generic terms as low-signal for accuracy
-      const genericTerms = [
-        'system', 'systems', 'diagram', 'illustration', 'chart', 'graph', 'schematic',
-        'overview', 'introduction', 'basic', 'basics', 'concept', 'concepts'
-      ];
-      const coreRelevantTerms = allRelevantTerms.filter(term => !genericTerms.includes(term));
-      const effectiveTerms = coreRelevantTerms.length > 0 ? coreRelevantTerms : allRelevantTerms;
-
-      if (effectiveTerms.length === 0) {
-        logger.debug('visual-aid-service', `Rejected (no effective relevance terms): "${title}"`);
-        return false;
-      }
-      
       // Filter out photos
       const photoTerms = ['photo', 'photograph', 'picture of', 'image of', 'jpg', 'jpeg'];
       if (photoTerms.some(term => title.includes(term))) {

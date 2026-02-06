@@ -32,13 +32,19 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const cookieStore = await cookies();
+
+  const readThemeValue = <K extends keyof typeof DEFAULT_THEME>(
+    key: K,
+    cookieKey: string
+  ): (typeof DEFAULT_THEME)[K] =>
+    (cookieStore.get(cookieKey)?.value ?? DEFAULT_THEME[key]) as (typeof DEFAULT_THEME)[K];
+
   const locale = getLocaleFromString(cookieStore.get(LANGUAGE_COOKIE_NAME)?.value ?? null);
   const themeSettings = {
-    preset: (cookieStore.get("theme_preset")?.value ?? DEFAULT_THEME.preset) as any,
-    scale: (cookieStore.get("theme_scale")?.value ?? DEFAULT_THEME.scale) as any,
-    radius: (cookieStore.get("theme_radius")?.value ?? DEFAULT_THEME.radius) as any,
-    contentLayout: (cookieStore.get("theme_content_layout")?.value ??
-      DEFAULT_THEME.contentLayout) as any
+    preset: readThemeValue("preset", "theme_preset"),
+    scale: readThemeValue("scale", "theme_scale"),
+    radius: readThemeValue("radius", "theme_radius"),
+    contentLayout: readThemeValue("contentLayout", "theme_content_layout")
   };
   
   // Get font preference from cookies
@@ -46,7 +52,7 @@ export default async function RootLayout({
 
   const bodyAttributes = Object.fromEntries(
     Object.entries(themeSettings)
-      .filter(([_, value]) => value)
+      .filter(([, value]) => value)
       .map(([key, value]) => [`data-theme-${key.replace(/([A-Z])/g, "-$1").toLowerCase()}`, value])
   );
 

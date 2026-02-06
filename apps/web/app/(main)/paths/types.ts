@@ -35,7 +35,7 @@ export interface Module {
   status?: 'not-started' | 'in-progress' | 'completed';
   content_mode?: 'ai_generated' | 'registry_backed' | 'learn_by_doing';
   generation_constraint?: string;
-  content_data?: any;
+  content_data?: Record<string, unknown> | null;
   progress_data?: {
     reading_completed?: boolean;
     examples_completed?: boolean;
@@ -62,7 +62,7 @@ export interface PathItem {
   status: 'not-started' | 'in-progress' | 'completed';
   completed_at?: string | null;
   generation_constraint?: string;
-  content_data?: any;
+  content_data?: Record<string, unknown> | null;
   content_mode?: 'ai_generated' | 'registry_backed' | 'learn_by_doing';
   source_asset_id?: string | null;
   source_node_ids?: string[];

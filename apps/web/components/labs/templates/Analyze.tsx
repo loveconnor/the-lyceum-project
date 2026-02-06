@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useState } from "react";
 import { 
@@ -602,7 +603,7 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
                     <div className="flex items-start gap-2 p-2 bg-amber-500/10 rounded-lg border border-amber-500/20 mb-2">
                       <AlertCircle className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
                       <p className="text-[10px] text-amber-700 font-medium">
-                        Describe at least one pattern using approximate values (e.g., "Temperature peaks around 30°C in July")
+                        Describe at least one pattern using approximate values (e.g., &quot;Temperature peaks around 30°C in July&quot;)
                       </p>
                     </div>
                     <Textarea 

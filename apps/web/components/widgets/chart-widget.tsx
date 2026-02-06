@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useTheme } from "next-themes";
+import React, { useState, useEffect, useSyncExternalStore } from "react";
 import { D3Chart } from "./d3-chart";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,7 +50,10 @@ import { Markdown } from "@/components/ui/custom/prompt/markdown";
 interface ChartWidgetData {
   title: string;
   description?: string;
-  chartOptions: any; // Keep compatible with existing AI output for now
+  chartOptions: {
+    series?: Array<{ type?: string }>;
+    [key: string]: unknown;
+  };
 }
 
 interface ChartWidgetProps {
@@ -63,23 +65,23 @@ interface ChartWidgetProps {
   variant?: "card" | "full";
 }
 
+const useIsClient = () =>
+  useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  );
+
 export function ChartWidget({
   charts,
   height = "350px",
   showNavigation = true,
   showSidebar = true,
-  onViewComplete,
-  variant = "card"
+  onViewComplete
 }: ChartWidgetProps) {
-  const { theme } = useTheme();
   const [currentChartIndex, setCurrentChartIndex] = useState(0);
   const [viewedCharts, setViewedCharts] = useState<Set<number>>(new Set());
-  const [isMounted, setIsMounted] = useState(false);
-
-  // Prevent hydration issues
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
+  const isMounted = useIsClient();
 
   // Mark chart as viewed after a delay
   useEffect(() => {
@@ -253,4 +255,3 @@ export function ChartWidget({
 }
 
 export type { ChartWidgetData };
-

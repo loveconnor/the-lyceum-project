@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Renderer, useUIStream, JSONUIProvider } from "../../../packages/react";

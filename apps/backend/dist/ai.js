@@ -293,11 +293,11 @@ const runAssistantChat = async (messages, options = {}) => {
     const boundedContext = options.context
         ? clampText(options.context, MAX_ASSISTANT_CONTEXT_CHARS)
         : undefined;
-    const chatMessages = [
-        { role: 'system', content: systemPrompt },
-        ...(boundedContext ? [{ role: 'system', content: `Context: ${boundedContext}` }] : []),
-        ...buildBoundedAssistantMessages(messages),
-    ];
+    const chatMessages = [{ role: 'system', content: systemPrompt }];
+    if (boundedContext) {
+        chatMessages.push({ role: 'system', content: `Context: ${boundedContext}` });
+    }
+    chatMessages.push(...buildBoundedAssistantMessages(messages));
     const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
     const completion = await client.chat.completions.create({
         model,
@@ -315,11 +315,11 @@ const runAssistantChatStream = async (messages, options = {}) => {
     const boundedContext = options.context
         ? clampText(options.context, MAX_ASSISTANT_CONTEXT_CHARS)
         : undefined;
-    const chatMessages = [
-        { role: 'system', content: systemPrompt },
-        ...(boundedContext ? [{ role: 'system', content: `Context: ${boundedContext}` }] : []),
-        ...buildBoundedAssistantMessages(messages),
-    ];
+    const chatMessages = [{ role: 'system', content: systemPrompt }];
+    if (boundedContext) {
+        chatMessages.push({ role: 'system', content: `Context: ${boundedContext}` });
+    }
+    chatMessages.push(...buildBoundedAssistantMessages(messages));
     const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
     const stream = await client.chat.completions.create({
         model,
@@ -328,15 +328,19 @@ const runAssistantChatStream = async (messages, options = {}) => {
     });
     async function* generator() {
         for await (const part of stream) {
-            const delta = part.choices?.[0]?.delta?.content;
-            if (!delta)
+            const deltaContent = part.choices?.[0]?.delta?.content;
+            if (!deltaContent)
                 continue;
-            if (typeof delta === 'string') {
-                yield delta;
+            if (typeof deltaContent === 'string') {
+                yield deltaContent;
             }
-            else if (Array.isArray(delta)) {
-                const text = delta
-                    .map((d) => (typeof d === 'string' ? d : d.text || ''))
+            else if (Array.isArray(deltaContent)) {
+                const text = deltaContent
+                    .map((d) => (typeof d === 'string'
+                    ? d
+                    : (typeof d === 'object' && d && 'text' in d)
+                        ? String(d.text ?? '')
+                        : ''))
                     .join('');
                 if (text)
                     yield text;

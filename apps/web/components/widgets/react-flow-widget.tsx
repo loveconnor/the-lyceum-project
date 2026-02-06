@@ -14,7 +14,6 @@ import {
   NodeProps,
   useNodesState,
   useEdgesState,
-  ConnectionLineType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import './react-flow-widget.css';
@@ -130,8 +129,13 @@ const normalizeVisual = (visual: RawVisual): ReactFlowWidgetData => {
   }
 
   nodes = nodes.map((node, idx) => {
-    const nodeId = node.id || node.data?.id || `node-${idx + 1}`;
-    const label = node.data?.label || (node as any).label || (node as any).title || nodeId;
+    const looseNode = node as ReactFlowWidgetData["nodes"][number] & {
+      label?: string;
+      title?: string;
+      data?: { id?: string; label?: string };
+    };
+    const nodeId = node.id || looseNode.data?.id || `node-${idx + 1}`;
+    const label = looseNode.data?.label || looseNode.label || looseNode.title || nodeId;
     return {
       ...node,
       id: nodeId,
@@ -475,19 +479,40 @@ const nodeTypes = {
   output: CustomNode,
 };
 
+type LayoutNodeInput = {
+  id: string;
+  position: { x: number; y: number };
+  data?: { label?: string };
+  style?: Record<string, unknown>;
+};
+
+type LayoutEdgeInput = {
+  source: string;
+  target: string;
+};
+
+type LayoutNodeInternal = LayoutNodeInput & {
+  children: string[];
+  subtreeWidth: number;
+  x: number;
+  y: number;
+};
+
 // Improved Tree Layout Algorithm (Reingold-Tilford inspired)
-const calculateTreeLayout = (nodes: any[], edges: any[]) => {
+const calculateTreeLayout = (nodes: LayoutNodeInput[], edges: LayoutEdgeInput[]): LayoutNodeInput[] => {
   if (!nodes || nodes.length === 0) return [];
 
   // Deep clone to avoid mutating original data during calculation
-  const layoutNodes = nodes.map(n => ({ ...n }));
+  const layoutNodes: LayoutNodeInput[] = nodes.map((n) => ({ ...n }));
   
   // 1. Build Graph Structure
-  const nodeMap = new Map();
-  layoutNodes.forEach(n => nodeMap.set(n.id, { ...n, children: [], width: 0, x: 0, y: 0 }));
+  const nodeMap = new Map<string, LayoutNodeInternal>();
+  layoutNodes.forEach((n) => {
+    nodeMap.set(n.id, { ...n, children: [], subtreeWidth: 0, x: 0, y: 0 });
+  });
   
-  const childrenSet = new Set();
-  edges.forEach(e => {
+  const childrenSet = new Set<string>();
+  edges.forEach((e) => {
     // Determine directionality - usually source -> target
     const parent = nodeMap.get(e.source);
     if (parent) {
@@ -497,7 +522,7 @@ const calculateTreeLayout = (nodes: any[], edges: any[]) => {
   });
 
   // 2. Identify Roots
-  let roots = layoutNodes.map(n => n.id).filter(id => !childrenSet.has(id));
+  let roots = layoutNodes.map((n) => n.id).filter((id) => !childrenSet.has(id));
   if (roots.length === 0 && layoutNodes.length > 0) roots = [layoutNodes[0].id]; // Cycle or disconnected
 
   // Constants for spacing
@@ -550,6 +575,7 @@ const calculateTreeLayout = (nodes: any[], edges: any[]) => {
       
       node.children.forEach((childId: string) => {
         const child = nodeMap.get(childId);
+        if (!child) return;
         // Place child centered in its subtree allocation
         const childWidth = child.subtreeWidth;
         const childCenterX = currentX + childWidth / 2;
@@ -563,8 +589,9 @@ const calculateTreeLayout = (nodes: any[], edges: any[]) => {
 
   // Place roots side-by-side
   let currentRootX = 0;
-  roots.forEach(rootId => {
+  roots.forEach((rootId) => {
     const root = nodeMap.get(rootId);
+    if (!root) return;
     // Center the root's subtree starting at currentRootX
     const rootCenterX = currentRootX + root.subtreeWidth / 2;
     assignPositions(rootId, rootCenterX, 50);
@@ -572,15 +599,17 @@ const calculateTreeLayout = (nodes: any[], edges: any[]) => {
   });
 
   // Return nodes with new ReactFlow positions
-  return layoutNodes.map(n => {
+  return layoutNodes.map((n) => {
     const node = nodeMap.get(n.id);
     return {
       ...n,
-      position: { x: node.x - 100, y: node.y }, // Center offset adjustment if needed
+      position: {
+        x: (node?.x ?? n.position.x) - 100,
+        y: node?.y ?? n.position.y,
+      }, // Center offset adjustment if needed
     };
   });
 };
 
 // Export the data type for use in lab templates
 export type { ReactFlowWidgetData };
-

@@ -48,7 +48,7 @@ export default async function Page() {
         .order("created_at", { ascending: false });
 
       if (!error && data) {
-        paths = data as any;
+        paths = data as unknown as LearningPath[];
       } else if (error) {
         console.error("Error fetching paths:", error);
       }

@@ -88,8 +88,13 @@ const DEFAULT_STATE: DashboardState = {
   first_week: DEFAULT_FIRST_WEEK
 };
 
-const fallbackTopicsFromInterests = (onboarding: any, forceConfidence?: string): DashboardTopic[] => {
-  const interests: string[] = Array.isArray(onboarding?.interests) ? onboarding.interests : [];
+type OnboardingInterestsPayload = { interests?: string[] };
+
+const fallbackTopicsFromInterests = (onboarding: unknown, forceConfidence?: string): DashboardTopic[] => {
+  const interestsPayload = onboarding as OnboardingInterestsPayload | null;
+  const interests: string[] = Array.isArray(interestsPayload?.interests)
+    ? interestsPayload.interests
+    : [];
   if (!interests.length) return [];
 
   const uniqueInterests = [...new Set(interests)].filter(Boolean);

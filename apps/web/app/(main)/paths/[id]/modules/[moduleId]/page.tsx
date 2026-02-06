@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -451,18 +452,11 @@ const ImmersiveTextView = ({
   completedQuestions: Set<number>;
   setCompletedQuestions: React.Dispatch<React.SetStateAction<Set<number>>>;
 }) => {
-
-  if (!chapters || chapters.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-[400px]">
-        <p className="text-muted-foreground">No chapter content available for this module.</p>
-      </div>
-    );
-  }
-
-  const currentQuiz = chapters[currentChapter].quizzes[currentQuestionIndex];
+  const hasChapters = Array.isArray(chapters) && chapters.length > 0;
+  const currentQuiz = hasChapters ? chapters[currentChapter].quizzes[currentQuestionIndex] : null;
 
   const handleOptionSelect = (optionId: string) => {
+    if (!currentQuiz) return;
     setSelectedOption(optionId);
     const correct = optionId === currentQuiz.correct;
     setIsCorrect(correct);
@@ -502,14 +496,15 @@ const ImmersiveTextView = ({
 
   // Sync with MultipleChoice widget state to track completion
   useEffect(() => {
-    const win = window as any;
+    if (!hasChapters) return;
+    const win = window as { __saveWidgetState?: (state: any) => void };
     
     // Override __saveWidgetState to track quiz progress
     win.__saveWidgetState = (state: any) => {
       // state contains { selections, submitted, feedbackByQuestion }
       // Check if all questions for current chapter are answered correctly
       if (state.feedbackByQuestion) {
-        const currentQuizzes = chapters[currentChapter].quizzes;
+        const currentQuizzes = chapters[currentChapter]?.quizzes || [];
         const allCorrect = currentQuizzes.every((q, i) => {
           const qId = `q-${currentChapter}-${i}`;
           const feedback = state.feedbackByQuestion[qId];
@@ -528,7 +523,15 @@ const ImmersiveTextView = ({
     return () => {
       delete win.__saveWidgetState;
     };
-  }, [currentChapter, chapters, completedChapters]);
+  }, [currentChapter, chapters, completedChapters, hasChapters]);
+
+  if (!hasChapters) {
+    return (
+      <div className="flex items-center justify-center h-[400px]">
+        <p className="text-muted-foreground">No chapter content available for this module.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full gap-8">
@@ -946,13 +949,6 @@ const ExercisesSubView = ({
   
   const widgetType = detectWidgetType();
   
-  // Reset support states when changing exercises
-  useEffect(() => {
-    setShowHints(false);
-    setShowCommonMistakes(false);
-    setHintsRevealed(0);
-  }, [currentIndex]);
-  
   // Mark as attempted when user starts working
   const markAttempted = useCallback(() => {
     if (!hasAttempted) {
@@ -1283,7 +1279,7 @@ const ExamplesView = ({
             <Lightbulb className="w-16 h-16 mx-auto text-muted-foreground opacity-20" />
             <h3 className="text-2xl font-display text-foreground">No Content Available</h3>
             <p className="text-muted-foreground leading-relaxed">
-              Examples and exercises for this module haven't been generated yet.
+              Examples and exercises for this module haven&apos;t been generated yet.
             </p>
           </CardContent>
         </Card>
@@ -1424,6 +1420,7 @@ const ExamplesView = ({
 
           {activeTab === 'exercises' && hasExercises && (
             <ExercisesSubView
+              key={exerciseIndex}
               practicalExercises={practicalExercises}
               currentIndex={exerciseIndex}
               setCurrentIndex={setExerciseIndex}
@@ -1446,26 +1443,6 @@ const ExamplesViewOld_Unused = ({ isExamplesComplete, setIsExamplesComplete }: {
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set([0]));
   const [viewedExamples, setViewedExamples] = useState<Set<number>>(new Set());
 
-  // Check if current example is viewed (all steps expanded at least once)
-  useEffect(() => {
-    const example = examples[currentExample];
-    const allStepsExpanded = example.steps.every((_, i) => expandedSteps.has(i));
-    
-    if (allStepsExpanded && !viewedExamples.has(currentExample)) {
-      setViewedExamples(prev => {
-        const newViewed = new Set(prev);
-        newViewed.add(currentExample);
-        
-        // Mark examples complete when all are viewed
-        if (newViewed.size === examples.length) {
-          setIsExamplesComplete(true);
-        }
-        
-        return newViewed;
-      });
-    }
-  }, [expandedSteps, currentExample, setIsExamplesComplete]);
-
   const toggleStep = (index: number) => {
     const newExpanded = new Set(expandedSteps);
     if (newExpanded.has(index)) {
@@ -1474,6 +1451,19 @@ const ExamplesViewOld_Unused = ({ isExamplesComplete, setIsExamplesComplete }: {
       newExpanded.add(index);
     }
     setExpandedSteps(newExpanded);
+
+    const activeExample = examples[currentExample];
+    const allStepsExpanded = activeExample.steps.every((_, i) => newExpanded.has(i));
+    if (allStepsExpanded && !viewedExamples.has(currentExample)) {
+      setViewedExamples(prev => {
+        const newViewed = new Set(prev);
+        newViewed.add(currentExample);
+        if (newViewed.size === examples.length) {
+          setIsExamplesComplete(true);
+        }
+        return newViewed;
+      });
+    }
   };
 
   const examples = [
@@ -3400,7 +3390,7 @@ export default function ModulePage() {
                   Module Complete!
                 </h3>
                 <p className="text-xs text-muted-foreground line-clamp-1">
-                  You've completed the reading and explored {isExamplesComplete && isVisualsComplete ? 'both examples and visuals' : isExamplesComplete ? 'the examples' : 'the visuals'}.
+                  You&apos;ve completed the reading and explored {isExamplesComplete && isVisualsComplete ? 'both examples and visuals' : isExamplesComplete ? 'the examples' : 'the visuals'}.
                 </p>
               </div>
               <div className="flex items-center gap-2">

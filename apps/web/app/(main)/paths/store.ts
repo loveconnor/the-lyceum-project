@@ -7,7 +7,7 @@ import {
   PathFile,
   Difficulty
 } from "./types";
-import { createPath, updatePath as updatePathAPI, deletePath as deletePathAPI, generatePath } from "@/lib/api/paths";
+import { createPath, updatePath as updatePathAPI, deletePath as deletePathAPI } from "@/lib/api/paths";
 import { markPrimaryFeature, trackEvent } from "@/lib/analytics";
 
 type PathDraft = Omit<
@@ -65,6 +65,12 @@ interface PathStore {
   toggleStarred: (pathId: string) => Promise<void>;
 }
 
+type PathAnalyticsFields = {
+  topics?: string[];
+  difficulty?: string;
+  learning_path_items?: unknown[];
+};
+
 export const usePathStore = create<PathStore>((set) => ({
   paths: [],
   selectedPathId: null,
@@ -101,10 +107,10 @@ export const usePathStore = create<PathStore>((set) => ({
       trackEvent("learning_path_created", {
         path_id: newPath.id,
         generated_by_ai: false,
-        topic_domain: (newPath as any)?.topics?.[0] || null,
-        difficulty_level: (newPath as any)?.difficulty || null,
-        total_labs: Array.isArray((newPath as any)?.learning_path_items)
-          ? (newPath as any).learning_path_items.length
+        topic_domain: (newPath as PathAnalyticsFields).topics?.[0] || null,
+        difficulty_level: (newPath as PathAnalyticsFields).difficulty || null,
+        total_labs: Array.isArray((newPath as PathAnalyticsFields).learning_path_items)
+          ? (newPath as PathAnalyticsFields).learning_path_items?.length
           : null
       });
       markPrimaryFeature("learning_path");
@@ -184,10 +190,10 @@ export const usePathStore = create<PathStore>((set) => ({
               trackEvent("learning_path_created", {
                 path_id: newPath.id,
                 generated_by_ai: true,
-                topic_domain: (newPath as any)?.topics?.[0] || null,
-                difficulty_level: (newPath as any)?.difficulty || null,
-                total_labs: Array.isArray((newPath as any)?.learning_path_items)
-                  ? (newPath as any).learning_path_items.length
+                topic_domain: (newPath as PathAnalyticsFields).topics?.[0] || null,
+                difficulty_level: (newPath as PathAnalyticsFields).difficulty || null,
+                total_labs: Array.isArray((newPath as PathAnalyticsFields).learning_path_items)
+                  ? (newPath as PathAnalyticsFields).learning_path_items?.length
                   : null
               });
               markPrimaryFeature("learning_path");

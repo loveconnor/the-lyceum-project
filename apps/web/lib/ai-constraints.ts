@@ -19,13 +19,21 @@ const formatMinutes = (minutes: number): string => {
   return `${rounded} min`;
 };
 
-const extractConstraint = (value: any): string | null => {
-  if (!value) return null;
+type ConstraintSource = {
+  generation_constraint?: string | null;
+  ai_constraint?: string | null;
+  constraint?: string | null;
+  assumption?: string | null;
+};
+
+const extractConstraint = (value: unknown): string | null => {
+  if (!value || typeof value !== "object") return null;
+  const source = value as ConstraintSource;
   return normalizeConstraint(
-    value.generation_constraint ??
-      value.ai_constraint ??
-      value.constraint ??
-      value.assumption
+    source.generation_constraint ??
+      source.ai_constraint ??
+      source.constraint ??
+      source.assumption
   );
 };
 
@@ -58,7 +66,7 @@ export function getPathConstraint(path: LearningPath): string {
 }
 
 export function getModuleConstraint(module: Module | PathItem): string {
-  const explicit = extractConstraint(module) ?? extractConstraint((module as any)?.content_data);
+  const explicit = extractConstraint(module) ?? extractConstraint(module.content_data);
   return resolveAIConstraintText({
     explicit,
     context: "module"
@@ -66,7 +74,7 @@ export function getModuleConstraint(module: Module | PathItem): string {
 }
 
 export function getLabConstraint(lab: Lab): string {
-  const explicit = extractConstraint(lab) ?? extractConstraint((lab as any)?.template_data);
+  const explicit = extractConstraint(lab) ?? extractConstraint(lab.template_data);
   return resolveAIConstraintText({
     explicit,
     context: "lab",

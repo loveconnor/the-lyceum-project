@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -35,7 +35,11 @@ type DisplayFormValues = z.infer<typeof displayFormSchema>;
 export default function Page() {
   const { settings, saveSettings, isSaving } = useUserSettings();
   const { t } = useI18n();
-  const [mounted, setMounted] = useState(false);
+  const isMounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false
+  );
 
   const form = useForm<DisplayFormValues>({
     resolver: zodResolver(displayFormSchema),
@@ -50,10 +54,6 @@ export default function Page() {
     });
   }, [form, settings]);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   async function onSubmit(data: DisplayFormValues) {
     try {
       await saveSettings({
@@ -62,12 +62,13 @@ export default function Page() {
         }
       });
       toast.success(t("display.toast.success"));
-    } catch (error: any) {
-      toast.error(error.message || t("display.toast.error"));
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : t("display.toast.error");
+      toast.error(message || t("display.toast.error"));
     }
   }
 
-  if (!mounted) {
+  if (!isMounted) {
     return null;
   }
 

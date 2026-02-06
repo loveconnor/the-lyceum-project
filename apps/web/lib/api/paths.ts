@@ -63,7 +63,7 @@ interface UpdatePathItemPayload {
       viewed_exercises?: number[];
       attempted_exercises?: number[];
       completed_exercises?: number[];
-      exercise_answers?: Record<number, any>;
+      exercise_answers?: Record<number, unknown>;
     };
     visuals?: {
       active_visual?: string;
@@ -71,6 +71,8 @@ interface UpdatePathItemPayload {
     };
   };
 }
+
+type PathItemResponse = Record<string, unknown>;
 
 async function getAuthHeaders(): Promise<HeadersInit> {
   // Get the auth token from Supabase client
@@ -172,14 +174,14 @@ export async function updatePathItemStatus(
   pathId: string, 
   itemId: string, 
   status: string
-): Promise<any> {
+): Promise<PathItemResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/paths/${pathId}/items/${itemId}`, {
     method: "PATCH",
     headers,
     body: JSON.stringify({ status }),
   });
-  return handleResponse<any>(response);
+  return handleResponse<PathItemResponse>(response);
 }
 
 // Update path item progress data
@@ -187,14 +189,14 @@ export async function updatePathItemProgress(
   pathId: string,
   itemId: string,
   progressData: UpdatePathItemPayload['progress_data']
-): Promise<any> {
+): Promise<PathItemResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/paths/${pathId}/items/${itemId}`, {
     method: "PATCH",
     headers,
     body: JSON.stringify({ progress_data: progressData }),
   });
-  return handleResponse<any>(response);
+  return handleResponse<PathItemResponse>(response);
 }
 
 // Update path item (general - can update lab_id, status, etc.)
@@ -202,28 +204,28 @@ export async function updatePathItem(
   pathId: string,
   itemId: string,
   updates: Partial<UpdatePathItemPayload> & { lab_id?: string }
-): Promise<any> {
+): Promise<PathItemResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/paths/${pathId}/items/${itemId}`, {
     method: "PATCH",
     headers,
     body: JSON.stringify(updates),
   });
-  return handleResponse<any>(response);
+  return handleResponse<PathItemResponse>(response);
 }
 
 // Add an item to a learning path
 export async function addPathItem(
   pathId: string, 
   payload: CreatePathItemPayload
-): Promise<any> {
+): Promise<PathItemResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/paths/${pathId}/items`, {
     method: "POST",
     headers,
     body: JSON.stringify(payload),
   });
-  return handleResponse<any>(response);
+  return handleResponse<PathItemResponse>(response);
 }
 
 // Delete a path item
@@ -241,21 +243,21 @@ export async function deletePathItem(pathId: string, itemId: string): Promise<vo
 }
 
 // Fetch a single path item (module) by ID
-export async function fetchPathItem(pathId: string, itemId: string): Promise<any> {
+export async function fetchPathItem(pathId: string, itemId: string): Promise<PathItemResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/paths/${pathId}/items/${itemId}`, {
     headers,
     cache: "no-store"
   });
-  return handleResponse<any>(response);
+  return handleResponse<PathItemResponse>(response);
 }
 
 // Render a registry-backed module on demand
-export async function renderRegistryModule(pathId: string, itemId: string): Promise<any> {
+export async function renderRegistryModule(pathId: string, itemId: string): Promise<PathItemResponse> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_BASE_URL}/paths/${pathId}/items/${itemId}/render`, {
     headers,
     cache: "no-store"
   });
-  return handleResponse<any>(response);
+  return handleResponse<PathItemResponse>(response);
 }

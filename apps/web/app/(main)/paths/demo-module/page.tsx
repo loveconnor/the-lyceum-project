@@ -530,27 +530,6 @@ const ExamplesView = ({
   viewedExamples: Set<number>;
   setViewedExamples: React.Dispatch<React.SetStateAction<Set<number>>>;
 }) => {
-
-  // Check if current example is viewed (all steps expanded at least once)
-  useEffect(() => {
-    const example = examples[currentExample];
-    const allStepsExpanded = example.steps.every((_, i) => expandedSteps.has(i));
-    
-    if (allStepsExpanded && !viewedExamples.has(currentExample)) {
-      setViewedExamples(prev => {
-        const newViewed = new Set(prev);
-        newViewed.add(currentExample);
-        
-        // Mark examples complete when all are viewed
-        if (newViewed.size === examples.length) {
-          setIsExamplesComplete(true);
-        }
-        
-        return newViewed;
-      });
-    }
-  }, [expandedSteps, currentExample, setIsExamplesComplete]);
-
   const toggleStep = (index: number) => {
     const newExpanded = new Set(expandedSteps);
     if (newExpanded.has(index)) {
@@ -769,6 +748,26 @@ function greet(name: string, age: number): string {
   ];
 
   const example = examples[currentExample];
+
+  // Check if current example is viewed (all steps expanded at least once)
+  useEffect(() => {
+    const current = examples[currentExample];
+    const allStepsExpanded = current.steps.every((_, i) => expandedSteps.has(i));
+    
+    if (allStepsExpanded && !viewedExamples.has(currentExample)) {
+      setViewedExamples(prev => {
+        const newViewed = new Set(prev);
+        newViewed.add(currentExample);
+        
+        // Mark examples complete when all are viewed
+        if (newViewed.size === examples.length) {
+          setIsExamplesComplete(true);
+        }
+        
+        return newViewed;
+      });
+    }
+  }, [expandedSteps, currentExample, viewedExamples, setViewedExamples, setIsExamplesComplete, examples]);
 
   return (
     <div className="flex gap-6 h-full">
@@ -2200,7 +2199,7 @@ export default function DemoModulePage() {
                 Module Complete!
               </h3>
               <p className="text-sm text-green-600 dark:text-green-400">
-                You've completed the reading and explored {isExamplesComplete && isVisualsComplete ? 'both examples and visuals' : isExamplesComplete ? 'the examples' : 'the visuals'}. Ready to move forward?
+                You&apos;ve completed the reading and explored {isExamplesComplete && isVisualsComplete ? 'both examples and visuals' : isExamplesComplete ? 'the examples' : 'the visuals'}. Ready to move forward?
               </p>
             </div>
             <Button className="bg-green-600 hover:bg-green-700">
