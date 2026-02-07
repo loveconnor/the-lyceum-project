@@ -2,18 +2,27 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy root package files and config
-COPY package.json package-lock.json turbo.json ./
-COPY apps/backend/package.json apps/backend/
+# Copy package files
+COPY apps/backend/package.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm install --production
 
 # Copy source code
-COPY apps/backend apps/backend
-COPY packages packages
+COPY apps/backend/src ./src
+COPY apps/backend/tsconfig.json ./
 
-# Build backend
-RUN npm run build --workspace=apps/backend
+# Install dev dependencies for build
+RUN npm install typescript tsx
 
-CMD ["npm", "start", "--workspace=apps/backend"]
+# Build the app
+RUN npm run build
+
+# Remove dev dependencies
+RUN npm prune --production
+
+# Expose port
+EXPOSE 8080
+
+# Start the app
+CMD ["npm", "start"]
