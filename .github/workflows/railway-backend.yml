@@ -1,0 +1,61 @@
+name: Deploy Backend to Railway
+
+on:
+  push:
+    branches: [ "master" ]
+    paths: [ "apps/backend/**" ]
+  workflow_dispatch:
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create isolated backend deployment
+        run: |
+          # Create a temporary directory for backend-only files
+          mkdir -p /tmp/backend-deploy
+          
+          # Copy only backend files
+          cp -r apps/backend/* /tmp/backend-deploy/
+          
+          # Create a simple package.json for deployment
+          cat > /tmp/backend-deploy/package.json << 'EOF'
+          {
+            "name": "backend",
+            "version": "1.0.0",
+            "scripts": {
+              "dev": "tsx watch src/index.ts",
+              "build": "tsc",
+              "start": "node dist/index.js"
+            },
+            "dependencies": {
+              "@google/generative-ai": "^0.24.1",
+              "@supabase/supabase-js": "^2.86.0",
+              "cheerio": "^1.0.0",
+              "cors": "^2.8.5",
+              "domhandler": "^5.0.3",
+              "dotenv": "^16.0.3",
+              "express": "^4.18.2",
+              "openai": "^4.76.1",
+              "pdf-parse": "^2.4.5",
+              "resend": "^6.6.0"
+            },
+            "devDependencies": {
+              "@types/cors": "^2.8.17",
+              "@types/express": "^4.17.21",
+              "@types/node": "^20.11.24",
+              "tsx": "^4.7.1",
+              "typescript": "^5.3.3"
+            }
+          }
+          EOF
+
+      - name: Deploy to Railway
+        run: |
+          cd /tmp/backend-deploy
+          # This would connect to Railway CLI if tokens were set up
+          echo "Backend isolated and ready for Railway deployment"
+          echo "Manual step: Use this directory for Railway deployment"

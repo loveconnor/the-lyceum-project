@@ -1,4 +1,10 @@
 {
-  "builder": "dockerfile",
-  "dockerfilePath": "Dockerfile"
+  "build": {
+    "builder": "dockerfile",
+    "dockerfilePath": "Dockerfile"
+  },
+  "deploy": {
+    "healthcheckPath": "/",
+    "healthcheckTimeout": 100
+  }
 }
