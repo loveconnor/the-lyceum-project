@@ -56,7 +56,7 @@ router.post('/', async (req, res) => {
       const emailContent = {
         from: waitlistFromEmail,
         to: normalizedEmail,
-        subject: "Welcome to The Lyceum Project Waitlist! 🎓",
+        subject: "Welcome to the Lyceum Waitlist",
         html: `
           <!DOCTYPE html>
           <html>
@@ -65,55 +65,102 @@ router.post('/', async (req, res) => {
               <meta name="viewport" content="width=device-width, initial-scale=1.0">
               <title>Welcome to Lyceum</title>
             </head>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <div style="text-align: center; margin-bottom: 40px;">
-                <h1 style="color: #0284c7; margin: 0; font-size: 28px; font-weight: 700;">The Lyceum Project</h1>
-                <p style="color: #64748b; margin: 8px 0 0; font-size: 16px;">AI-Powered Personalized Learning</p>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #fafafa;">
+              <!-- Email Container -->
+              <div style="max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid: #e5e5e5; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);">
+                
+                <!-- Header -->
+                <div style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); padding: 48px 32px; text-align: center;">
+                  <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: #ffffff; letter-spacing: -0.025em;">Lyceum</h1>
+                  <p style="margin: 8px 0 0; font-size: 16px; color: #d1fae5; font-weight: 500;">AI-Powered Learning Platform</p>
+                </div>
+                
+                <!-- Main Content -->
+                <div style="padding: 48px 32px;">
+                  
+                  <!-- Welcome Section -->
+                  <div style="margin-bottom: 32px;">
+                    <h2 style="margin: 0 0 16px; font-size: 24px; font-weight: 600; color: #111827; line-height: 1.3;">Welcome to the waitlist</h2>
+                    <p style="margin: 0; font-size: 16px; color: #6b7280; line-height: 1.6;">Thank you for your interest in Lyceum. You have been successfully added to our waitlist and will be among the first to receive access when we launch.</p>
+                  </div>
+                  
+                  <!-- Features Card -->
+                  <div style="background: #ffffff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 32px; margin-bottom: 32px; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);">
+                    <h3 style="margin: 0 0 24px; font-size: 18px; font-weight: 600; color: #111827;">Platform Features</h3>
+                    
+                    <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #f3f4f6;">
+                      <h4 style="margin: 0 0 6px; font-size: 15px; font-weight: 600; color: #111827;">Intelligent Tutoring System</h4>
+                      <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.5;">Receive personalized guidance and explanations tailored to your learning style and pace.</p>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #f3f4f6;">
+                      <h4 style="margin: 0 0 6px; font-size: 15px; font-weight: 600; color: #111827;">Adaptive Learning Paths</h4>
+                      <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.5;">Custom curricula designed to match your interests, goals, and current skill level.</p>
+                    </div>
+                    
+                    <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #f3f4f6;">
+                      <h4 style="margin: 0 0 6px; font-size: 15px; font-weight: 600; color: #111827;">Interactive Laboratories</h4>
+                      <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.5;">Hands-on learning experiences that reinforce theoretical concepts through practical application.</p>
+                    </div>
+                    
+                    <div>
+                      <h4 style="margin: 0 0 6px; font-size: 15px; font-weight: 600; color: #111827;">Progress Analytics</h4>
+                      <p style="margin: 0; font-size: 14px; color: #6b7280; line-height: 1.5;">Comprehensive tracking and insights into your learning journey and skill development.</p>
+                    </div>
+                  </div>
+                  
+                  <!-- Info Alert -->
+                  <div style="background: #eff6ff; border: 1px solid #dbeafe; border-left: 4px solid #3b82f6; border-radius: 8px; padding: 16px; margin-bottom: 32px;">
+                    <div style="display: flex; align-items: flex-start;">
+                      <svg style="width: 20px; height: 20px; color: #3b82f6; margin-right: 12px; flex-shrink: 0; margin-top: 1px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                      <div>
+                        <h4 style="margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #1e40af;">Next Steps</h4>
+                        <p style="margin: 0; font-size: 14px; color: #1e40af; line-height: 1.5;">We will notify you via email as soon as the platform becomes available. Your data is secure and will not be shared with third parties.</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Footer -->
+                  <div style="text-align: center; padding-top: 32px; border-top: 1px solid #e5e5e5;">
+                    <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px;">Questions or feedback?</p>
+                    <p style="margin: 0 0 16px; color: #6b7280; font-size: 14px;">Reply to this email or contact our support team</p>
+                    <p style="margin: 0; color: #9ca3af; font-size: 13px;">© 2026 Lyceum</p>
+                  </div>
+                  
+                </div>
               </div>
               
-              <div style="background: #f8fafc; border-radius: 12px; padding: 32px; margin-bottom: 32px; border-left: 4px solid #22c55e;">
-                <h2 style="color: #16a34a; margin: 0 0 16px; font-size: 24px;">🎉 You're on the waitlist!</h2>
-                <p style="margin: 0; font-size: 16px; color: #334155;">Thanks for your interest in The Lyceum Project. We're building something special – an AI-powered learning platform that creates personalized paths just for you.</p>
-              </div>
-              
-              <div style="margin-bottom: 32px;">
-                <h3 style="color: #1e293b; margin: 0 0 16px; font-size: 20px;">What to expect:</h3>
-                <ul style="padding-left: 20px; margin: 0;">
-                  <li style="margin-bottom: 8px; color: #475569;">🤖 <strong>AI Tutor</strong> - Get personalized help and explanations</li>
-                  <li style="margin-bottom: 8px; color: #475569;">🛤️ <strong>Custom Learning Paths</strong> - Tailored to your interests and skill level</li>
-                  <li style="margin-bottom: 8px; color: #475569;">🔬 <strong>Hands-On Labs</strong> - Learn by doing, not just reading</li>
-                  <li style="margin-bottom: 8px; color: #475569;">📊 <strong>Progress Tracking</strong> - See your learning journey unfold</li>
-                </ul>
-              </div>
-              
-              <div style="background: #eff6ff; border-radius: 8px; padding: 20px; margin-bottom: 32px;">
-                <p style="margin: 0; color: #1e40af; font-size: 14px;"><strong>💡 Heads up:</strong> We'll send you an email as soon as we're ready to launch. No spam, just the good stuff!</p>
-              </div>
-              
-              <div style="text-align: center; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 14px;">
-                <p style="margin: 0;">Questions? Just reply to this email.</p>
-                <p style="margin: 8px 0 0;">Built with ❤️ by The Lyceum Project Team</p>
-              </div>
+              <!-- Email Spacer -->
+              <div style="height: 40px;"></div>
             </body>
           </html>
         `,
-        text: `Welcome to The Lyceum Project Waitlist!
+        text: `Welcome to the Lyceum Waitlist
 
-🎉 You're on the waitlist!
+Thank you for your interest in Lyceum. You have been successfully added to our waitlist and will be among the first to receive access when we launch.
 
-Thanks for your interest in The Lyceum Project. We're building something special – an AI-powered learning platform that creates personalized paths just for you.
+Platform Features:
 
-What to expect:
-• AI Tutor - Get personalized help and explanations
-• Custom Learning Paths - Tailored to your interests and skill level  
-• Hands-On Labs - Learn by doing, not just reading
-• Progress Tracking - See your learning journey unfold
+Intelligent Tutoring System
+Receive personalized guidance and explanations tailored to your learning style and pace.
 
-We'll send you an email as soon as we're ready to launch. No spam, just the good stuff!
+Adaptive Learning Paths
+Custom curricula designed to match your interests, goals, and current skill level.
 
-Questions? Just reply to this email.
+Interactive Laboratories
+Hands-on learning experiences that reinforce theoretical concepts through practical application.
 
-Built with ❤️ by The Lyceum Project Team`,
+Progress Analytics
+Comprehensive tracking and insights into your learning journey and skill development.
+
+Next Steps:
+We will notify you via email as soon as the platform becomes available. Your data is secure and will not be shared with third parties.
+
+Questions or feedback? Reply to this email or contact our support team.
+
+© 2026 Lyceum`,
       };
 
       resendClient.emails

@@ -41,7 +41,7 @@ export default function RootLayout({
           links={
             <>
               <NavbarLink href="/about">About</NavbarLink>
-              <NavbarLink href="/docs">Docs</NavbarLink>
+              <NavbarLink href="https://the-lyceum-project-docs.vercel.app/">Docs</NavbarLink>
             </>
           }
           logo={
@@ -78,7 +78,7 @@ export default function RootLayout({
                 <FooterLink href="/privacy-policy">Privacy Policy</FooterLink>
               </FooterCategory>
               <FooterCategory title="Connect">
-                <FooterLink href="#">GitHub</FooterLink>
+                <FooterLink href="https://github.com/loveconnor/the-lyceum-project">GitHub</FooterLink>
               </FooterCategory>
             </>
           }
