@@ -16,7 +16,7 @@ const waitlist_1 = __importDefault(require("./routes/waitlist"));
 const registry_1 = __importDefault(require("./routes/registry"));
 const learn_by_doing_1 = __importDefault(require("./routes/learn-by-doing"));
 const app = (0, express_1.default)();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 8080;
 const registryEnabled = process.env.ENABLE_SOURCE_REGISTRY === 'true';
 app.use((0, cors_1.default)());
 // Increase body size limit to 50MB for file uploads (PDFs encoded as base64)
