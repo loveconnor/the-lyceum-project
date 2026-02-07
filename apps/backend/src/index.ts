@@ -13,7 +13,7 @@ import registryRouter from './routes/registry';
 import learnByDoingRouter from './routes/learn-by-doing';
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 8080;
 const registryEnabled = process.env.ENABLE_SOURCE_REGISTRY === 'true';
 
 app.use(cors());

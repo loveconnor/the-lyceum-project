@@ -6,6 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 
+interface WaitlistResponse {
+  success?: boolean
+  error?: string
+}
+
 export default function WaitlistPage() {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -29,14 +34,40 @@ export default function WaitlistPage() {
     setIsSubmitting(true);
 
     try {
-      // TODO: Add your waitlist submission logic here
-      // For now, we'll just simulate a submission
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const apiUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
       
-      setIsSubmitted(true);
-      toast.success("Thanks for joining our waitlist!");
+      const response = await fetch(`${apiUrl}/waitlist`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          source: 'web-app',
+          metadata: {
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString(),
+            page: 'web-waitlist',
+          },
+        }),
+      })
+
+      const data: WaitlistResponse = await response.json()
+
+      if (response.ok && data.success) {
+        setIsSubmitted(true)
+        toast.success("Thanks for joining our waitlist!")
+      } else {
+        // Handle specific error messages from the API
+        if (response.status === 409) {
+          toast.error("You're already on our waitlist!")
+        } else {
+          toast.error(data.error || "Something went wrong. Please try again.")
+        }
+      }
     } catch (error) {
-      toast.error("Something went wrong. Please try again.");
+      console.error('Waitlist submission error:', error)
+      toast.error("Unable to connect. Please check your internet connection and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -84,7 +115,32 @@ export default function WaitlistPage() {
                   className="w-full h-12 text-base"
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? "Joining..." : "Join Waitlist"}
+                  {isSubmitting ? (
+                    <div className="flex items-center gap-2">
+                      <svg
+                        className="animate-spin h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Joining...
+                    </div>
+                  ) : (
+                    "Join Waitlist"
+                  )}
                 </Button>
               </form>
             ) : (

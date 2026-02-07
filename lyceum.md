@@ -24,7 +24,8 @@ The Lyceum Project is an AI powered learning platform that creates personalized 
 
 **Apps in the repo**
 - `apps/web`: Main application (dashboard, paths, labs, reflections, settings, assistant).
-- `apps/landing`: Marketing + waitlist site.
+- `apps/landing`: Marketing site with homepage, about, pricing, privacy policy, and waitlist signup.
+- `apps/docs`: Documentation site with guides, API docs, and technical references.
 - `apps/backend`: API + AI services (path generation, labs, assistant, dashboard, notifications).
 
 ---
@@ -37,6 +38,62 @@ The Lyceum Project is an AI powered learning platform that creates personalized 
 5. Use the AI assistant when stuck.
 6. Capture reflections after learning or labs.
 7. Review progress and recommendations on the dashboard.
+
+---
+
+**Supporting apps**
+
+**Landing App (apps/landing)**
+The marketing site that introduces The Lyceum Project to potential users. Key pages and features:
+- **Homepage**: Hero section with waitlist signup, features overview, stats, testimonials, and FAQs
+- **About page**: Company story, mission, founder testimonial, and call-to-action
+- **Pricing page**: Subscription tiers and feature comparisons (when ready for launch)
+- **Privacy Policy**: Data collection and usage policies
+- **404 page**: Custom error handling
+- **Components**: Reusable marketing sections (heroes, features, pricing tables, testimonials, CTAs)
+- **Waitlist functionality**: Email collection that integrates with the backend API
+
+**Documentation App (apps/docs)**
+Comprehensive technical documentation and guides for users, developers, and contributors:
+- **User guides**: Getting started, onboarding, learning paths, labs, reflections, AI assistant
+- **Technical docs**: Architecture, deployment, environment setup, contributing guidelines
+- **Feature documentation**: Detailed explanations of analytics, notifications, testing approaches
+- **API references**: Backend service integration and endpoints (when applicable)
+- **Troubleshooting**: Common issues and solutions
+- **Developer resources**: Writing plugins, customization, and extension guides
+
+Both apps use many typography and UI component patterns but are separate from the main web app to maintain focused purposes and independent deployment.
+
+---
+
+**Core applications**
+
+**Main Web App (apps/web)**
+The primary learning application where users spend most of their time. Built with Next.js, this is a comprehensive learning management system with:
+- **Authentication**: Email/password and OAuth (Google, GitHub) login and signup
+- **Onboarding**: Multi-step interest selection, level assessment, and AI path recommendation
+- **Dashboard**: Welcome cards, progress tracking, activity analytics, success rates, and personalized recommendations  
+- **Learning Paths**: Browse, create, and follow personalized learning journeys with module sequencing
+- **Labs**: Hands-on practice with multiple templates (Analyze, Build, Derive, Explain, Explore, Revise)
+- **AI Assistant**: Chat interface with file attachments, conversation history, and contextual help
+- **Reflections**: Structured reflection system with prompts for capturing learning insights
+- **Settings**: Account management, appearance customization, interest updating, notification preferences
+- **Progress Tracking**: Completion vs mastery semantics, step-by-step progress saving, evidence-based learning signals
+
+The web app uses a sophisticated widget system with learning components (multiple choice, code editors, math input, diagrams), chart widgets, and a rich editor system powered by Plate for content creation.
+
+**Backend API (apps/backend)**
+The Node.js/Express API that powers all learning functionality and AI services:
+- **AI Services**: Path generation, lab creation, assistant conversations, and personalized recommendations using OpenAI
+- **Learning Engine**: Module progress tracking, mastery calculation, path sequencing, and completion logic  
+- **User Management**: Profile data, settings sync, interest tracking, and authentication support
+- **Content Generation**: Dynamic lab creation, learning material generation, and adaptive content
+- **Analytics**: Dashboard data aggregation, progress analytics, success rate calculation, and activity tracking
+- **Notifications**: Learning reminders, milestone alerts, and email notifications
+- **Data Persistence**: Supabase integration for user data, learning records, and progress storage
+- **External Integrations**: Ollama support for local AI models, email services, and third-party learning resources
+
+The backend implements the completion/mastery semantics defined in the spec, handles all AI-powered features, and maintains the learning state for users across sessions.
 
 ---
 

@@ -2,19 +2,8 @@ import { ButtonLink, PlainButtonLink } from '@/components/elements/button'
 import { Main } from '@/components/elements/main'
 import { ChevronIcon } from '@/components/icons/chevron-icon'
 import { CallToActionSimpleCentered } from '@/components/sections/call-to-action-simple-centered'
-import {
-  FooterLink,
-  FooterWithLinksAndSocialIcons,
-  SocialLink,
-} from '@/components/sections/footer-with-links-and-social-icons'
 import { HeroSimpleCentered } from '@/components/sections/hero-simple-centered'
-import {
-  NavbarLink,
-  NavbarLogo,
-  NavbarWithLogoActionsAndLeftAlignedLinks,
-} from '@/components/sections/navbar-with-logo-actions-and-left-aligned-links'
 import { Stat, StatsThreeColumnWithDescription } from '@/components/sections/stats-three-column-with-description'
-import { TeamFourColumnGrid, TeamMember } from '@/components/sections/team-four-column-grid'
 import { TestimonialLargeQuote } from '@/components/sections/testimonial-with-large-quote'
 
 export default function Page() {
@@ -66,22 +55,22 @@ export default function Page() {
           id="testimonial"
           quote={
             <p>
-              The Lyceum Project changed how I learn. Instead of jumping between random tutorials, I have a clear path 
-              that builds on what I already know. The labs let me practice immediately, and the AI tutor helps when I'm confused. 
-              It's like having a personal learning coach.
+              I created The Lyceum Project because I believe everyone deserves a personalized learning experience. 
+              Too many people give up on learning because traditional approaches are one-size-fits-all. 
+              Our platform adapts to each learner, providing the right balance of guidance and independence to help them succeed.
             </p>
           }
           img={
             <img
-              src="https://assets.tailwindplus.com/avatars/10.webp?size=160"
+              src="/img/photos/connor.jpeg"
               alt=""
               className="not-dark:bg-white/75 dark:bg-black/75"
               width={160}
               height={160}
             />
           }
-          name="Alex Chen"
-          byline="Software Developer & Lifelong Learner"
+          name="Connor Love"
+          byline="Founder of The Lyceum Project"
         />
 
         {/* Call To Action */}
