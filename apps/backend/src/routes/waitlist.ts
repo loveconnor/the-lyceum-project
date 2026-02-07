@@ -67,7 +67,7 @@ router.post('/', async (req, res) => {
             </head>
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; margin: 0; padding: 0; background-color: #fafafa;">
               <!-- Email Container -->
-              <div style="max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid: #e5e5e5; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);">
+              <div style="max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e5e5; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
                 
                 <!-- Header -->
                 <div style="background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); padding: 48px 32px; text-align: center;">
@@ -85,7 +85,7 @@ router.post('/', async (req, res) => {
                   </div>
                   
                   <!-- Features Card -->
-                  <div style="background: #ffffff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 32px; margin-bottom: 32px; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);">
+                  <div style="background: #ffffff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 32px; margin-bottom: 32px; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
                     <h3 style="margin: 0 0 24px; font-size: 18px; font-weight: 600; color: #111827;">Platform Features</h3>
                     
                     <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #f3f4f6;">
@@ -111,15 +111,19 @@ router.post('/', async (req, res) => {
                   
                   <!-- Info Alert -->
                   <div style="background: #eff6ff; border: 1px solid #dbeafe; border-left: 4px solid #3b82f6; border-radius: 8px; padding: 16px; margin-bottom: 32px;">
-                    <div style="display: flex; align-items: flex-start;">
-                      <svg style="width: 20px; height: 20px; color: #3b82f6; margin-right: 12px; flex-shrink: 0; margin-top: 1px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                      </svg>
-                      <div>
-                        <h4 style="margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #1e40af;">Next Steps</h4>
-                        <p style="margin: 0; font-size: 14px; color: #1e40af; line-height: 1.5;">We will notify you via email as soon as the platform becomes available. Your data is secure and will not be shared with third parties.</p>
-                      </div>
-                    </div>
+                    <table cellpadding="0" cellspacing="0" style="width: 100%;">
+                      <tr>
+                        <td style="width: 32px; vertical-align: top; padding-top: 1px;">
+                          <svg style="width: 20px; height: 20px; color: #3b82f6;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                          </svg>
+                        </td>
+                        <td style="vertical-align: top;">
+                          <h4 style="margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #1e40af;">Next Steps</h4>
+                          <p style="margin: 0; font-size: 14px; color: #1e40af; line-height: 1.5;">We will notify you via email as soon as the platform becomes available. Your data is secure and will not be shared with third parties.</p>
+                        </td>
+                      </tr>
+                    </table>
                   </div>
                   
                   <!-- Footer -->
