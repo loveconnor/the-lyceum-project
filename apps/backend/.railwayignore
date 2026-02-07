@@ -6,3 +6,6 @@
 !railway.json
 !.dockerignore
 !.railwayignore
+# Explicitly exclude any lock files
+../../pnpm-lock.yaml
+../../package-lock.json
