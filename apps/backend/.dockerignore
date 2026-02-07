@@ -11,3 +11,7 @@ yarn-error.log*
 README.md
 Dockerfile
 .dockerignore
+package-lock.json
+pnpm-lock.yaml
+**/package-lock.json
+**/pnpm-lock.yaml

@@ -1,0 +1,10 @@
+package-lock.json
+**/package-lock.json
+pnpm-lock.yaml
+apps/web/
+apps/landing/  
+apps/docs/
+packages/
+.github/
+README.md
+node_modules/
