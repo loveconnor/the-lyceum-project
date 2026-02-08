@@ -1,52 +1,44 @@
 # The Lyceum Project
 
-## What is The Lyceum Project?
-The Lyceum Project is an AI powered learning platform that helps you master any subject. It works like a personal tutor that is available twenty four seven. The goal is to make education personalized and interactive for everyone.
+## Why This Exists
 
-## What does it do?
-This app creates custom learning paths based on what you want to learn. It uses artificial intelligence to generate lessons and exercises that fit your skill level.
+Learning something new can be frustrating. You want to learn programming, math, or a new skill, but where do you start? Most courses are one-size-fits-all. They don't know what you already understand or where you're struggling. You might get bored with material that's too easy, or feel lost when it gets too hard.
 
-Here is how it helps you learn:
-- **Personalized Plans:** You tell the app what you want to learn, and it builds a step by step course just for you.
-- **Smart Tutoring:** If you get stuck, an AI tutor explains concepts in simple terms and answers your questions.
-- **Hands On Practice:** You learn by doing interactive labs and exercises, not just by reading or watching videos.
-- **Trusted Sources:** It uses high quality content from trusted educational sources like MIT OpenCourseWare.
-- **Progress Tracking:** You can see how much you have learned and keep track of your goals on a simple dashboard.
+We believe everyone deserves a personal tutor - someone who knows exactly what you need to learn next and can explain things in a way that makes sense to you. That's why we built The Lyceum Project.
 
-## Current Features Checklist
-- [x] **Learn-By-Doing:** Interactive step-by-step modules with widgets and activities to practice as you learn.
-- [x] **AI-Generated Learning Paths:** Create full courses on any topic instantly.
-- [x] **Smart AI Tutor:** A personal assistant to answer questions and explain concepts.
-- [x] **Interactive Labs:** Hands-on practice exercises generated for your topics.
-- [x] **Visual Learning Aids:** Automatically added visuals to make learning easier.
-- [x] **Content Integration:** Connects with trusted sources like MIT OpenCourseWare.
-- [x] **Learning Reflections:** Space to write down takeaways and review progress.
-- [x] **Progress Dashboard:** Track your completion and activity in one place.
-- [x] **Theme Customization:** Adjust the look and feel of your learning environment.
-- [x] **Waitlist & Onboarding:** Complete flow for new user registration and access.
+## What We Built
 
-## Technology Stack
-- **Frontend:** Next.js, TypeScript, Tailwind CSS  
-- **Backend and Auth:** Supabase (PostgreSQL, Auth, API, Storage)  
-- **AI Engine:** Integration with large language models for tutoring and adaptivity  
-- **Hosting:** Vercel (frontend) and Supabase Cloud (backend)
+The Lyceum Project is like having a really smart teacher who's available 24/7 and knows exactly how you learn best.
 
-## Goals
-1. Develop an MVP focused on high-demand subjects like mathematics, programming, and writing  
-2. Test and refine adaptive learning features through user feedback  
-3. Build a full-scale, AI-driven learning ecosystem for both personal and professional growth  
+Here's what makes it different:
 
-## Future Roadmap
-- Introduce educator dashboards and institutional analytics  
-- Add enterprise SSO via WorkOS or similar integrations  
-- Offer course completion certifications and skill badges  
-- Continuously expand content and subject coverage  
+**It knows you.** Tell it what you want to learn and your current level. It creates a learning path that's perfect for you - not too easy, not too hard.
 
-## Team
-Developed by **Connor Love**  
-Computer Science Student at The Ohio State University  
-Contributors and collaborators are welcome to join in building the future of AI-enhanced education.
+**It teaches by doing.** Instead of just reading or watching videos, you learn by actually doing things. Want to learn Python? You'll write real code. Learning about history? You'll work through interactive timelines.
 
-## License
-This project is currently in development for educational and research purposes.  
-Licensing terms will be finalized before public release.
+**It's always there to help.** Stuck on something? Just ask. The AI tutor can explain concepts differently until they click for you.
+
+**It uses the good stuff.** We pull from trusted sources like MIT's free courses, so you know you're learning from the best.
+
+**It tracks your progress.** See how far you've come and what to tackle next. No more wondering if you're actually getting better.
+
+## Who This Is For
+
+- **Students** who want to learn at their own pace and need extra help
+- **Working professionals** who want to pick up new skills but don't have time for long courses
+- **Curious people** who love learning new things but get frustrated with boring textbooks
+- **Anyone** who's tried online courses before but struggled to stick with them
+
+## Our Mission
+
+We want to make learning feel less like work and more like having a conversation with a really good teacher. Everyone should have access to personalized education that adapts to how they think and learn.
+
+## What's Next
+
+We're starting with the subjects people need most: math, programming, and writing. As more people use it, we'll add more topics and make it even smarter about how it teaches.
+
+## About Us
+
+Built by **Connor Love**, a Computer Science student at The Ohio State University who got tired of struggling through online courses that didn't fit how he learned.
+
+Want to help make learning better for everyone? We'd love to have you join us.
