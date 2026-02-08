@@ -1,7 +1,11 @@
 import { Lab, LabTemplateType, LabStatus, Difficulty } from "@/app/(main)/labs/types";
 import { UnifiedLabData } from "@/types/lab-templates";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  process.env.BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:3001";
 
 console.log("Labs API initialized with base URL:", API_BASE_URL);
 

@@ -18,8 +18,11 @@ function StatusTabs<T extends string>({
   statusNamed,
   allLabel
 }: StatusTabsProps<T>) {
+  const id = React.useId();
+  
   return (
     <Tabs
+      id={id}
       defaultValue={activeTab}
       onValueChange={(value) => onTabChange(value as T | "all")}
       value={activeTab}>

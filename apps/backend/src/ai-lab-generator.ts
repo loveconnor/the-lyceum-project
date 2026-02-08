@@ -59,7 +59,7 @@ export interface GenerateLabRequest {
 export interface GeneratedLabResponse {
   title: string;
   description: string;
-  template_type: 'analyze' | 'build' | 'derive' | 'explain' | 'explore' | 'revise';
+  "template_type": "analyze" | "build" | "derive" | "explain" | "explore" | "revise",
   template_data: any;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   estimated_duration: number;
@@ -67,19 +67,25 @@ export interface GeneratedLabResponse {
   raw: string;
 }
 
-const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, an educational platform. Your job is to choose the best template type for a learning goal. Do not select "revise" or "explore"; pick from the remaining templates only.
+const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, an educational platform. Your job is to choose the best template type for a learning goal.
 
 Available templates:
-1. **analyze** - For data analysis, visualization, statistics, pattern recognition
+1. **analyze** - For data analysis, visualization, statistics, pattern recognition with datasets
 2. **build** - For hands-on coding practice, learning syntax, writing functions, implementing algorithms, practicing programming concepts. Use when someone wants to "learn how to code/write/implement" something.
 3. **derive** - For mathematical derivations, proofs, symbolic manipulation, step-by-step problem solving, and theoretical reasoning
 4. **explain** - For understanding and analyzing EXISTING code that's already written, code review, explaining how specific code works
+5. **explore** - For interactive simulations, science experiments, parameter exploration, "what-if" scenarios, concept discovery through experimentation (NO CODING - perfect for non-programming topics)
+6. **revise** - For writing tasks, text editing, document improvement, creative writing, essay revision, communication skills
 
-Key distinction: Use "build" when the learner wants to WRITE code to learn (e.g., "learn how to write X", "practice coding Y"). Use "explain" only when analyzing EXISTING code.
+Key distinctions: 
+- Use "build" when the learner wants to WRITE code to learn (e.g., "learn how to write X", "practice coding Y").
+- Use "explain" only when analyzing EXISTING code.
+- Use "explore" for non-coding interactive learning (science, simulations, parameter testing).
+- Use "revise" for any writing or text-based learning goals.
 
 Based on the learning goal, respond with JSON only:
 {
-  "template_type": "analyze" | "build" | "derive" | "explain",
+  "template_type": "analyze" | "build" | "derive" | "explain" | "explore" | "revise",
   "reasoning": "Brief explanation of why this template fits"
 }`;
 
