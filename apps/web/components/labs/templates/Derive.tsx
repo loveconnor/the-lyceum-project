@@ -51,6 +51,22 @@ function extractJSON<T>(text: string): T {
   return JSON.parse(cleaned) as T;
 }
 
+// Helper function to properly format mathematical formulas for KaTeX rendering
+const formatMathFormula = (formula: string): string => {
+  if (!formula) return formula;
+  
+  // Don't process if already contains $ signs
+  if (formula.includes('$')) return formula;
+  
+  // Only wrap very specific mathematical patterns
+  if (formula.match(/^[a-zA-Z](\s*[+\-*=]\s*[a-zA-Z])*$/)) {
+    return `$${formula}$`;
+  }
+  
+  // Return as-is for everything else to avoid over-processing
+  return formula;
+};
+
 interface Step {
   id: string;
   title: string;
@@ -661,7 +677,7 @@ Approve if they show reasonable understanding and correct approach. If not appro
                         <div className="flex items-start justify-between">
                           <div className="space-y-1 flex-1">
                             <p className="text-xs font-bold text-primary">{rule.name}</p>
-                            <Markdown className="text-[10px] text-muted-foreground">{rule.formula}</Markdown>
+                            <Markdown className="text-[10px] text-muted-foreground">{formatMathFormula(rule.formula)}</Markdown>
                           </div>
                           <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
                         </div>

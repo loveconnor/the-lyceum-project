@@ -36,6 +36,20 @@ import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
+
+// Helper function to properly format mathematical expressions for KaTeX rendering
+const formatMathExpression = (text: string): string => {
+  if (!text) return text;
+  
+  // Don't process if already contains $ signs
+  if (text.includes('$')) return text;
+  
+  // Only wrap very specific patterns that are clearly mathematical
+  return text.replace(/\b([a-zA-Z])\^(\d+)\b/g, '$$$1^{$2}$$')  // x^2 -> $x^{2}$
+            .replace(/\b(\d+)([a-zA-Z])\^(\d+)\b/g, '$$1$2^{$3}$$')  // 3x^2 -> $3x^{2}$
+            .replace(/\b(\d+)([a-zA-Z])\b/g, '$$1$2$$')  // 3x -> $3x$
+            .replace(/\b([a-zA-Z])\s*([+\-])\s*(\d+)\b/g, '$$1 $2 $3$$');  // x + 2 -> $x + 2$
+};
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -61,7 +75,7 @@ import { ShortAnswerWidget, CodeEditorWidget, MultipleChoiceWidget } from "@/com
 import { MultipleChoice } from "@/components/learning/MultipleChoice";
 import { ReflectionModal } from "@/components/reflections";
 import { shouldTriggerReflection } from "@/types/reflections";
-import { getLabConstraint, getModuleConstraint } from "@/lib/ai-constraints";
+import { getModuleConstraint } from "@/lib/ai-constraints";
 import { AIConstraintNotice } from "@/components/ai/ai-constraint-notice";
 
 // --- Types & Constants ---
@@ -2942,6 +2956,12 @@ export default function ModulePage() {
                 console.log("Lab has no content");
                 // Only regenerate if not already completed
                 needsRegeneration = !isLabCompleted;
+              } else {
+                const scopeVersion = (labData as any)?.template_data?.__lyceum_scope_version;
+                if (!isLabCompleted && scopeVersion !== 3) {
+                  console.log("Lab missing latest scope guard metadata, regenerating with strict module scope");
+                  needsRegeneration = true;
+                }
               }
             } catch (labError: any) {
               console.error("Error loading lab:", labError);
@@ -2965,7 +2985,8 @@ export default function ModulePage() {
               const regeneratedLab = await generateLab({
                 learningGoal: moduleData.title || "Learn the concepts",
                 context: moduleData.description || "",
-                path_id: pathId
+                path_id: pathId,
+                path_item_id: moduleId
               });
               
               console.log("Lab regenerated successfully:", regeneratedLab);
@@ -3223,8 +3244,6 @@ export default function ModulePage() {
       );
     }
 
-    const labConstraint = getLabConstraint(lab);
-
     return (
       <div className="h-[calc(100vh-var(--header-height))] flex flex-col">
         <div className="p-4 border-b flex items-center gap-4">
@@ -3235,14 +3254,14 @@ export default function ModulePage() {
             </Button>
           </Link>
           <div className="flex-1">
-            <h1 className="text-xl font-semibold">{lab.title}</h1>
+            <h1 className="text-xl font-semibold">
+              <Markdown className="inline-block">{lab.title}</Markdown>
+            </h1>
             {lab.description && (
-              <p className="text-sm text-muted-foreground">{lab.description}</p>
+              <div className="text-sm text-muted-foreground">
+                <Markdown>{lab.description}</Markdown>
+              </div>
             )}
-            <AIConstraintNotice
-              constraint={labConstraint}
-              className="mt-2 max-w-2xl"
-            />
           </div>
         </div>
         <div className="flex-1 overflow-hidden">

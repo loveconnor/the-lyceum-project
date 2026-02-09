@@ -10,17 +10,19 @@ const convertNewlines = (text: string | undefined) => {
   if (!text) return "";
   return text.replace(/\\n/g, "\n");
 };
-// Helper to wrap math notation in LaTeX delimiters
+// Helper to wrap math notation in LaTeX delimiters - only for isolated math expressions
 const wrapMath = (text: string): string => {
   if (!text) return text;
-  // Wrap any $...$ pattern that isn't already wrapped
-  return text.replace(/\$([^$]+)\$/g, (match, inner) => {
-    // Already properly formatted
-    if (match.startsWith('$') && match.endsWith('$')) {
-      return match;
-    }
-    return `$${inner}$`;
-  });
+  
+  // Don't process if already contains $ signs or if it's part of a sentence
+  if (text.includes('$') || text.includes(' ')) return text;
+  
+  // Only wrap single mathematical terms
+  if (text.match(/^\d*[a-zA-Z]\^?\d*$/) || text.match(/^[+\-]\d*[a-zA-Z]\^?\d*$/)) {
+    return `$${text}$`;
+  }
+  
+  return text;
 };
 
 interface Choice {
@@ -110,12 +112,14 @@ export function MultipleChoiceWidget({
             >
               <div className="flex items-start justify-between">
                 <div className="space-y-2 flex-1">
-                  <p className="text-sm font-bold">{choice.name}</p>
+                  <div className="text-sm font-bold">
+                    <Markdown className="inline-block">{wrapMath(choice.name)}</Markdown>
+                  </div>
                   {choice.description && (
                     <p className="text-xs text-muted-foreground">{choice.description}</p>
                   )}
                   {choice.formula && (
-                    <Markdown className="text-xs text-muted-foreground">{choice.formula}</Markdown>
+                    <Markdown className="text-xs text-muted-foreground">{wrapMath(choice.formula)}</Markdown>
                   )}
                 </div>
                 <div className="flex items-center gap-2">

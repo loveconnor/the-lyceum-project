@@ -155,7 +155,7 @@ These are the lab experiences rendered in the lab viewer.
   - What I would do differently
 
 **8) Settings**
-- Account: avatar, name, email, date of birth, language.
+- Account: avatar, name, email, language.
 - Appearance: font, theme preset, scale, radius, color mode, layout, sidebar mode.
 - Display: choose which sidebar items appear.
 - Interests: large list of topics and subtopics.

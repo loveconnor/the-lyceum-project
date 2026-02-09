@@ -33,7 +33,6 @@ export type UserSettings = {
   };
   account: {
     name: string;
-    dob: string | null;
     language: string;
   };
   appearance: {
@@ -48,6 +47,7 @@ export type UserSettings = {
   };
   display: {
     sidebarItems: SidebarItemId[];
+    showProfile: boolean;
   };
 };
 
@@ -68,10 +68,7 @@ export const SIDEBAR_ITEMS: SidebarItemDefinition[] = [
   // { id: "planner", label: "Planner / Time Coach", icon: Clock3, group: "primary" },
   // { id: "relevance", label: "Relevance Explorer", icon: Target, group: "primary" },
   // { id: "community", label: "Community", icon: Users, group: "primary" },
-  // { id: "notifications", label: "Notifications", icon: Bell, group: "primary", href: "/settings/notifications" },
-  { id: "start_lab", labelKey: "nav.startLab", icon: LinkIcon, group: "quick_links" },
-  { id: "continue_reflection", labelKey: "nav.continueReflection", icon: LinkIcon, group: "quick_links" },
-  // { id: "view_goals", label: "View Goals", icon: LinkIcon, group: "quick_links" }
+  // { id: "notifications", label: "Notifications", icon: Bell, group: "primary", href: "/settings/notifications" }
 ];
 
 export const DEFAULT_USER_SETTINGS: UserSettings = {
@@ -84,7 +81,6 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
   },
   account: {
     name: "",
-    dob: null,
     language: "en"
   },
   appearance: {
@@ -98,7 +94,8 @@ export const DEFAULT_USER_SETTINGS: UserSettings = {
     email_enabled: true
   },
   display: {
-    sidebarItems: SIDEBAR_ITEMS.map((item) => item.id)
+    sidebarItems: SIDEBAR_ITEMS.map((item) => item.id),
+    showProfile: true
   }
 };
 
@@ -127,7 +124,6 @@ function mergeAccount(
   updates: Partial<UserSettings["account"]> | undefined
 ): UserSettings["account"] {
   const result = { ...DEFAULT_USER_SETTINGS.account, ...current, ...updates };
-  result.dob = updates?.dob ?? current?.dob ?? DEFAULT_USER_SETTINGS.account.dob;
   return result;
 }
 
@@ -150,7 +146,8 @@ function mergeDisplay(
   updates: Partial<UserSettings["display"]> | undefined
 ): UserSettings["display"] {
   const sidebarItems = normalizeSidebarItems(updates?.sidebarItems ?? current?.sidebarItems);
-  return { sidebarItems };
+  const showProfile = updates?.showProfile ?? current?.showProfile ?? DEFAULT_USER_SETTINGS.display.showProfile;
+  return { sidebarItems, showProfile };
 }
 
 export function mergeSettings(

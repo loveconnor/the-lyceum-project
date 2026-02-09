@@ -44,19 +44,25 @@ const tryParseJson = (text) => {
         return null;
     }
 };
-const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, an educational platform. Your job is to choose the best template type for a learning goal. Do not select "revise" or "explore"; pick from the remaining templates only.
+const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, an educational platform. Your job is to choose the best template type for a learning goal.
 
 Available templates:
-1. **analyze** - For data analysis, visualization, statistics, pattern recognition
+1. **analyze** - For data analysis, visualization, statistics, pattern recognition with datasets
 2. **build** - For hands-on coding practice, learning syntax, writing functions, implementing algorithms, practicing programming concepts. Use when someone wants to "learn how to code/write/implement" something.
 3. **derive** - For mathematical derivations, proofs, symbolic manipulation, step-by-step problem solving, and theoretical reasoning
 4. **explain** - For understanding and analyzing EXISTING code that's already written, code review, explaining how specific code works
+5. **explore** - For interactive simulations, science experiments, parameter exploration, "what-if" scenarios, concept discovery through experimentation (NO CODING - perfect for non-programming topics)
+6. **revise** - For writing tasks, text editing, document improvement, creative writing, essay revision, communication skills
 
-Key distinction: Use "build" when the learner wants to WRITE code to learn (e.g., "learn how to write X", "practice coding Y"). Use "explain" only when analyzing EXISTING code.
+Key distinctions: 
+- Use "build" when the learner wants to WRITE code to learn (e.g., "learn how to write X", "practice coding Y").
+- Use "explain" only when analyzing EXISTING code.
+- Use "explore" for non-coding interactive learning (science, simulations, parameter testing).
+- Use "revise" for any writing or text-based learning goals.
 
 Based on the learning goal, respond with JSON only:
 {
-  "template_type": "analyze" | "build" | "derive" | "explain",
+  "template_type": "analyze" | "build" | "derive" | "explain" | "explore" | "revise",
   "reasoning": "Brief explanation of why this template fits"
 }`;
 const TEMPLATE_GENERATORS = {
@@ -132,7 +138,7 @@ Available chart types: bar, line, scatter, area, pie, histogram, heatmap.`,
   "topics": string[],
   "data": {
     "problemStatement": "Detailed description of the coding challenge (use LaTeX for math: $x^2$)",
-    "initialCode": "// Starting code template with class/function signatures and comments",
+    "initialCode": "// Starting code template aligned to covered concepts (can be a simple statement-level scaffold; do not force method/class creation unless covered)",
     "language": "javascript" | "typescript" | "python" | "java" | "cpp",
     "testCases": [
       {
@@ -149,7 +155,7 @@ Available chart types: bar, line, scatter, area, pie, histogram, heatmap.`,
         "title": "Step title",
         "instruction": "Clear markdown explanation of what the learner should do in this step and why (THIS IS THE MAIN INSTRUCTIONAL TEXT - always include this)",
         "keyQuestions": ["Key question 1?", "Key question 2?"],
-        "skeletonCode": "// Skeleton code for THIS STEP ONLY (method signature + TODO comment)",
+        "skeletonCode": "// Skeleton code for THIS STEP ONLY (minimal scaffold needed for this step)",
         "widgets": [
           // WIDGETS ARE OPTIONAL - only include if the step requires interactive input beyond writing code
           // Most coding steps only need the code editor and don't need additional widgets
@@ -190,6 +196,11 @@ You MUST create unique, topic-specific steps tailored to THIS specific coding ch
 
 DO NOT include a step about analyzing time/space complexity unless the user specifically asked about algorithm complexity.
 
+PEDAGOGICAL SCOPE GUARD:
+- If context says methods/functions are not in scope, DO NOT create steps that ask learners to define methods/functions.
+- If context says classes are not in scope, DO NOT create steps that ask learners to define classes/constructors.
+- In those cases, provide fixed scaffolding (if required by language/runtime) and keep learner work to statements, variables, expressions, conditionals, and loops that are already covered.
+
 Instead, create 3-7 steps with titles that are SPECIFIC to the learning goal. Examples of good step titles:
 - For array iteration: "Write a for loop to sum array elements", "Handle empty array edge case", "Refactor using reduce()"
 - For recursion: "Define the base case", "Implement recursive call", "Add memoization"
@@ -208,17 +219,17 @@ Each step should:
 5. Only include widgets if the step requires input BEYOND just writing code (most steps won't need extra widgets)
 6. Build progressively toward the complete solution
 
-EXAMPLE - Good step structure (for BMI category):
+EXAMPLE - Good step structure (statement-level Java, no new methods):
 {
-  "id": "implement-bmi-category",
-  "title": "Implement bmiCategory to map BMI to a weight class",
-  "instruction": "Complete the bmiCategory method so it returns the appropriate category string based on the BMI value:\\n\\n- If BMI < 18.5: return \\"Underweight\\"\\n- If BMI is between 18.5 and 24.9 (inclusive): return \\"Normal weight\\"\\n- If BMI is between 25.0 and 29.9 (inclusive): return \\"Overweight\\"\\n- If BMI >= 30.0: return \\"Obese\\"\\n- If BMI <= 0: return \\"Invalid\\"\\n\\nUse if-else statements to check each range in order.",
+  "id": "complete-discount-logic",
+  "title": "Complete the discount logic inside the provided main block",
+  "instruction": "Inside the existing main block, compute the final price after discount:\\n\\n- Read subtotal from the existing variable named subtotal\\n- If subtotal is at least 100, apply 10% discount\\n- Otherwise apply 5% discount\\n- Store result in finalPrice and print it\\n\\nDo not create new methods or classes for this step.",
   "keyQuestions": [
-    "Which relational operators should I use for the interval checks?",
-    "How can I ensure the conditions are evaluated in the correct order?",
-    "What string should be returned for an invalid BMI?"
+    "Which if/else condition checks the threshold correctly?",
+    "Where should the computed value be stored before printing?",
+    "How can I avoid changing unrelated scaffold code?"
   ],
-  "skeletonCode": "public static String bmiCategory(double bmi) {\\n  // TODO: implement category logic\\n  return \\"\\";\\n}",
+  "skeletonCode": "double subtotal = 120.0;\\n// TODO: compute finalPrice using if/else\\nSystem.out.println(finalPrice);",
 }
 
 EXAMPLE - Bad step structure (do not do this):
@@ -308,28 +319,16 @@ CRITICAL - WIDGETS VS INSTRUCTIONS:
 
 CRITICAL - SKELETON CODE PER STEP:
 For each step that involves coding, include a "skeletonCode" field with ONLY the code skeleton for that specific step.
-- Step 1 skeleton: Only the method/function signature for step 1 with a TODO comment
-- Step 2 skeleton: Only the method/function signature for step 2 with a TODO comment
-- And so on...
+- skeletonCode must be incomplete starter code (TODO placeholders), never a full solved answer
+- For a brand-new lab, first step skeleton should be minimal and should not fully complete the requested first-step objective
+- Keep each step's skeleton focused and concise
 
-Example for Java (4 steps - sign, parity, range, describe):
-Step 1 skeletonCode:
-  public static String sign(int n) {
-    // TODO: implement\n    return "";\n  }
-
-Step 2 skeletonCode:
-  public static String parity(int n) {
-    // TODO: implement\n    return "";\n  }
-
-Step 3 skeletonCode:
-  public static String rangeCategory(int n) {
-    // TODO: implement\n    return "";\n  }
-
-Step 4 skeletonCode:
-  public static String describe(int n) {
-    // TODO: implement using the above methods\n    return "";\n  }
-
-The learner will see skeleton code progressively as they complete each step. Keep each step's skeleton focused and concise.`,
+CRITICAL - STEP COUNT:
+- Choose the number of steps dynamically based on task complexity
+- Do NOT default to 4 steps
+- Simple tasks: 2-3 steps
+- Medium tasks: 3-5 steps
+- Complex tasks: 5-8 steps`,
     derive: `Generate a step-by-step problem-solving lab (for math derivations, proofs, symbolic manipulation, or step-by-step reasoning) with this JSON structure:
 {
   "labTitle": string,
@@ -713,7 +712,11 @@ ${request.userProfile?.level ? `User level: ${request.userProfile.level}` : ''}
 ${request.userProfile?.interests?.length ? `User interests: ${request.userProfile.interests.join(', ')}` : ''}
 ${request.userProfile?.completedTopics?.length ? `Completed topics: ${request.userProfile.completedTopics.join(', ')}` : ''}
 
-CRITICAL: If the context above includes a list of "CONCEPTS COVERED IN PREVIOUS MODULES", you MUST only use those concepts in this lab. Do not introduce any new concepts, techniques, or knowledge not listed. This ensures proper pedagogical sequencing.
+CRITICAL: If the context above includes "CONCEPTS COVERED IN PREVIOUS MODULES", you MUST only use those concepts in this lab. Do not introduce any new concepts, techniques, syntax, APIs, or knowledge not listed. This ensures proper pedagogical sequencing.
+
+CRITICAL: If the context above includes "FUTURE MODULE CONCEPTS (DO NOT USE YET)", those concepts are strictly prohibited in the generated lab content, steps, code, and tests.
+
+CRITICAL: If the context includes "PROGRAMMING FEATURE GATES (STRICT)", you MUST obey those gates exactly. Do not ask learners to author methods/classes when those gates prohibit them.
 
 IMPORTANT: The "topics" field must contain 2-5 specific, relevant topic tags (e.g., ["JavaScript", "Algorithms", "Data Structures"] for a coding lab, ["Statistics", "Data Visualization"] for analysis, ["Calculus", "Derivatives"] for math).
 

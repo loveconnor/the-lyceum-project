@@ -165,7 +165,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </CardContent>
         </Card>
         */}
-        <NavUser />
+        {settings.display.showProfile && <NavUser />}
       </SidebarFooter>
     </Sidebar>
   );

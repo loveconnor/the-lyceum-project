@@ -93,7 +93,6 @@ export default function Page() {
     defaultValues: {
       name: settings.account.name || settings.profile.username,
       email: settings.profile.email,
-      dob: settings.account.dob ? new Date(settings.account.dob) : undefined,
       language: settings.account.language || "en"
     }
   });
@@ -102,7 +101,6 @@ export default function Page() {
     form.reset({
       name: settings.account.name || settings.profile.username,
       email: settings.profile.email,
-      dob: settings.account.dob ? new Date(settings.account.dob) : undefined,
       language: settings.account.language || "en"
     });
   }, [form, settings]);
@@ -121,7 +119,6 @@ export default function Page() {
       await saveSettings({
         account: {
           name: data.name,
-          dob: data.dob ? data.dob.toISOString() : null,
           language: data.language
         },
         profile: {
@@ -201,43 +198,6 @@ export default function Page() {
                   <FormDescription>
                     {t("account.email.description")}
                   </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="dob"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>{t("account.dob.label")}</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}>
-                          {field.value ? format(field.value, "PPP") : <span>{t("account.dob.placeholder")}</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="max-h-[--radix-popover-content-available-height] w-[--radix-popover-trigger-width] p-0"
-                      align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormDescription>{t("account.dob.description")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

@@ -116,27 +116,40 @@ export default function Page() {
               )}
             />
 
-            <div className="space-y-4">
+            <div className="space-y-6">
                <div>
-                 <div className="mb-4">
+                 <div className="mb-6">
                    <h3 className="text-lg font-medium">{t("appearance.theme.title")}</h3>
                    <p className="text-sm text-muted-foreground">{t("appearance.theme.description")}</p>
                  </div>
-                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                   <PresetSelector />
-                   <ThemeScaleSelector />
-                   <ThemeRadiusSelector />
-                   <ColorModeSelector />
-                   <ContentLayoutSelector />
-                   <SidebarModeSelector />
+                 
+                 {/* Theme Basics */}
+                 <div className="space-y-6">
+                   <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                     <PresetSelector />
+                     <ThemeScaleSelector />
+                     <ThemeRadiusSelector />
+                   </div>
+
+                   {/* Visual Preferences */}
+                   <div className="pt-4 border-t">
+                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                       <ColorModeSelector />
+                       <ContentLayoutSelector />
+                       <SidebarModeSelector />
+                     </div>
+                   </div>
                  </div>
-                 <ResetThemeButton />
+
+                 {/* Action Buttons */}
+                 <div className="grid grid-cols-2 gap-3 pt-6 border-t mt-6">
+                   <ResetThemeButton />
+                   <Button type="submit" disabled={isSaving}>
+                     {isSaving ? t("appearance.savingButton") : t("appearance.updateButton")}
+                   </Button>
+                 </div>
                </div>
             </div>
-
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? t("appearance.savingButton") : t("appearance.updateButton")}
-            </Button>
           </form>
         </Form>
       </CardContent>

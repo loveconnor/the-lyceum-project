@@ -5,6 +5,106 @@ const supabaseAdmin_1 = require("../supabaseAdmin");
 const ai_lab_generator_1 = require("../ai-lab-generator");
 const dashboardService_1 = require("../dashboardService");
 const router = (0, express_1.Router)();
+const asNonEmptyString = (value) => {
+    if (typeof value !== "string")
+        return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+};
+const collectStrings = (value) => {
+    if (!Array.isArray(value))
+        return [];
+    return value
+        .map((entry) => {
+        if (typeof entry === "string")
+            return asNonEmptyString(entry);
+        if (entry && typeof entry === "object") {
+            const record = entry;
+            return (asNonEmptyString(record.concept) ||
+                asNonEmptyString(record.title) ||
+                asNonEmptyString(record.name) ||
+                asNonEmptyString(record.explanation));
+        }
+        return null;
+    })
+        .filter((entry) => Boolean(entry));
+};
+const unique = (values, max) => {
+    const seen = new Set();
+    const result = [];
+    for (const value of values) {
+        const normalized = value.toLowerCase();
+        if (seen.has(normalized))
+            continue;
+        seen.add(normalized);
+        result.push(value);
+        if (result.length >= max)
+            break;
+    }
+    return result;
+};
+const extractModuleConcepts = (contentData) => {
+    if (!contentData || typeof contentData !== "object")
+        return [];
+    const collected = [];
+    collected.push(...collectStrings(contentData.learning_objectives));
+    collected.push(...collectStrings(contentData.key_concepts));
+    collected.push(...collectStrings(contentData.practical_exercises));
+    collected.push(...collectStrings(contentData.sections));
+    collected.push(...collectStrings(contentData.chapters));
+    collected.push(...collectStrings(contentData.concepts));
+    return unique(collected, 24);
+};
+const summarizeModuleScope = (module) => {
+    const title = asNonEmptyString(module.title) || "Untitled module";
+    const concepts = extractModuleConcepts(module.content_data);
+    if (concepts.length > 0) {
+        return `- "${title}": ${concepts.join(", ")}`;
+    }
+    const description = asNonEmptyString(module.description);
+    if (description) {
+        return `- "${title}": ${description}`;
+    }
+    return `- "${title}"`;
+};
+const includesAnyKeyword = (concepts, keywords) => {
+    const combined = concepts.join(" ").toLowerCase();
+    return keywords.some((keyword) => combined.includes(keyword));
+};
+const buildProgrammingFeatureGates = (allowedConcepts, reservedFutureConcepts) => {
+    const methodKeywords = [
+        "method",
+        "methods",
+        "function",
+        "functions",
+        "parameters",
+        "return value",
+        "return type",
+    ];
+    const classKeywords = [
+        "class",
+        "classes",
+        "object-oriented",
+        "oop",
+        "constructor",
+        "instance",
+    ];
+    const methodsCovered = includesAnyKeyword(allowedConcepts, methodKeywords);
+    const methodsInFuture = includesAnyKeyword(reservedFutureConcepts, methodKeywords);
+    const classesCovered = includesAnyKeyword(allowedConcepts, classKeywords);
+    const classesInFuture = includesAnyKeyword(reservedFutureConcepts, classKeywords);
+    const gates = [];
+    if (!methodsCovered || methodsInFuture) {
+        gates.push("- Methods/functions are NOT in scope. Do not ask learners to create new methods/functions/lambdas. Keep work at the statement level inside provided scaffolding.");
+    }
+    if (!classesCovered || classesInFuture) {
+        gates.push("- Class design is NOT in scope. Do not require learners to author new classes/constructors. If the language needs a wrapper class, provide it fully as fixed scaffolding.");
+    }
+    if (gates.length === 0) {
+        gates.push("- Method/function usage is allowed because it appears in covered concepts.");
+    }
+    return gates;
+};
 // Get all labs for current user
 router.get("/", async (req, res) => {
     try {
@@ -128,7 +228,7 @@ router.post("/generate", async (req, res) => {
         if (!userId) {
             return res.status(401).json({ error: "Unauthorized" });
         }
-        const { learningGoal, context, userProfile, path_id } = req.body;
+        const { learningGoal, context, userProfile, path_id, path_item_id } = req.body;
         if (!learningGoal) {
             return res.status(400).json({ error: "Learning goal is required" });
         }
@@ -146,30 +246,76 @@ router.post("/generate", async (req, res) => {
                 // Fetch all modules in the path to understand what content has been covered
                 const { data: pathItems, error: itemsError } = await supabase
                     .from('learning_path_items')
-                    .select('title, description, order_index, item_type, content_data, status')
+                    .select('id, title, description, order_index, item_type, content_data, status')
                     .eq('path_id', path_id)
                     .order('order_index', { ascending: true });
                 // Build context about covered content
                 let coveredTopicsContext = '';
                 if (pathItems && !itemsError && pathItems.length > 0) {
-                    const completedModules = pathItems.filter((item) => item.item_type === 'module' && item.status === 'completed' && item.content_data);
-                    if (completedModules.length > 0) {
-                        const topicsSummary = [];
-                        completedModules.forEach((module) => {
-                            const content = module.content_data;
-                            // Extract key concepts and learning objectives
-                            if (content.learning_objectives) {
-                                topicsSummary.push(`Module "${module.title}": ${content.learning_objectives.join(', ')}`);
-                            }
-                            else if (content.key_concepts) {
-                                const concepts = content.key_concepts.map((kc) => kc.concept || kc).join(', ');
-                                topicsSummary.push(`Module "${module.title}": ${concepts}`);
-                            }
-                            else {
-                                topicsSummary.push(`Module "${module.title}": ${module.description || ''}`);
-                            }
-                        });
-                        coveredTopicsContext = `\n\nCONCEPTS COVERED IN PREVIOUS MODULES (you MUST only use concepts from this list):\n${topicsSummary.join('\n')}\n\nIMPORTANT: Only create labs that use concepts, techniques, and knowledge from the modules listed above. Do not introduce new concepts or assume knowledge of topics not yet covered in this learning path.`;
+                    const orderedPathItems = pathItems
+                        .slice()
+                        .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+                    const targetPathItem = path_item_id
+                        ? orderedPathItems.find((item) => item.id === path_item_id)
+                        : null;
+                    let inScopeModules = [];
+                    let outOfScopeModules = [];
+                    if (targetPathItem?.item_type === 'lab') {
+                        inScopeModules = orderedPathItems.filter((item) => item.item_type === 'module' && item.order_index < targetPathItem.order_index);
+                        outOfScopeModules = orderedPathItems.filter((item) => item.item_type === 'module' && item.order_index > targetPathItem.order_index);
+                    }
+                    else if (targetPathItem?.item_type === 'module') {
+                        inScopeModules = orderedPathItems.filter((item) => item.item_type === 'module' && item.order_index <= targetPathItem.order_index);
+                        outOfScopeModules = orderedPathItems.filter((item) => item.item_type === 'module' && item.order_index > targetPathItem.order_index);
+                    }
+                    else {
+                        inScopeModules = orderedPathItems.filter((item) => item.item_type === 'module' && item.status === 'completed');
+                    }
+                    if (inScopeModules.length === 0) {
+                        inScopeModules = orderedPathItems.filter((item) => item.item_type === 'module').slice(0, 1);
+                    }
+                    if (inScopeModules.length > 0) {
+                        const moduleScopeSummary = inScopeModules.map(summarizeModuleScope);
+                        const allowedConcepts = unique(inScopeModules.flatMap((module) => extractModuleConcepts(module.content_data)), 30);
+                        const reservedFutureConcepts = unique(outOfScopeModules.flatMap((module) => extractModuleConcepts(module.content_data)), 24).filter((concept) => !allowedConcepts.some((allowed) => allowed.toLowerCase() === concept.toLowerCase()));
+                        const moduleContext = targetPathItem &&
+                            targetPathItem.content_data &&
+                            typeof targetPathItem.content_data === 'object'
+                            ? asNonEmptyString(targetPathItem.content_data.module_context)
+                            : null;
+                        const positionSummary = targetPathItem?.item_type === 'lab'
+                            ? `This lab is path item #${targetPathItem.order_index + 1} and must only use knowledge from modules before it.`
+                            : targetPathItem?.item_type === 'module'
+                                ? `This lab is being generated for module order #${targetPathItem.order_index + 1}.`
+                                : 'Use only knowledge from modules already covered in this path.';
+                        const allowedConceptLines = allowedConcepts.length
+                            ? allowedConcepts.map((concept) => `- ${concept}`).join('\n')
+                            : '- Use only the concepts explicitly listed in the in-scope modules.';
+                        const reservedConceptLines = reservedFutureConcepts.length
+                            ? `\n\nFUTURE MODULE CONCEPTS (DO NOT USE YET):\n${reservedFutureConcepts.map((concept) => `- ${concept}`).join('\n')}`
+                            : '';
+                        const programmingFeatureGates = buildProgrammingFeatureGates(allowedConcepts, reservedFutureConcepts);
+                        coveredTopicsContext = [
+                            '',
+                            '',
+                            'LAB SCOPE (STRICT):',
+                            positionSummary,
+                            moduleContext ? `Primary module for this lab: "${moduleContext}".` : null,
+                            '',
+                            'MODULES ALREADY COVERED (only use these):',
+                            ...moduleScopeSummary,
+                            '',
+                            'CONCEPTS COVERED IN PREVIOUS MODULES (you MUST only use concepts from this list):',
+                            allowedConceptLines,
+                            reservedConceptLines,
+                            '',
+                            'PROGRAMMING FEATURE GATES (STRICT):',
+                            ...programmingFeatureGates,
+                            '',
+                            'IMPORTANT: Do not introduce new concepts, syntax, APIs, or techniques that are not explicitly covered above.',
+                        ]
+                            .filter((line) => line !== null)
+                            .join('\n');
                     }
                 }
                 // Prepend path context to any existing context
@@ -188,6 +334,12 @@ router.post("/generate", async (req, res) => {
             userProfile,
             path_id,
         });
+        const generatedTemplateData = generatedLab.template_data && typeof generatedLab.template_data === "object"
+            ? {
+                ...generatedLab.template_data,
+                __lyceum_scope_version: 3,
+            }
+            : generatedLab.template_data;
         // Save to database
         const supabase = (0, supabaseAdmin_1.getSupabaseAdmin)();
         const { data: newLab, error } = await supabase
@@ -198,7 +350,7 @@ router.post("/generate", async (req, res) => {
                 title: generatedLab.title,
                 description: generatedLab.description,
                 template_type: generatedLab.template_type,
-                template_data: generatedLab.template_data,
+                template_data: generatedTemplateData,
                 difficulty: generatedLab.difficulty,
                 estimated_duration: generatedLab.estimated_duration,
                 topics: generatedLab.topics,
@@ -449,11 +601,19 @@ router.post("/:id/progress", async (req, res) => {
                 .select("template_data, topics, estimated_duration, status")
                 .eq("id", id)
                 .single();
-            // Get expected steps from AI-generated data, default to 4 steps
-            const aiSteps = labData?.template_data?.steps || [];
-            const expectedSteps = aiSteps.length > 0
-                ? aiSteps.map((step) => step.id)
-                : ['read', 'predict', 'explain', 'edge-cases'];
+            // Determine expected steps dynamically from lab template or existing progress.
+            const aiSteps = Array.isArray(labData?.template_data?.steps) ? labData.template_data.steps : [];
+            const expectedFromTemplate = aiSteps
+                .map((step) => step?.id)
+                .filter((value) => typeof value === "string" && value.trim().length > 0);
+            const expectedFromProgress = Array.from(new Set((allProgress || [])
+                .map((p) => p?.step_id)
+                .filter((value) => typeof value === "string" && value.trim().length > 0)));
+            const expectedSteps = expectedFromTemplate.length > 0
+                ? expectedFromTemplate
+                : expectedFromProgress.length > 0
+                    ? expectedFromProgress
+                    : [step_id];
             const totalSteps = expectedSteps.length;
             const completedCount = allProgress?.filter((p) => p.completed).length || 0;
             const allExpectedStepsCompleted = expectedSteps.every((stepId) => allProgress?.some((p) => p.step_id === stepId && p.completed));

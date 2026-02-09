@@ -135,6 +135,7 @@ export interface PathOutline {
     title: string;
     description: string;
     order_index: number;
+    include_lab_after?: boolean;
   }>;
 }
 
@@ -251,10 +252,17 @@ CRITICAL: When users provide uploaded files with specific instructions:
 - If they say "make X the first module", X must be order_index: 0
 - If they specify a topic order, follow it exactly
 - User requirements override standard curriculum practices
+- SAFETY/QUALITY OVERRIDE: Never create setup/install/environment modules even if mentioned.
 
 Given a learning path title and description, generate:
 1. Path metadata (refined title, description, difficulty, duration, topics)
 2. A sequence of module titles and descriptions that progressively build knowledge
+
+CRITICAL MODULE CONTENT RULES:
+- Do NOT create modules focused on local machine setup, installation, account creation, IDE setup, or environment configuration.
+- Do NOT include modules like "Setting Up X", "Installing X", "Tooling Setup", or "Prerequisites".
+- Start with learning content fundamentals (concepts, syntax, compiler/runtime mental model, core workflow) rather than personal machine setup.
+- Assume learners can use the in-platform environment; focus modules on skills and understanding.
 
 Respond with JSON only in this structure:
 {
@@ -269,7 +277,8 @@ Respond with JSON only in this structure:
     {
       "title": "Module title",
       "description": "1-2 sentence module overview",
-      "order_index": 0
+      "order_index": 0,
+      "include_lab_after": true
     }
   ]
 }
@@ -280,6 +289,10 @@ Guidelines:
 - Module titles should be clear and descriptive
 - Descriptions should explain what the learner will achieve
 - Ensure proper scaffolding between modules
+- Labs are optional checkpoints, not required after every module.
+- Choose lab placement intentionally using include_lab_after on modules where practice is most valuable.
+- Use fewer labs than modules (typically 1-3 labs for a 4-6 module path).
+- Never place a lab after the final module.
 - CRITICAL: If user uploaded files contain instructions like "make X first" or "start with Y", those topics MUST be in the earliest modules (order_index: 0, 1, etc.)
 
 EXAMPLE: If user says "Create a module about abstract classes. Make that first module before everything"
@@ -294,6 +307,54 @@ Then your response MUST have:
     ... other modules after ...
   ]
 }`;
+
+const SETUP_MODULE_PATTERNS: RegExp[] = [
+  /\bset\s*up\b/i,
+  /\bsetup\b/i,
+  /\binstall(?:ation|ing)?\b/i,
+  /\benvironment\s*setup\b/i,
+  /\bset(?:ting)?\s*up\s+.*\benvironment\b/i,
+  /\bconfigure|configuration\b/i,
+  /\bgetting\s*started\b/i,
+  /\bprerequisite(?:s)?\b/i,
+  /\brequirement(?:s)?\b/i,
+  /\bide\b/i,
+  /\btool(?:ing)?\b/i,
+  /\bdownload(?:ing)?\b/i,
+  /\blocal machine\b/i,
+];
+
+const isSetupOrInstallModule = (module: { title?: string; description?: string }): boolean => {
+  const combined = `${module.title ?? ''} ${module.description ?? ''}`.trim();
+  if (!combined) return false;
+  return SETUP_MODULE_PATTERNS.some((pattern) => pattern.test(combined));
+};
+
+const normalizePathModules = (
+  modules: Array<{ title?: string; description?: string; order_index?: number; include_lab_after?: unknown }>
+): PathOutline['modules'] => {
+  const normalized = modules
+    .filter((module) => {
+      const shouldExclude = isSetupOrInstallModule(module);
+      if (shouldExclude) {
+        console.log(`Filtering setup/install module from outline: "${module.title || 'Untitled'}"`);
+      }
+      return !shouldExclude;
+    })
+    .map((module, index) => ({
+      title: (module.title || `Module ${index + 1}`).trim(),
+      description: (module.description || '').trim(),
+      order_index: index,
+      include_lab_after: typeof module.include_lab_after === 'boolean' ? module.include_lab_after : undefined,
+    }));
+
+  // Keep last module content-focused; no trailing lab anchor on final module.
+  if (normalized.length > 0) {
+    normalized[normalized.length - 1].include_lab_after = false;
+  }
+
+  return normalized;
+};
 
 const MODULE_CONTENT_PROMPT = `You are an expert curriculum designer for Lyceum. Generate detailed content for a single learning module.
 
@@ -742,6 +803,7 @@ REQUIRED ACTIONS:
 3. If they specify a custom order or structure, follow it EXACTLY
 4. If they mention specific topics to include, create modules for those topics
 5. Only add additional standard curriculum topics AFTER addressing all user requirements
+6. Never create setup/install/environment modules; focus on actual learning content.
 
 Additional Context:
 - Base Topic: ${request.description || 'Create a structured learning path'}
@@ -788,9 +850,14 @@ Create module titles and descriptions that build on each other progressively.`;
         throw new Error('Failed to parse AI response for path outline');
       }
 
+      const normalizedModules = normalizePathModules(parsed.modules);
+      if (normalizedModules.length === 0) {
+        throw new Error('AI outline did not include usable learning modules');
+      }
+
       return {
         ...parsed.path,
-        modules: parsed.modules
+        modules: normalizedModules,
       };
     } catch (error: any) {
       lastError = error;

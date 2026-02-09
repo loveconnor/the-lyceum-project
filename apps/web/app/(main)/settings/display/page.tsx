@@ -27,7 +27,8 @@ const displayFormSchema = z.object({
     .array(z.string())
     .refine((value) => value.some((item) => item), {
       message: "You have to select at least one item."
-    })
+    }),
+  showProfile: z.boolean()
 });
 
 type DisplayFormValues = z.infer<typeof displayFormSchema>;
@@ -44,13 +45,15 @@ export default function Page() {
   const form = useForm<DisplayFormValues>({
     resolver: zodResolver(displayFormSchema),
     defaultValues: {
-      sidebarItems: settings.display.sidebarItems
+      sidebarItems: settings.display.sidebarItems,
+      showProfile: settings.display.showProfile
     }
   });
 
   useEffect(() => {
     form.reset({
-      sidebarItems: settings.display.sidebarItems
+      sidebarItems: settings.display.sidebarItems,
+      showProfile: settings.display.showProfile
     });
   }, [form, settings]);
 
@@ -58,7 +61,8 @@ export default function Page() {
     try {
       await saveSettings({
         display: {
-          sidebarItems: data.sidebarItems
+          sidebarItems: data.sidebarItems,
+          showProfile: data.showProfile
         }
       });
       toast.success(t("display.toast.success"));
@@ -113,6 +117,28 @@ export default function Page() {
                     />
                   ))}
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="showProfile"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel className="font-normal">
+                      {t("display.profile.label")}
+                    </FormLabel>
+                    <FormDescription>
+                      {t("display.profile.description")}
+                    </FormDescription>
+                  </div>
                 </FormItem>
               )}
             />

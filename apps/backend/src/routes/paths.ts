@@ -50,6 +50,84 @@ const MAX_LEARN_BY_DOING_FILE_CONTEXT_CHARS = 30000;
 const MAX_LEARN_BY_DOING_FILE_COUNT = 8;
 const MAX_LEARN_BY_DOING_FILE_CHARS_EACH = 5000;
 
+const sanitizeStringForDatabase = (input: string): string => {
+  // PostgreSQL text/JSON cannot store null bytes.
+  const withoutNullBytes = input.replace(/\u0000/g, "");
+  let sanitized = "";
+
+  // Remove invalid surrogate code units that can break JSONB parsing.
+  for (let i = 0; i < withoutNullBytes.length; i++) {
+    const current = withoutNullBytes.charCodeAt(i);
+
+    if (current >= 0xd800 && current <= 0xdbff) {
+      const next = withoutNullBytes.charCodeAt(i + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        sanitized += withoutNullBytes[i] + withoutNullBytes[i + 1];
+        i += 1;
+      }
+      continue;
+    }
+
+    if (current >= 0xdc00 && current <= 0xdfff) {
+      continue;
+    }
+
+    sanitized += withoutNullBytes[i];
+  }
+
+  return sanitized;
+};
+
+const sanitizeValueForDatabase = (value: unknown): unknown => {
+  if (typeof value === "string") {
+    return sanitizeStringForDatabase(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeValueForDatabase(entry));
+  }
+  if (value && typeof value === "object") {
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      sanitized[key] = sanitizeValueForDatabase(entry);
+    }
+    return sanitized;
+  }
+  return value;
+};
+
+const sanitizePathItemsForInsert = (items: unknown[]): Record<string, unknown>[] => {
+  return items.map((item) => sanitizeValueForDatabase(item) as Record<string, unknown>);
+};
+
+type ModuleWithLabSuggestion = {
+  title: string;
+  include_lab_after?: boolean;
+};
+
+const shouldInsertLabAfterModule = (
+  modules: ModuleWithLabSuggestion[],
+  moduleIndex: number,
+  includeLabs: boolean
+): boolean => {
+  if (!includeLabs) return false;
+  if (moduleIndex >= modules.length - 1) return false;
+
+  const module = modules[moduleIndex];
+  const hasExplicitLabPlacement = modules.some(
+    (entry) => typeof entry.include_lab_after === "boolean"
+  );
+
+  if (hasExplicitLabPlacement) {
+    return module.include_lab_after === true;
+  }
+
+  // Backwards-compatible fallback for older outlines that do not include lab placement metadata.
+  if (modules.length === 2) {
+    return moduleIndex === 0;
+  }
+  return moduleIndex % 2 === 1;
+};
+
 const buildFirecrawlFileContext = (contextFiles: ContextFileInput[]): string => {
   if (!Array.isArray(contextFiles) || contextFiles.length === 0) return '';
 
@@ -901,9 +979,11 @@ router.post("/", async (req: Request, res: Response) => {
         status: 'not-started'
       }));
 
+      const sanitizedPathItems = sanitizePathItemsForInsert(pathItems);
+
       const { error: itemsError } = await supabase
         .from("learning_path_items")
-        .insert(pathItems);
+        .insert(sanitizedPathItems);
 
       if (itemsError) {
         console.error("Error creating path items:", itemsError);
@@ -1480,8 +1560,11 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
               uses_visual_aids: usesVisualAids  // NEW: Flag for visual enrichment
             });
 
-            // Add lab suggestion
-            if (includeLabs && moduleOutline.order_index < outline.modules.length - 1) {
+            // Add optional lab suggestion based on AI-selected checkpoint placement.
+            if (
+              shouldInsertLabAfterModule(outline.modules, moduleOutline.order_index, includeLabs) &&
+              allPathItems[allPathItems.length - 1]?.item_type !== 'lab'
+            ) {
               allPathItems.push({
                 path_id: newPath.id,
                 lab_id: null,
@@ -1498,9 +1581,11 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
 
           // Insert path items
           if (allPathItems.length > 0) {
+            const sanitizedPathItems = sanitizePathItemsForInsert(allPathItems);
+
             const { error: itemsError } = await supabase
               .from("learning_path_items")
-              .insert(allPathItems);
+              .insert(sanitizedPathItems);
 
             if (itemsError) {
               throw new Error(`Failed to create path items: ${itemsError.message}`);
@@ -1767,7 +1852,10 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
     let orderIndex = 0;
     for (let i = 0; i < moduleItems.length; i++) {
       allPathItems.push({ ...moduleItems[i], order_index: orderIndex++ });
-      if (includeLabs && i < moduleItems.length - 1) {
+      if (
+        shouldInsertLabAfterModule(outline.modules, i, includeLabs) &&
+        allPathItems[allPathItems.length - 1]?.item_type !== 'lab'
+      ) {
         allPathItems.push({
           path_id: newPath.id,
           lab_id: null,
@@ -1784,9 +1872,11 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
 
     // Insert items
     if (allPathItems.length > 0) {
+      const sanitizedPathItems = sanitizePathItemsForInsert(allPathItems);
+
       const { error: itemsError } = await supabase
         .from("learning_path_items")
-        .insert(allPathItems);
+        .insert(sanitizedPathItems);
 
       if (itemsError) {
         throw new Error(`Failed to create items: ${itemsError.message}`);
@@ -1860,8 +1950,11 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
       description,
       estimatedDuration,
       topics,
-      source_asset_id // Optional - if not provided, will auto-discover from OpenStax
+      source_asset_id, // Optional - if not provided, will auto-discover from OpenStax
+      include_labs // Optional - include suggested labs
     } = req.body;
+
+    const includeLabs = include_labs !== false;
 
     if (!description || !description.trim()) {
       return res.status(400).json({ error: "Description is required" });
@@ -2117,6 +2210,7 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
     let currentOrderIndex = 0;
     let modulesWithContent = 0;
     let modulesWithoutContent = 0;
+    let suggestedLabCount = 0;
 
     console.log(`[Registry] Creating ${outline.modules.length} registry-backed modules...`);
     
@@ -2231,8 +2325,11 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
         content_data: moduleContent
       });
 
-      // Add lab suggestion after each module (except the last)
-      if (moduleOutline.order_index < outline.modules.length - 1) {
+      // Add optional lab suggestion based on AI-selected checkpoint placement.
+      if (
+        shouldInsertLabAfterModule(outline.modules, moduleOutline.order_index, includeLabs) &&
+        allPathItems[allPathItems.length - 1]?.item_type !== 'lab'
+      ) {
         allPathItems.push({
           path_id: newPath.id,
           lab_id: null,
@@ -2247,6 +2344,7 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
             module_context: moduleOutline.title
           }
         });
+        suggestedLabCount++;
       }
     }
     
@@ -2269,9 +2367,11 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
     if (allPathItems.length > 0) {
       console.log(`[Registry] Inserting ${allPathItems.length} items to database...`);
       
+      const sanitizedPathItems = sanitizePathItemsForInsert(allPathItems);
+
       const { data: insertedItems, error: itemsError } = await supabase
         .from("learning_path_items")
-        .insert(allPathItems)
+        .insert(sanitizedPathItems)
         .select();
 
       if (itemsError) {
@@ -2345,7 +2445,7 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
     console.log(`  - Path: "${completePath.title}" (ID: ${completePath.id})`);
     console.log(`  - Source: "${asset.title}"`);
     console.log(`  - Modules: ${outline.modules.length} (${modulesWithContent} with source content)`);
-    console.log(`  - Labs: ${outline.modules.length - 1} suggested`);
+    console.log(`  - Labs: ${suggestedLabCount} suggested`);
     console.log(`  - Content Mode: registry_backed`);
 
     if (stream) {
@@ -2362,6 +2462,7 @@ router.post("/generate-registry", async (req: Request, res: Response) => {
         modulesTotal: outline.modules.length,
         modulesWithContent: modulesWithContent,
         modulesWithoutContent: modulesWithoutContent,
+        labsSuggested: suggestedLabCount,
         contentMode: 'registry_backed'
       })}\n\n`);
       res.write(`data: ${JSON.stringify({ type: 'completed', path: completePath, source_asset: asset })}\n\n`);
@@ -2889,19 +2990,21 @@ router.post("/:pathId/items", async (req: Request, res: Response) => {
       nextOrderIndex = items && items.length > 0 ? items[0].order_index + 1 : 0;
     }
 
+    const sanitizedPathItem = sanitizePathItemsForInsert([
+      {
+        path_id: pathId,
+        lab_id,
+        title: title || 'New Item',
+        description,
+        item_type: item_type || 'lab',
+        order_index: nextOrderIndex,
+        status: 'not-started'
+      }
+    ]);
+
     const { data: newItem, error } = await supabase
       .from("learning_path_items")
-      .insert([
-        {
-          path_id: pathId,
-          lab_id,
-          title: title || 'New Item',
-          description,
-          item_type: item_type || 'lab',
-          order_index: nextOrderIndex,
-          status: 'not-started'
-        }
-      ])
+      .insert(sanitizedPathItem)
       .select()
       .single();
 

@@ -57,6 +57,13 @@ const convertNewlines = (text: string | undefined) => {
   return text.replace(/\\n/g, "\n");
 };
 
+const getFreshStarterCode = (language: string): string => {
+  if (language === "python") {
+    return "# Start coding here\n";
+  }
+  return "// Start coding here\n";
+};
+
 // Helper to extract JSON from AI responses
 function extractJSON<T>(text: string): T {
   let cleaned = text.trim();
@@ -159,7 +166,9 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
   const detectedLanguage = language || 'java';
   
   const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS(stepPrompts, aiSteps));
-  const [code, setCode] = useState(initialCode);
+  const [code, setCode] = useState(
+    () => (aiSteps && aiSteps.length > 0 ? getFreshStarterCode(detectedLanguage) : initialCode)
+  );
   const [output, setOutput] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [commandInput, setCommandInput] = useState("");
@@ -1004,6 +1013,13 @@ Approve if they show reasonable understanding or selected the correct option. If
     // Don't recompose if all steps are completed - keep the final code as is
     const allCompleted = steps.length > 0 && steps.every(s => s.status === "completed");
     if (allCompleted) return;
+
+    const currentStepIndex = currentStep ? steps.findIndex((s) => s.id === currentStep.id) : -1;
+    const isFreshFirstStep =
+      !hasLoadedProgress &&
+      currentStepIndex === 0 &&
+      Object.keys(completedStepCode).length === 0;
+    if (isFreshFirstStep) return;
     
     if (currentStep && aiSteps && aiSteps.length > 0) {
       // Check if current step has skeleton code defined
@@ -1016,7 +1032,7 @@ Approve if they show reasonable understanding or selected the correct option. If
         setCode(composed);
       }
     }
-  }, [currentStep?.id, completedStepCode, isLoadingProgress, steps]);
+  }, [currentStep?.id, completedStepCode, hasLoadedProgress, isLoadingProgress, steps]);
   
   // Determine if code editor should be read-only
   // Only allow editing during "implement" type steps or steps without text input requirements

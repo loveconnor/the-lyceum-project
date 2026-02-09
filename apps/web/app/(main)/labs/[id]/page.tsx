@@ -8,8 +8,21 @@ import LabViewer from "@/components/labs/lab-viewer";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { markLabTouched, markPrimaryFeature, trackEvent } from "@/lib/analytics";
-import { getLabConstraint } from "@/lib/ai-constraints";
-import { AIConstraintNotice } from "@/components/ai/ai-constraint-notice";
+import { Markdown } from "@/components/ui/custom/prompt/markdown";
+
+// Helper function to properly format mathematical expressions for KaTeX rendering
+const formatMathExpression = (text: string): string => {
+  if (!text) return text;
+  
+  // Don't process if already contains $ signs
+  if (text.includes('$')) return text;
+  
+  // Only wrap very specific patterns that are clearly mathematical
+  return text.replace(/\b([a-zA-Z])\^(\d+)\b/g, '$$$1^{$2}$$')  // x^2 -> $x^{2}$
+            .replace(/\b(\d+)([a-zA-Z])\^(\d+)\b/g, '$$1$2^{$3}$$')  // 3x^2 -> $3x^{2}$
+            .replace(/\b(\d+)([a-zA-Z])\b/g, '$$1$2$$')  // 3x -> $3x$
+            .replace(/\b([a-zA-Z])\s*([+\-])\s*(\d+)\b/g, '$$1 $2 $3$$');  // x + 2 -> $x + 2$
+};
 
 export default function LabPage() {
   const params = useParams();
@@ -112,8 +125,6 @@ export default function LabPage() {
     );
   }
 
-  const labConstraint = getLabConstraint(lab);
-
   return (
     <div className="h-[var(--content-full-height)] flex flex-col">
       <div className="p-4 border-b flex items-center gap-4">
@@ -126,14 +137,14 @@ export default function LabPage() {
           Back
         </Button>
         <div className="flex-1">
-          <h1 className="text-xl font-semibold">{lab.title}</h1>
+          <h1 className="text-xl font-semibold">
+            <Markdown className="inline-block">{lab.title}</Markdown>
+          </h1>
           {lab.description && (
-            <p className="text-sm text-muted-foreground">{lab.description}</p>
+            <div className="text-sm text-muted-foreground">
+              <Markdown>{lab.description}</Markdown>
+            </div>
           )}
-          <AIConstraintNotice
-            constraint={labConstraint}
-            className="mt-2 max-w-2xl"
-          />
         </div>
       </div>
       <div className="flex-1 overflow-hidden">

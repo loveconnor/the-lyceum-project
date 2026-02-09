@@ -67,6 +67,7 @@ ONLY CREATE MODULES FOR ACTUAL LEARNING CONTENT:
 - Skills, techniques, and methods
 - Applications, examples, and practice
 - Advanced topics and specializations
+- For programming paths, begin with language/compiler/runtime fundamentals instead of local machine setup.
 
 Respond with JSON only in this structure:
 {
@@ -82,6 +83,7 @@ Respond with JSON only in this structure:
       "title": "Module title matching available source content (NO setup/admin content)",
       "description": "What this module covers, aligned with source sections",
       "order_index": 0,
+      "include_lab_after": true,
       "suggested_toc_sections": ["Section title 1", "Section title 2"]
     }
   ]
@@ -92,6 +94,9 @@ Guidelines:
 - Module titles should be clear and match source terminology
 - SKIP any setup, installation, overview, or administrative sections
 - Focus ONLY on learning content modules
+- Labs are optional. Use include_lab_after only at meaningful checkpoints (not after every module).
+- Never set include_lab_after for the final module.
+- Do not create back-to-back lab checkpoints; spread them out.
 - If the user wants something not well-covered in the source, say so in description
 - suggested_toc_sections helps with later node mapping (use exact titles from TOC)`;
 /**
@@ -211,7 +216,8 @@ async function generateRegistryBackedPath(request, tocSummaries, assetTitle) {
     const setupPatterns = [
         /setup/i,
         /install/i,
-        /environment/i,
+        /environment\s*setup/i,
+        /set(?:ting)?\s*up\s+.*environment/i,
         /configuration/i,
         /getting\s*started/i,
         /prerequisites/i,
@@ -220,9 +226,13 @@ async function generateRegistryBackedPath(request, tocSummaries, assetTitle) {
         /overview.*environment/i,
         /syllabus/i,
         /course\s*info/i,
+        /ide/i,
+        /download/i,
+        /tooling/i,
     ];
     const filteredModules = outline.modules.filter(module => {
-        const shouldExclude = setupPatterns.some(pattern => pattern.test(module.title));
+        const combined = `${module.title || ''} ${module.description || ''}`.trim();
+        const shouldExclude = setupPatterns.some(pattern => pattern.test(combined));
         if (shouldExclude) {
             logger_1.logger.info('registry-path-gen', `Filtering out setup module from outline: "${module.title}"`);
         }
@@ -232,6 +242,9 @@ async function generateRegistryBackedPath(request, tocSummaries, assetTitle) {
     filteredModules.forEach((module, index) => {
         module.order_index = index;
     });
+    if (filteredModules.length > 0) {
+        filteredModules[filteredModules.length - 1].include_lab_after = false;
+    }
     outline.modules = filteredModules;
     logger_1.logger.info('registry-path-gen', `Path outline: ${outline.modules.length} learning modules (setup content filtered)`);
     // Pre-map suggested sections to node IDs

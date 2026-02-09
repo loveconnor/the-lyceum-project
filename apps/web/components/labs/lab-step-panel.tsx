@@ -7,6 +7,20 @@ import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
 import { Check } from "lucide-react";
 
+// Helper function to properly format mathematical expressions for KaTeX rendering
+const formatMathExpression = (text: string): string => {
+  if (!text) return text;
+  
+  // Don't process if already contains $ signs
+  if (text.includes('$')) return text;
+  
+  // Only wrap very specific patterns that are clearly mathematical
+  return text.replace(/\b([a-zA-Z])\^(\d+)\b/g, '$$$1^{$2}$$')  // x^2 -> $x^{2}$
+            .replace(/\b(\d+)([a-zA-Z])\^(\d+)\b/g, '$$1$2^{$3}$$')  // 3x^2 -> $3x^{2}$
+            .replace(/\b(\d+)([a-zA-Z])\b/g, '$$1$2$$')  // 3x -> $3x$
+            .replace(/\b([a-zA-Z])\s*([+\-])\s*(\d+)\b/g, '$$1 $2 $3$$');  // x + 2 -> $x + 2$
+};
+
 export interface LabStep {
   id: string;
   title: string;
