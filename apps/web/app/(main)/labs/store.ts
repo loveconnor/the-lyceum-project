@@ -4,7 +4,8 @@ import {
   FilterTab,
   ViewMode,
   Difficulty,
-  LabTemplateType
+  LabTemplateType,
+  EstimatedTimeFilter
 } from "./types";
 import {
   fetchLabs,
@@ -40,7 +41,8 @@ interface LabStore {
   viewMode: ViewMode;
   filterDifficulty: Difficulty | null;
   filterLabType: LabTemplateType | null;
-  filterEstimatedTime: string | null;
+  filterEstimatedTime: EstimatedTimeFilter | null;
+  showCoreLabsOnly: boolean;
   searchQuery: string;
   loading: boolean;
   error: string | null;
@@ -61,7 +63,8 @@ interface LabStore {
   setViewMode: (mode: ViewMode) => void;
   setFilterDifficulty: (difficulty: Difficulty | null) => void;
   setFilterLabType: (labType: LabTemplateType | null) => void;
-  setFilterEstimatedTime: (time: string | null) => void;
+  setFilterEstimatedTime: (time: EstimatedTimeFilter | null) => void;
+  toggleShowCoreLabsOnly: (value?: boolean) => void;
   setSearchQuery: (query: string) => void;
   updateProgress: (labId: string, stepId: string, stepData?: unknown, completed?: boolean, onSuccess?: () => void) => Promise<void>;
   toggleStarred: (labId: string) => Promise<void>;
@@ -77,6 +80,7 @@ export const useLabStore = create<LabStore>((set, get) => ({
   filterDifficulty: null,
   filterLabType: null,
   filterEstimatedTime: null,
+  showCoreLabsOnly: false,
   searchQuery: "",
   loading: false,
   error: null,
@@ -269,6 +273,11 @@ export const useLabStore = create<LabStore>((set, get) => ({
   setFilterEstimatedTime: (time) =>
     set(() => ({
       filterEstimatedTime: time
+    })),
+
+  toggleShowCoreLabsOnly: (value) =>
+    set((state) => ({
+      showCoreLabsOnly: typeof value === "boolean" ? value : !state.showCoreLabsOnly
     })),
 
   setSearchQuery: (query) =>

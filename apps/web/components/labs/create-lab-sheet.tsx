@@ -102,7 +102,7 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
     estimatedTime: "",
     difficulty: "intermediate",
     labType: undefined,
-    status: EnumLabStatus.Pending
+    status: EnumLabStatus.NotStarted
   };
 
   const form = useForm<LabFormValues>({
@@ -177,7 +177,7 @@ const CreateLabSheet: React.FC<CreateLabSheetProps> = ({ isOpen, onClose, editTo
             console.log("🤖 [CREATE LAB] Using AI inference from files");
           }
         } else {
-          learningGoal = data.description;
+          learningGoal = data.description || "";
           console.log("✏️ [CREATE LAB] Using custom description only");
         }
       }

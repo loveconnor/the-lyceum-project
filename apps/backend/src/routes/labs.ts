@@ -2,6 +2,13 @@ import { Router, Request, Response } from "express";
 import { getSupabaseAdmin } from "../supabaseAdmin";
 import { generateLab, getLabAIAssistance } from "../ai-lab-generator";
 import { updateDashboardActivity } from "../dashboardService";
+import {
+  isLabTemplateType,
+  normalizeDifficulty,
+  normalizeEstimatedDuration,
+  normalizeTemplateData,
+  normalizeTopics,
+} from "../lab-template-normalizer";
 
 const router = Router();
 
@@ -412,13 +419,14 @@ router.post("/generate", async (req: Request, res: Response) => {
       path_id,
     });
 
-    const generatedTemplateData =
-      generatedLab.template_data && typeof generatedLab.template_data === "object"
-        ? {
-            ...(generatedLab.template_data as Record<string, unknown>),
-            __lyceum_scope_version: 3,
-          }
-        : generatedLab.template_data;
+    if (!isLabTemplateType(generatedLab.template_type)) {
+      throw new Error(`Generator returned unsupported template type: ${generatedLab.template_type}`);
+    }
+
+    const generatedTemplateData = {
+      ...normalizeTemplateData(generatedLab.template_type, generatedLab.template_data),
+      __lyceum_scope_version: 3,
+    };
 
     // Save to database
     const supabase = getSupabaseAdmin();
@@ -431,9 +439,9 @@ router.post("/generate", async (req: Request, res: Response) => {
           description: generatedLab.description,
           template_type: generatedLab.template_type,
           template_data: generatedTemplateData,
-          difficulty: generatedLab.difficulty,
-          estimated_duration: generatedLab.estimated_duration,
-          topics: generatedLab.topics,
+          difficulty: normalizeDifficulty(generatedLab.difficulty),
+          estimated_duration: normalizeEstimatedDuration(generatedLab.estimated_duration),
+          topics: normalizeTopics(generatedLab.topics),
           status: "not-started",
           starred: false
         }
@@ -478,6 +486,17 @@ router.post("/", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    if (!isLabTemplateType(template_type)) {
+      return res.status(400).json({ error: "Invalid template type" });
+    }
+
+    const normalizedTemplateData = normalizeTemplateData(template_type, template_data);
+    const normalizedDifficulty = difficulty == null ? null : normalizeDifficulty(difficulty);
+    const normalizedEstimatedDuration =
+      estimated_duration == null ? null : normalizeEstimatedDuration(estimated_duration);
+    const normalizedTopics =
+      Array.isArray(topics) && topics.length > 0 ? normalizeTopics(topics) : null;
+
     const { data: newLab, error } = await supabase
       .from("labs")
       .insert([
@@ -486,10 +505,10 @@ router.post("/", async (req: Request, res: Response) => {
           title,
           description,
           template_type,
-          template_data,
-          difficulty,
-          estimated_duration,
-          topics,
+          template_data: normalizedTemplateData,
+          difficulty: normalizedDifficulty,
+          estimated_duration: normalizedEstimatedDuration,
+          topics: normalizedTopics,
           due_date,
           status: "not-started",
           starred: false
@@ -521,7 +540,50 @@ router.patch("/:id", async (req: Request, res: Response) => {
     }
 
     const { id } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body };
+
+    if (updates.template_type != null) {
+      if (!isLabTemplateType(updates.template_type)) {
+        return res.status(400).json({ error: "Invalid template type" });
+      }
+    }
+
+    if (updates.template_data != null) {
+      let effectiveTemplateType: unknown = updates.template_type;
+
+      if (!effectiveTemplateType) {
+        const { data: existingLab, error: existingLabError } = await supabase
+          .from("labs")
+          .select("template_type")
+          .eq("id", id)
+          .eq("user_id", userId)
+          .single();
+
+        if (existingLabError || !existingLab) {
+          return res.status(404).json({ error: "Lab not found" });
+        }
+
+        effectiveTemplateType = existingLab.template_type;
+      }
+
+      if (!isLabTemplateType(effectiveTemplateType)) {
+        return res.status(400).json({ error: "Invalid template type for template_data update" });
+      }
+
+      updates.template_data = normalizeTemplateData(effectiveTemplateType, updates.template_data);
+    }
+
+    if (updates.difficulty != null) {
+      updates.difficulty = normalizeDifficulty(updates.difficulty);
+    }
+
+    if (updates.estimated_duration != null) {
+      updates.estimated_duration = normalizeEstimatedDuration(updates.estimated_duration);
+    }
+
+    if ("topics" in updates) {
+      updates.topics = Array.isArray(updates.topics) ? normalizeTopics(updates.topics) : null;
+    }
 
     const { data: updatedLab, error } = await supabase
       .from("labs")

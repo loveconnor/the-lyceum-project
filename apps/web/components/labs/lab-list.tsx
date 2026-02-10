@@ -1,9 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
-import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
-import { FilterTab, Lab, LabStatus, Difficulty, LabType } from "@/app/(main)/labs/types";
+import {
+  FilterTab,
+  Difficulty,
+  LabTemplateType,
+  EstimatedTimeFilter
+} from "@/app/(main)/labs/types";
 
 import { Button } from "@/components/ui/button";
 import { Plus, X, Search, SlidersHorizontal, GridIcon, ListIcon } from "lucide-react";
@@ -31,11 +35,42 @@ interface LabListProps {
   onAddTodoClick: () => void;
 }
 
+const TEMPLATE_TYPE_FILTERS: LabTemplateType[] = [
+  "build",
+  "explain",
+  "analyze",
+  "derive",
+  "explore",
+  "revise"
+];
+
+const TEMPLATE_TYPE_LABELS: Record<LabTemplateType, string> = {
+  build: "Build",
+  explain: "Explain",
+  analyze: "Analyze",
+  derive: "Derive",
+  explore: "Explore",
+  revise: "Revise"
+};
+
+const ESTIMATED_TIME_FILTERS: EstimatedTimeFilter[] = ["< 30 min", "30-60 min", "1-2 hours", "2+ hours"];
+
+const matchesEstimatedTime = (
+  estimatedDuration: number | undefined,
+  filter: EstimatedTimeFilter | null
+) => {
+  if (!filter) return true;
+  if (typeof estimatedDuration !== "number" || !Number.isFinite(estimatedDuration)) return false;
+  if (filter === "< 30 min") return estimatedDuration < 30;
+  if (filter === "30-60 min") return estimatedDuration >= 30 && estimatedDuration <= 60;
+  if (filter === "1-2 hours") return estimatedDuration > 60 && estimatedDuration <= 120;
+  return estimatedDuration > 120;
+};
+
 export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: LabListProps) {
   const router = useRouter();
   const {
     labs,
-    updateLab,
     resetLab,
     deleteLab,
     viewMode,
@@ -59,7 +94,7 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
   };
 
   // Apply all filters
-  const filteredTodos = labs.filter((lab) => {
+  const filteredLabs = labs.filter((lab) => {
     // Calculate actual status based on completed steps
     const completedSteps = lab.lab_progress?.filter((p: any) => p.completed).length || 0;
     // Get total steps dynamically from template_data
@@ -80,11 +115,11 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
     // Difficulty filter
     if (filterDifficulty && lab.difficulty !== filterDifficulty) return false;
 
-    // Lab type filter
-    if (filterLabType && lab.labType !== filterLabType) return false;
+    // Template type filter
+    if (filterLabType && lab.template_type !== filterLabType) return false;
 
-    // Estimated time filter
-    if (filterEstimatedTime && lab.estimatedTime !== filterEstimatedTime) return false;
+    // Estimated duration filter
+    if (!matchesEstimatedTime(lab.estimated_duration, filterEstimatedTime)) return false;
 
     // Core labs filter
     if (showCoreLabsOnly && !lab.starred) return false;
@@ -101,18 +136,13 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
     return true;
   });
 
-  const handleStatusChange = (id: string, status: TodoStatus) => {
-    updateLab(id, { status });
-    toast.success(`Lab progress updated`);
-  };
-
   const clearFilters = () => {
     setFilterDifficulty(null);
     setFilterLabType(null);
     setFilterEstimatedTime(null);
     setSearchQuery("");
     if (showCoreLabsOnly) {
-      toggleShowCoreLabsOnly();
+      toggleShowCoreLabsOnly(false);
     }
   };
 
@@ -140,14 +170,18 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
   const renderFilterContent = () => (
     <div className="space-y-6 p-4">
       <div className="flex items-center gap-2">
-        <Checkbox id="core-labs" checked={showCoreLabsOnly} onCheckedChange={toggleShowCoreLabsOnly} />
+        <Checkbox
+          id="core-labs"
+          checked={showCoreLabsOnly}
+          onCheckedChange={(checked) => toggleShowCoreLabsOnly(checked === true)}
+        />
         <Label htmlFor="core-labs">Core labs only</Label>
       </div>
 
       <div className="space-y-3">
         <h4 className="text-sm font-medium">Difficulty</h4>
         <div className="flex gap-2 *:grow">
-          {(["intro", "intermediate", "advanced"] as Difficulty[]).map((difficulty) => (
+          {(["beginner", "intermediate", "advanced"] as Difficulty[]).map((difficulty) => (
             <Toggle
               key={difficulty}
               variant="outline"
@@ -162,9 +196,9 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
       </div>
 
       <div className="space-y-3">
-        <h4 className="text-sm font-medium">Lab Type</h4>
-        <div className="flex gap-2 *:grow">
-          {(["concept", "practice", "exploration"] as LabType[]).map((type) => (
+        <h4 className="text-sm font-medium">Template Type</h4>
+        <div className="grid grid-cols-2 gap-2">
+          {TEMPLATE_TYPE_FILTERS.map((type) => (
             <Toggle
               key={type}
               variant="outline"
@@ -172,7 +206,7 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
               pressed={filterLabType === type}
               onPressedChange={() => setFilterLabType(filterLabType === type ? null : type)}
               className="px-3 text-xs capitalize">
-              {type}
+              {TEMPLATE_TYPE_LABELS[type]}
             </Toggle>
           ))}
         </div>
@@ -181,7 +215,7 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
       <div className="space-y-3">
         <h4 className="text-sm font-medium">Estimated Time</h4>
         <div className="flex flex-col gap-2">
-          {["< 30 min", "30-60 min", "1-2 hours", "2+ hours"].map((time) => (
+          {ESTIMATED_TIME_FILTERS.map((time) => (
             <Toggle
               key={time}
               variant="outline"
@@ -210,12 +244,11 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
     if (viewMode === "grid") {
       return (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredTodos.map((lab) => (
+          {filteredLabs.map((lab) => (
             <LabCard
               key={lab.id}
               lab={lab}
               onView={onSelectTodo}
-              onStatusChange={handleStatusChange}
               viewMode="grid"
               onCoreToggle={handleCoreToggle}
               onRestart={handleRestartLab}
@@ -229,12 +262,11 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
     // List view
     return (
       <div className="grid grid-cols-1 space-y-4">
-        {filteredTodos.map((lab) => (
+        {filteredLabs.map((lab) => (
           <LabCard
             key={lab.id}
             lab={lab}
             onView={onSelectTodo}
-            onStatusChange={handleStatusChange}
             viewMode="list"
             onCoreToggle={handleCoreToggle}
             onRestart={handleRestartLab}
@@ -320,7 +352,7 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
         </div>
       </div>
 
-      {filteredTodos.length === 0 ? (
+      {filteredLabs.length === 0 ? (
         <div className="flex h-[calc(100vh-12rem)] flex-col items-center justify-center py-12 text-center">
           <h3 className="text-xl font-medium">No labs found</h3>
           <p className="text-muted-foreground mt-2">Create your first hands-on lab to start learning</p>

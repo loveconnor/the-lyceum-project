@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { BuildLabData } from "@/types/lab-templates";
 import { 
   ResizableHandle, 
@@ -12,7 +12,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { LabStepPanel } from "@/components/labs/lab-step-panel";
 import {
   Dialog,
@@ -24,25 +23,14 @@ import {
 } from "@/components/ui/dialog";
 import Editor from "@monaco-editor/react";
 import { 
-  Play, 
   CheckCircle2, 
-  Circle, 
   Lightbulb, 
-  MessageSquare, 
   Terminal,
-  HelpCircle,
-  Code2,
-  ChevronRight,
-  AlertCircle,
   Check,
-  Eye,
   Loader2,
-  ThumbsUp,
-  ThumbsDown,
   Info
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Textarea } from "@/components/ui/textarea";
 import { useLabAI } from "@/hooks/use-lab-ai";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
@@ -50,6 +38,7 @@ import { Markdown } from "@/components/ui/custom/prompt/markdown";
 import { EditorWidget, createEditorValue, extractPlainText } from "@/components/widgets";
 import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widget";
 import { CodeEditorWidget } from "@/components/widgets/code-editor-widget";
+import { LabLearningWidget, isLearnByDoingWidgetType } from "@/components/labs/lab-learning-widget";
 
 // Helper function to convert literal \n to actual newlines
 const convertNewlines = (text: string | undefined) => {
@@ -57,7 +46,7 @@ const convertNewlines = (text: string | undefined) => {
   return text.replace(/\\n/g, "\n");
 };
 
-const getFreshStarterCode = (language: string): string => {
+const getDefaultStarterCode = (language: string): string => {
   if (language === "python") {
     return "# Start coding here\n";
   }
@@ -74,6 +63,28 @@ function extractJSON<T>(text: string): T {
   return JSON.parse(cleaned) as T;
 }
 
+type StepFeedback = {
+  text: string;
+  approved: boolean;
+  correctIds?: string[];
+  incorrectIds?: string[];
+};
+
+type TestResult = {
+  passed: boolean;
+  description: string;
+  feedback?: string;
+};
+
+type BuildProgressData = {
+  stepResponses?: Record<string, string>;
+  code?: string;
+  testResults?: TestResult[];
+  output?: string[];
+  feedback?: StepFeedback;
+  completedStepCode?: Record<string, string>;
+};
+
 interface Step {
   id: string;
   title: string;
@@ -82,11 +93,109 @@ interface Step {
   keyQuestions?: string[];
   prompt?: string;
   requiresInput?: boolean;
-  widgets?: Array<{
-    type: "editor" | "multiple-choice" | "code-editor";
+  starterCode?: string;
+  skeletonCode?: string;
+  widgets: Array<{
+    type: string;
     config: any;
   }>;
 }
+
+type StepLikeWithStarter = {
+  starterCode?: string;
+  skeletonCode?: string;
+  widgets?: Array<{
+    type?: string;
+    config?: Record<string, unknown>;
+  }>;
+};
+
+const normalizeStarterCode = (value: string): string => value.replace(/\r\n/g, "\n");
+
+const toStarterCode = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? normalizeStarterCode(value) : null;
+};
+
+const getStepStarterCode = (step?: StepLikeWithStarter): string | null => {
+  if (!step) return null;
+
+  const directStarter =
+    toStarterCode(step.starterCode) ??
+    toStarterCode(step.skeletonCode);
+  if (directStarter) return directStarter;
+
+  if (!Array.isArray(step.widgets)) return null;
+  for (const widget of step.widgets) {
+    if (widget?.type !== "code-editor") continue;
+    const config = widget.config ?? {};
+    const widgetStarter =
+      toStarterCode(config.starterCode) ??
+      toStarterCode(config.starter_code) ??
+      toStarterCode(config.skeletonCode);
+    if (widgetStarter) return widgetStarter;
+  }
+
+  return null;
+};
+
+const getDefaultWidgetsForStep = (stepId: string, stepTitle: string, prompt?: string): Step["widgets"] => {
+  const normalized = `${stepId} ${stepTitle}`.toLowerCase();
+  const isPrimaryCodeStep =
+    normalized.includes("implement") ||
+    normalized.includes("code") ||
+    normalized.includes("write");
+  const isCodeReviewStep = normalized.includes("test") || normalized.includes("debug");
+
+  if (isPrimaryCodeStep || isCodeReviewStep) {
+    const widgets: Step["widgets"] = [
+      {
+        type: "code-editor",
+        config: {
+          label: "Implementation",
+          description: prompt || "Write and run your solution."
+        }
+      }
+    ];
+
+    if (isCodeReviewStep) {
+      widgets.push({
+        type: "editor",
+        config: {
+          label: "Testing Notes",
+          placeholder: "Summarize test results and debugging observations...",
+          description: prompt
+        }
+      });
+    }
+
+    return widgets;
+  }
+
+  return [
+    {
+      type: "editor",
+      config: {
+        label: "Your Response",
+        placeholder: "Type your answer here...",
+        description: prompt
+      }
+    }
+  ];
+};
+
+const ensureBuildStepWidgets = (
+  stepId: string,
+  stepTitle: string,
+  widgets: Step["widgets"] | undefined,
+  prompt?: string
+): Step["widgets"] => {
+  if (widgets && widgets.length > 0) {
+    return widgets;
+  }
+  return getDefaultWidgetsForStep(stepId, stepTitle, prompt);
+};
 
 const INITIAL_STEPS = (stepPrompts?: BuildLabData['stepPrompts'], aiSteps?: BuildLabData['steps']): Step[] => {
   // If AI-generated steps exist, use them
@@ -99,14 +208,22 @@ const INITIAL_STEPS = (stepPrompts?: BuildLabData['stepPrompts'], aiSteps?: Buil
       keyQuestions: step.keyQuestions,
       prompt: step.prompt,
       requiresInput: true,
-      widgets: (step as any).widgets
+      starterCode: step.starterCode,
+      skeletonCode: step.skeletonCode,
+      widgets: ensureBuildStepWidgets(step.id, step.title, step.widgets as Step["widgets"] | undefined, step.prompt)
     }));
   }
   
   // Otherwise use legacy format
   if (!stepPrompts) {
     return [
-      { id: "implement", title: "Implement", status: "current", prompt: "Write your solution in the code editor" }
+      {
+        id: "implement",
+        title: "Implement",
+        status: "current",
+        prompt: "Write your solution in the code editor",
+        widgets: getDefaultWidgetsForStep("implement", "Implement", "Write your solution in the code editor")
+      }
     ];
   }
   
@@ -116,34 +233,39 @@ const INITIAL_STEPS = (stepPrompts?: BuildLabData['stepPrompts'], aiSteps?: Buil
       title: "Understand problem", 
       status: "current",
       prompt: stepPrompts.understand,
-      requiresInput: true
+      requiresInput: true,
+      widgets: getDefaultWidgetsForStep("understand", "Understand problem", stepPrompts.understand)
     },
     { 
       id: "design", 
       title: "Design approach", 
       status: "pending",
       prompt: stepPrompts.design,
-      requiresInput: true
+      requiresInput: true,
+      widgets: getDefaultWidgetsForStep("design", "Design approach", stepPrompts.design)
     },
     { 
       id: "implement", 
       title: "Implement", 
       status: "pending",
-      prompt: "Write your solution in the code editor"
+      prompt: "Write your solution in the code editor",
+      widgets: getDefaultWidgetsForStep("implement", "Implement", "Write your solution in the code editor")
     },
     { 
       id: "test", 
       title: "Test & debug", 
       status: "pending",
       prompt: stepPrompts.test,
-      requiresInput: true
+      requiresInput: true,
+      widgets: getDefaultWidgetsForStep("test", "Test & debug", stepPrompts.test)
     },
     { 
       id: "explain", 
       title: "Explain solution", 
       status: "pending",
       prompt: stepPrompts.explain,
-      requiresInput: true
+      requiresInput: true,
+      widgets: getDefaultWidgetsForStep("explain", "Explain solution", stepPrompts.explain)
     },
   ];
 };
@@ -165,10 +287,13 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
   // Ensure language is valid, fallback to detecting from code or default to java
   const detectedLanguage = language || 'java';
   
-  const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS(stepPrompts, aiSteps));
-  const [code, setCode] = useState(
-    () => (aiSteps && aiSteps.length > 0 ? getFreshStarterCode(detectedLanguage) : initialCode)
-  );
+  const [steps, setSteps] = useState<Step[]>(() => INITIAL_STEPS(stepPrompts, aiSteps));
+  const [code, setCode] = useState(() => {
+    const initialSteps = INITIAL_STEPS(stepPrompts, aiSteps);
+    const firstStepStarterCode = getStepStarterCode(initialSteps[0]);
+    const normalizedInitialCode = initialCode.trim().length > 0 ? initialCode : "";
+    return firstStepStarterCode || normalizedInitialCode || getDefaultStarterCode(detectedLanguage);
+  });
   const [output, setOutput] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [commandInput, setCommandInput] = useState("");
@@ -181,7 +306,7 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
   const [completedStepCode, setCompletedStepCode] = useState<Record<string, string>>({});
   
   // AI feedback state
-  const [stepFeedback, setStepFeedback] = useState<Record<string, { text: string; approved: boolean; correctIds?: string[]; incorrectIds?: string[] }>>({});
+  const [stepFeedback, setStepFeedback] = useState<Record<string, StepFeedback>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { getAssistance, loading: aiLoading } = useLabAI(labId);
   const currentStepRef = React.useRef<HTMLButtonElement>(null);
@@ -190,31 +315,14 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
   const [showLabOverview, setShowLabOverview] = useState(false);
   const [hasLoadedProgress, setHasLoadedProgress] = useState(false);
   
-  // Get file extension based on language
-  const getFileExtension = () => {
-    const extensions: Record<string, string> = {
-      javascript: 'js',
-      typescript: 'ts',
-      python: 'py',
-      java: 'java',
-      cpp: 'cpp',
-      c: 'c',
-      csharp: 'cs',
-      go: 'go',
-      rust: 'rs',
-      ruby: 'rb'
-    };
-    return extensions[detectedLanguage] || 'java';
-  };
-  
   // Extract method implementation from code for a specific step
-  const extractMethodFromCode = (fullCode: string, stepId: string): string => {
+  const extractMethodFromCode = useCallback((fullCode: string, stepId: string): string => {
     const stepData = aiSteps?.find(s => s.id === stepId);
-    if (!stepData || !(stepData as any).skeletonCode) return fullCode;
+    const stepStarter = getStepStarterCode(stepData);
+    if (!stepData || !stepStarter) return fullCode;
     
-    // Get the method signature from skeleton to identify what to extract
-    const skeleton = (stepData as any).skeletonCode;
-    const lines = skeleton.split('\n');
+    // Get method signature from the step scaffold to identify extraction target.
+    const lines = stepStarter.split('\n');
     const signatureLine = lines.find((l: string) => l.includes('(') && (l.includes('public') || l.includes('private') || l.includes('protected')));
     
     if (!signatureLine) return fullCode;
@@ -249,7 +357,6 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
     // Find the closing brace of this method
     let braceCount = 0;
     let methodEndIndex = methodStartIndex;
-    let foundOpenBrace = false;
     let inMethod = false;
     
     for (let i = methodStartIndex; i < codeLines.length; i++) {
@@ -258,7 +365,6 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
       for (const char of line) {
         if (char === '{') {
           braceCount++;
-          foundOpenBrace = true;
           inMethod = true;
         } else if (char === '}') {
           braceCount--;
@@ -297,10 +403,10 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
       }
       return line;
     }).join('\n');
-  };
+  }, [aiSteps]);
   
   // Compose code from completed steps + current step skeleton
-  const getComposedCode = () => {
+  const getComposedCode = useCallback(() => {
     const currentStepIndex = steps.findIndex(s => s.status === "current");
     if (currentStepIndex === -1) return code;
     
@@ -334,7 +440,7 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
       }
     }
     
-    // Add skeleton or saved code for current step
+    // Add step starter scaffold or saved code for current step
     const currentStep = steps[currentStepIndex];
     
     // Check if we already have completed code for this step
@@ -342,19 +448,19 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
       composedLines.push(completedStepCode[currentStep.id]);
       composedLines.push(''); // Empty line after method
     } else {
-      const currentStepData = aiSteps?.find(s => s.id === currentStep.id);
-      if (currentStepData && (currentStepData as any).skeletonCode) {
-        const skeletonCode = (currentStepData as any).skeletonCode;
-        // Ensure skeleton has proper indentation
-        const skeletonLines = skeletonCode.split('\n').map((line: string) => {
+      const currentStepData = aiSteps?.find((s) => s.id === currentStep.id);
+      const starterCode = getStepStarterCode(currentStepData ?? currentStep);
+      if (starterCode) {
+        // Ensure scaffold has proper indentation
+        const starterLines = starterCode.split('\n').map((line: string) => {
           if (line.trim() === '') return '';
           if (line[0] !== ' ' && line[0] !== '\t') {
             return '  ' + line;
           }
           return line;
         });
-        composedLines.push(skeletonLines.join('\n'));
-        composedLines.push(''); // Empty line after skeleton
+        composedLines.push(starterLines.join('\n'));
+        composedLines.push(''); // Empty line after scaffold
       }
     }
     
@@ -364,59 +470,10 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
     }
     
     return composedLines.join('\n');
-  };
+  }, [steps, aiSteps, initialCode, completedStepCode, code]);
   
-  // Explanation step fields
-  const [timeComplexity, setTimeComplexity] = useState("");
-  const [complexityJustification, setComplexityJustification] = useState("");
-  const [testResults, setTestResults] = useState<Array<{ passed: boolean; description: string; feedback?: string }>>([]);
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isLoadingProgress, setIsLoadingProgress] = useState(true);
-
-  // Helper function to auto-wrap math notation for preview
-  const previewWithMath = (text: string): string => {
-    // If already has $ signs, return as is
-    if (text.includes('$')) return text;
-    
-    // If it contains LaTeX commands or complex operators and is relatively short,
-    // treat the whole thing as a single mathematical expression.
-    const words = text.trim().split(/\s+/);
-    const hasComplexMath = /\\|[\^_{}]/.test(text);
-    if (hasComplexMath && words.length <= 5) {
-      return `$${text.trim()}$`;
-    }
-    
-    // Split by periods and newlines to handle sentences separately
-    const sentences = text.split(/([.!?\n]+)/);
-    
-    return sentences.map(sentence => {
-      // Check if this sentence/fragment contains math patterns
-      const hasMathOperators = /[\^*/+\-=\\__{}]|sin|cos|tan|log|ln|sqrt|exp|lim|int|sum|prod|alpha|beta|gamma|delta|theta|pi/i.test(sentence);
-      
-      if (hasMathOperators) {
-        // Wrap entire mathematical expressions in inline math
-        return sentence
-          // Wrap expressions with operators or LaTeX commands
-          .replace(/((?:[a-zA-Z0-9()\s\^*/+\-=\\__{}]+)?(?:sin|cos|tan|log|ln|sqrt|exp|int|sum|prod|lim|frac|partial|alpha|beta|gamma|delta|theta|pi)[a-zA-Z0-9()\s\^*/+\-=\\__{}]*)/gi, (match) => {
-            // Don't wrap if it's just plain words without operators or backslashes
-            if (/[\^*/+\-=\\__{}]/.test(match) || /sin|cos|tan|log|ln|sqrt|exp|int|sum|prod|lim|frac|partial|\\/.test(match)) {
-              // If it's just a word like "integral" or "sum" without operators, don't wrap
-              if (/^[a-zA-Z]+$/.test(match.trim()) && !/sin|cos|tan|log|ln|sqrt|exp/.test(match.trim())) {
-                return match;
-              }
-              return `$${match.trim()}$`;
-            }
-            return match;
-          })
-          // Catch remaining patterns: standalone x^2, e^x, etc.
-          .replace(/\b([a-zA-Z]+\^[a-zA-Z0-9]+)\b/g, '$$$1$$')
-          .replace(/\b([a-zA-Z]+_[a-zA-Z0-9]+)\b/g, '$$$1$$') // subscripts
-          // Clean up double wrapping
-          .replace(/\$\$+/g, '$');
-      }
-      
-      return sentence;
-    }).join('');
-  };
 
   // Load progress when component mounts
   React.useEffect(() => {
@@ -433,46 +490,47 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
         if (progress && progress.length > 0) {
           setHasLoadedProgress(true);
           // Restore step feedback from all progress entries
-          const feedbackMap: Record<string, any> = {};
-          progress.forEach((p: any) => {
-            if (p.step_data?.feedback) {
-              feedbackMap[p.step_id] = p.step_data.feedback;
+          const feedbackMap: Record<string, StepFeedback> = {};
+          progress.forEach((p) => {
+            const stepData = p.step_data as Partial<BuildProgressData> | undefined;
+            if (stepData?.feedback) {
+              feedbackMap[p.step_id] = stepData.feedback;
             }
           });
           setStepFeedback(feedbackMap);
 
           // Sort progress by timestamp to get the most recent
           const sortedProgress = [...progress].sort((a, b) => {
-            const timeA = new Date(a.updated_at || a.created_at).getTime();
-            const timeB = new Date(b.updated_at || b.created_at).getTime();
+            const timeA = new Date(a.updated_at).getTime();
+            const timeB = new Date(b.updated_at).getTime();
             return timeB - timeA;
           });
           
           const mostRecent = sortedProgress[0];
-          const latestStepId = mostRecent?.step_id;
+          const mostRecentData = mostRecent?.step_data as Partial<BuildProgressData> | undefined;
           
           // Restore data from most recent progress entry
-          if (mostRecent?.step_data) {
-            if (mostRecent.step_data.stepResponses) {
-              setStepResponses(mostRecent.step_data.stepResponses);
+          if (mostRecentData) {
+            if (mostRecentData.stepResponses) {
+              setStepResponses(mostRecentData.stepResponses);
             }
-            if (mostRecent.step_data.code) {
-              setCode(mostRecent.step_data.code);
+            if (mostRecentData.code) {
+              setCode(mostRecentData.code);
             }
-            if (mostRecent.step_data.testResults) {
-              setTestResults(mostRecent.step_data.testResults);
+            if (mostRecentData.testResults) {
+              setTestResults(mostRecentData.testResults);
             }
-            if (mostRecent.step_data.output) {
-              setOutput(mostRecent.step_data.output);
+            if (mostRecentData.output) {
+              setOutput(mostRecentData.output);
             }
-            if (mostRecent.step_data.completedStepCode) {
-              setCompletedStepCode(mostRecent.step_data.completedStepCode);
+            if (mostRecentData.completedStepCode) {
+              setCompletedStepCode(mostRecentData.completedStepCode);
             }
           }
 
           // Restore step completion status
-          const completedStepIds = progress.filter((p: any) => p.completed).map((p: any) => p.step_id);
-          const stepsWithProgress = progress.map((p: any) => p.step_id);
+          const completedStepIds = progress.filter((p) => p.completed).map((p) => p.step_id);
+          const stepsWithProgress = progress.map((p) => p.step_id);
           
           // Mark all steps with progress as accessed
           setAccessedSteps(new Set(stepsWithProgress));
@@ -491,10 +549,12 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
               newSteps[firstIncomplete] = { ...newSteps[firstIncomplete], status: "current" as const };
             } else {
               // All steps are completed - show completion modal if not already shown
-              if (!hasShownCompletionModal) {
-                setTimeout(() => setShowCompletionModal(true), 500);
-                setHasShownCompletionModal(true);
-              }
+              setHasShownCompletionModal((alreadyShown) => {
+                if (!alreadyShown) {
+                  setTimeout(() => setShowCompletionModal(true), 500);
+                }
+                return true;
+              });
             }
             
             return newSteps;
@@ -535,38 +595,6 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
     const currentStep = steps.find(s => s.status === "current");
     if (currentStep) {
       setAccessedSteps(prev => new Set([...prev, currentStep.id]));
-    }
-  }, [steps]);
-
-  // Auto-save code and responses when they change (debounced)
-  React.useEffect(() => {
-    if (!labId || isLoadingProgress) return;
-    
-    const currentStep = steps.find(s => s.status === "current");
-    if (!currentStep) return;
-
-    const timer = setTimeout(() => {
-      saveProgress(currentStep.id, false);
-    }, 2000); // Auto-save after 2 seconds of no typing
-
-    return () => clearTimeout(timer);
-  }, [code, stepResponses, labId, isLoadingProgress]);
-
-  // Add main method when entering test/debug step
-  React.useEffect(() => {
-    const currentStep = steps.find(s => s.status === "current");
-    if (!currentStep) return;
-    
-    const isTestDebugStep = currentStep.id.includes("test") || currentStep.id.includes("debug");
-    if (isTestDebugStep && detectedLanguage === "java" && !code.includes("public static void main")) {
-      // Add main method for Java
-      const mainMethod = `\n\n    public static void main(String[] args) {\n        // Test your methods here\n        int[] numbers = {1, 2, 3, 4, 5, 6};\n        System.out.println("Sum of even numbers: " + sumEven(numbers));\n        System.out.println("Maximum value: " + findMax(numbers));\n    }`;
-      
-      // Insert before last closing brace
-      const lastBraceIndex = code.lastIndexOf("}");
-      if (lastBraceIndex !== -1) {
-        setCode(code.slice(0, lastBraceIndex) + mainMethod + "\n" + code.slice(lastBraceIndex));
-      }
     }
   }, [steps]);
 
@@ -768,7 +796,7 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
     setCommandInput("");
   };
 
-  const saveProgress = async (stepId: string, completed: boolean = false) => {
+  const saveProgress = useCallback(async (stepId: string, completed: boolean = false) => {
     if (!labId || !stepId) return;
     
     try {
@@ -788,9 +816,23 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
     } catch (error) {
       console.error("Failed to save progress:", error);
     }
-  };
+  }, [labId, stepResponses, code, testResults, output, stepFeedback, completedStepCode]);
 
-  const markLabComplete = async () => {
+  // Auto-save code and responses when they change (debounced)
+  React.useEffect(() => {
+    if (isLoadingProgress) return;
+
+    const currentStep = steps.find(s => s.status === "current");
+    if (!currentStep) return;
+
+    const timer = setTimeout(() => {
+      void saveProgress(currentStep.id, false);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [isLoadingProgress, saveProgress, steps]);
+
+  const markLabComplete = useCallback(async () => {
     if (!labId) return;
     
     try {
@@ -803,9 +845,9 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
     } catch (error) {
       console.error("Failed to mark lab as complete:", error);
     }
-  };
+  }, [labId]);
 
-  const completeStep = async (id: string, skipTestDebug: boolean = false) => {
+  const completeStep = useCallback(async (id: string, skipTestDebug: boolean = false) => {
     // Extract and save just the method implementation for this step
     const methodCode = extractMethodFromCode(code, id);
     setCompletedStepCode(prev => ({
@@ -862,7 +904,7 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
       await markLabComplete();
       setTimeout(() => setShowCompletionModal(true), 500);
     }
-  };
+  }, [code, hasShownCompletionModal, markLabComplete, saveProgress, extractMethodFromCode]);
 
   const handleSubmit = async () => {
     const currentStep = steps.find(s => s.status === "current");
@@ -872,8 +914,13 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
     const choiceResponse = stepResponses[`${currentStep.id}-choice`];
     const explainResponse = stepResponses[`${currentStep.id}-explain`];
     const stepName = currentStep.title;
+    const hasLearnByDoingWidget = currentStep.widgets?.some((w) => isLearnByDoingWidgetType(w.type));
 
-    const hasResponse = userResponse?.trim() || choiceResponse?.trim() || explainResponse?.trim();
+    const hasResponse =
+      userResponse?.trim() ||
+      choiceResponse?.trim() ||
+      explainResponse?.trim() ||
+      hasLearnByDoingWidget;
 
     if (!hasResponse && currentStep.requiresInput) {
       toast.error("Please provide an answer before submitting");
@@ -907,9 +954,18 @@ Analyze the code and determine which tests would pass or fail. Respond in JSON f
     }
 
     if (explainResponse) studentWork += `Explanation: ${explainResponse}\n`;
+    if (!studentWork && hasLearnByDoingWidget) {
+      studentWork += "Completed an interactive widget activity.\n";
+    }
 
     const hasTextInput = currentStep.widgets 
-      ? currentStep.widgets.some(w => w.type === 'editor' || (w.type === 'multiple-choice' && w.config.showExplanation))
+      ? currentStep.widgets.some(
+          (w) =>
+            w.type === "editor" ||
+            w.type === "short_answer" ||
+            w.type === "ShortAnswer" ||
+            (w.type === "multiple-choice" && w.config.showExplanation)
+        )
       : !!currentStep.requiresInput;
     
     const prompt = `You are a coding instructor reviewing a student's ${stepName.toLowerCase()} for learning to code.
@@ -1004,9 +1060,21 @@ Approve if they show reasonable understanding or selected the correct option. If
   };
 
   const currentStep = steps.find(s => s.status === "current") || steps[steps.length - 1];
+
+  React.useEffect(() => {
+    if (!currentStep) return;
+    const win = window as any;
+    win.__markStepComplete = () => {
+      void completeStep(currentStep.id);
+    };
+    return () => {
+      if (win.__markStepComplete) {
+        delete win.__markStepComplete;
+      }
+    };
+  }, [currentStep, completeStep]);
   
-  // Update code when step changes to show composed code (completed steps + current skeleton)
-  // But only if we're using AI-generated steps with skeleton code
+  // Update code when step changes to show composed code (completed steps + current scaffold).
   React.useEffect(() => {
     if (isLoadingProgress) return; // Wait for progress to finish loading
     
@@ -1022,33 +1090,18 @@ Approve if they show reasonable understanding or selected the correct option. If
     if (isFreshFirstStep) return;
     
     if (currentStep && aiSteps && aiSteps.length > 0) {
-      // Check if current step has skeleton code defined
-      const currentStepData = aiSteps.find(s => s.id === currentStep.id);
-      const hasSkeletonCode = currentStepData && (currentStepData as any).skeletonCode;
+      const currentStepData = aiSteps.find((s) => s.id === currentStep.id);
+      const hasStarterCode = Boolean(getStepStarterCode(currentStepData ?? currentStep));
       
-      // Only compose if we have skeleton code structure
-      if (hasSkeletonCode) {
+      if (hasStarterCode) {
         const composed = getComposedCode();
         setCode(composed);
       }
     }
-  }, [currentStep?.id, completedStepCode, hasLoadedProgress, isLoadingProgress, steps]);
+  }, [aiSteps, completedStepCode, currentStep, getComposedCode, hasLoadedProgress, isLoadingProgress, steps]);
   
-  // Determine if code editor should be read-only
-  // Only allow editing during "implement" type steps or steps without text input requirements
-  const isCodeEditable = currentStep && (
-    currentStep.id === "implement" || 
-    currentStep.id.includes("implement") ||
-    currentStep.id.includes("code") ||
-    currentStep.id.includes("write") ||
-    currentStep.id.includes("test") ||
-    currentStep.id.includes("debug") ||
-    !currentStep.requiresInput ||
-    currentStep.widgets?.some(w => w.type === "code-editor")
-  );
-
-  const hasCodeEditor = currentStep?.widgets?.some(w => w.type === "code-editor") || 
-                        (!currentStep?.widgets && (currentStep?.id.includes("implement") || currentStep?.id.includes("code") || currentStep?.id.includes("write") || currentStep?.id.includes("test") || currentStep?.id.includes("debug")));
+  const hasCodeEditor = Boolean(currentStep?.widgets.some((w) => w.type === "code-editor"));
+  const isCodeEditable = hasCodeEditor;
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground rounded-xl border shadow-sm">
@@ -1143,6 +1196,16 @@ Approve if they show reasonable understanding or selected the correct option. If
                                     correctIds={currentFeedback?.correctIds}
                                     incorrectIds={currentFeedback?.incorrectIds}
                                     disabled={isSubmitting || aiLoading || currentFeedback?.approved}
+                                  />
+                                );
+                              }
+                              if (isLearnByDoingWidgetType(widget.type)) {
+                                return (
+                                  <LabLearningWidget
+                                    key={idx}
+                                    widgetType={widget.type}
+                                    config={widget.config}
+                                    widgetKey={`${currentStep.id}-lbd-${idx}`}
                                   />
                                 );
                               }
@@ -1420,6 +1483,16 @@ Approve if they show reasonable understanding or selected the correct option. If
                                 correctIds={currentFeedback?.correctIds}
                                 incorrectIds={currentFeedback?.incorrectIds}
                                 disabled={isSubmitting || aiLoading || currentFeedback?.approved}
+                              />
+                            );
+                          }
+                          if (isLearnByDoingWidgetType(widget.type)) {
+                            return (
+                              <LabLearningWidget
+                                key={idx}
+                                widgetType={widget.type}
+                                config={widget.config}
+                                widgetKey={`${currentStep.id}-lbd-${idx}`}
                               />
                             );
                           }

@@ -5,6 +5,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getLabAIAssistance = exports.generateLab = void 0;
 const openai_1 = __importDefault(require("openai"));
+const lab_template_normalizer_1 = require("./lab-template-normalizer");
+const logger_1 = require("./logger");
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 const USE_OLLAMA = process.env.USE_OLLAMA === 'true';
@@ -44,6 +46,216 @@ const tryParseJson = (text) => {
         return null;
     }
 };
+const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
+const asString = (value) => (typeof value === 'string' ? value.trim() : '');
+const toStringArray = (value) => {
+    if (!Array.isArray(value))
+        return [];
+    return value
+        .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+        .filter((entry) => entry.length > 0);
+};
+const GENERIC_STEP_TITLE_PATTERNS = [
+    /^step\s*\d+/i,
+    /understand the problem/i,
+    /plan (the|your) approach/i,
+    /implement solution/i,
+    /analyze (the )?patterns?/i,
+    /draw conclusions/i,
+    /consider limitations/i,
+    /review (your )?work/i,
+    /reflect/i,
+    /finalize/i,
+];
+const getStepSummaries = (templateData) => {
+    if (!isRecord(templateData) || !Array.isArray(templateData.steps))
+        return [];
+    return templateData.steps
+        .map((step) => {
+        if (!isRecord(step))
+            return null;
+        return {
+            title: asString(step.title),
+            instruction: asString(step.instruction),
+            keyQuestionCount: toStringArray(step.keyQuestions).length,
+        };
+    })
+        .filter((step) => Boolean(step));
+};
+const isGenericStepTitle = (title) => {
+    const normalized = title.trim();
+    if (!normalized)
+        return true;
+    return GENERIC_STEP_TITLE_PATTERNS.some((pattern) => pattern.test(normalized));
+};
+const extractCoveredConceptsFromContext = (context) => {
+    if (!context)
+        return [];
+    const marker = 'CONCEPTS COVERED IN PREVIOUS MODULES';
+    const markerIndex = context.indexOf(marker);
+    if (markerIndex === -1)
+        return [];
+    const tail = context.slice(markerIndex + marker.length);
+    const stopMarkers = ['FUTURE MODULE CONCEPTS', 'PROGRAMMING FEATURE GATES', 'IMPORTANT:'];
+    const stopIndex = stopMarkers
+        .map((stopMarker) => tail.indexOf(stopMarker))
+        .filter((index) => index >= 0)
+        .sort((a, b) => a - b)[0];
+    const conceptBlock = stopIndex == null ? tail : tail.slice(0, stopIndex);
+    const concepts = conceptBlock
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith('- '))
+        .map((line) => line.slice(2).trim())
+        .filter((line) => line.length > 0);
+    const uniqueConcepts = new Set();
+    const result = [];
+    for (const concept of concepts) {
+        const key = concept.toLowerCase();
+        if (uniqueConcepts.has(key))
+            continue;
+        uniqueConcepts.add(key);
+        result.push(concept);
+        if (result.length >= 40)
+            break;
+    }
+    return result;
+};
+const validateGeneratedTemplate = (templateType, templateData, context, learningGoal) => {
+    const issues = [];
+    if (!isRecord(templateData)) {
+        return ['Template payload is not an object.'];
+    }
+    if (templateType === 'explore') {
+        const parameters = Array.isArray(templateData.parameters) ? templateData.parameters : [];
+        const guidingQuestions = toStringArray(templateData.guidingQuestions);
+        if (parameters.length < 2) {
+            issues.push('Explore labs need at least 2 parameters for meaningful experimentation.');
+        }
+        if (guidingQuestions.length < 3) {
+            issues.push('Explore labs need at least 3 guiding questions.');
+        }
+        const coveredConcepts = extractCoveredConceptsFromContext(context);
+        if (coveredConcepts.length > 0) {
+            const alignedQuestion = guidingQuestions.some((question) => {
+                const questionText = question.toLowerCase();
+                return coveredConcepts.some((concept) => {
+                    const normalized = concept.toLowerCase();
+                    return normalized.length >= 3 && questionText.includes(normalized);
+                });
+            });
+            if (!alignedQuestion) {
+                issues.push('Explore guiding questions do not reference covered concepts from path context.');
+            }
+        }
+        return issues;
+    }
+    const steps = getStepSummaries(templateData);
+    if (steps.length < 3) {
+        issues.push('Labs need at least 3 instructional steps.');
+        return issues;
+    }
+    const genericTitleCount = steps.filter((step) => isGenericStepTitle(step.title)).length;
+    if (genericTitleCount >= Math.ceil(steps.length / 2)) {
+        issues.push('Step titles are too generic; they must be specific to the learning goal and context.');
+    }
+    const instructionCoverage = steps.filter((step) => step.instruction.length >= 24).length;
+    if (instructionCoverage < Math.ceil(steps.length / 2)) {
+        issues.push('Most steps are missing detailed instructions.');
+    }
+    const keyQuestionCoverage = steps.filter((step) => step.keyQuestionCount > 0).length;
+    if (keyQuestionCoverage === 0) {
+        issues.push('No steps include keyQuestions to guide learner reasoning.');
+    }
+    const coveredConcepts = extractCoveredConceptsFromContext(context);
+    if (coveredConcepts.length > 0) {
+        const alignedSteps = steps.filter((step) => {
+            const stepText = `${step.title} ${step.instruction}`.toLowerCase();
+            return coveredConcepts.some((concept) => {
+                const normalized = concept.toLowerCase();
+                return normalized.length >= 3 && stepText.includes(normalized);
+            });
+        });
+        if (alignedSteps.length === 0) {
+            issues.push('No steps explicitly reference covered concepts from path context.');
+        }
+    }
+    if (templateType === 'build') {
+        const goalText = (learningGoal ?? '').toLowerCase();
+        const explicitlyTargetsMethodsOrClasses = /\b(method|methods|function|functions|class|classes|oop|object-oriented|constructor|constructors|api design)\b/.test(goalText);
+        const normalizedTemplate = isRecord(templateData) ? templateData : {};
+        const problemText = asString(normalizedTemplate.problemStatement).toLowerCase();
+        const stepText = steps
+            .map((step) => `${step.title} ${step.instruction}`.toLowerCase())
+            .join('\n');
+        const combinedText = `${problemText}\n${stepText}`;
+        const requiresMethodOrClassAuthoring = /\b(write|implement|create|define)\s+(?:a\s+|an\s+|new\s+)?(?:public\s+|private\s+|protected\s+|static\s+)*(?:method|function|class|constructor)\b/.test(combinedText) ||
+            /\bstatic utility methods?\b/.test(combinedText);
+        if (!explicitlyTargetsMethodsOrClasses && requiresMethodOrClassAuthoring) {
+            issues.push('Build lab requires learner-authored methods/classes by default; prefer statement-level scaffolding unless the learning goal explicitly targets methods/classes.');
+        }
+    }
+    return issues;
+};
+const parseQualityIssuesFromMessage = (message) => {
+    const prefix = 'Generated lab failed quality gate:';
+    if (!message.startsWith(prefix))
+        return [];
+    return message
+        .slice(prefix.length)
+        .split('|')
+        .map((issue) => issue.trim())
+        .filter((issue) => issue.length > 0);
+};
+const toIssueKey = (issue) => issue
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80);
+const hasAny = (text, patterns) => patterns.some((pattern) => pattern.test(text));
+const inferTemplateTypeFromLearningGoal = (learningGoal) => {
+    const normalizedGoal = learningGoal.toLowerCase().trim();
+    if (!normalizedGoal)
+        return null;
+    const codingIntentPatterns = [
+        /\b(code|coding|program|programming|implement|debug|algorithm|leetcode|kata)\b/,
+        /\b(javascript|typescript|python|java|c\+\+|cpp|c#|go|rust|swift|kotlin)\b/,
+        /\b(function|method|class|api|endpoint|sql|database|frontend|backend)\b/,
+    ];
+    const explainCodePatterns = [
+        /\bexplain\b.*\b(code|function|method|class|script)\b/,
+        /\b(code|function|method|class|script)\b.*\b(explain|understand|review|analy[sz]e)\b/,
+    ];
+    const mathDerivePatterns = [
+        /\bvector(s)?\b/,
+        /\bmatrix|matrices\b/,
+        /\blinear algebra|dot product|cross product\b/,
+        /\bderivative|differentiat|integral|limit|proof|theorem\b/,
+        /\beigen|determinant|magnitude|unit vector|projection\b/,
+    ];
+    const dataAnalyzePatterns = [
+        /\bdataset|csv|table|chart|graph|visuali[sz]e|statistics|correlation|regression\b/,
+    ];
+    const explorePatterns = [
+        /\bsimulation|simulate|what[- ]if|parameter|experiment|scenario\b/,
+    ];
+    const revisePatterns = [
+        /\bessay|paragraph|writing|revise|edit|grammar|thesis|draft\b/,
+    ];
+    if (hasAny(normalizedGoal, explainCodePatterns))
+        return "explain";
+    if (hasAny(normalizedGoal, revisePatterns))
+        return "revise";
+    if (hasAny(normalizedGoal, dataAnalyzePatterns))
+        return "analyze";
+    if (hasAny(normalizedGoal, explorePatterns) && !hasAny(normalizedGoal, codingIntentPatterns))
+        return "explore";
+    if (hasAny(normalizedGoal, mathDerivePatterns) && !hasAny(normalizedGoal, codingIntentPatterns))
+        return "derive";
+    if (hasAny(normalizedGoal, codingIntentPatterns))
+        return "build";
+    return null;
+};
 const TEMPLATE_SELECTION_PROMPT = `You are a lab template selector for Lyceum, an educational platform. Your job is to choose the best template type for a learning goal.
 
 Available templates:
@@ -56,6 +268,7 @@ Available templates:
 
 Key distinctions: 
 - Use "build" when the learner wants to WRITE code to learn (e.g., "learn how to write X", "practice coding Y").
+- For math-first goals (e.g., "vector addition", "dot product", "matrix multiplication"), prefer "derive" unless coding is explicitly requested.
 - Use "explain" only when analyzing EXISTING code.
 - Use "explore" for non-coding interactive learning (science, simulations, parameter testing).
 - Use "revise" for any writing or text-based learning goals.
@@ -74,16 +287,26 @@ const TEMPLATE_GENERATORS = {
   "estimated_duration": number (in minutes),
   "topics": string[],
   "data": {
-    "question": "Research question to answer",
     "dataset": {
       "name": "Dataset name",
-      "description": "What the data represents",
-      "source": "Data source",
-      "columns": ["column1", "column2", ...],
+      "columns": [
+        {
+          "key": "column_key",
+          "label": "Human-readable label",
+          "type": "number" | "string" | "date"
+        }
+      ],
       "rows": [
         {"column1": value, "column2": value, ...},
         ...
       ]
+    },
+    "availableVariables": ["column_key_1", "column_key_2", ...],
+    "guidingQuestions": {
+      "question": "Research question to answer",
+      "patterns": "What pattern should the learner investigate?",
+      "conclusions": "What claim should they justify?",
+      "limitations": "What limitations should they reflect on?"
     },
     "steps": [
       {
@@ -155,6 +378,7 @@ Available chart types: bar, line, scatter, area, pie, histogram, heatmap.`,
         "title": "Step title",
         "instruction": "Clear markdown explanation of what the learner should do in this step and why (THIS IS THE MAIN INSTRUCTIONAL TEXT - always include this)",
         "keyQuestions": ["Key question 1?", "Key question 2?"],
+        "starterCode": "// Optional: step-specific starter snippet if this step needs one (e.g., method signature + TODOs)",
         "skeletonCode": "// Skeleton code for THIS STEP ONLY (minimal scaffold needed for this step)",
         "widgets": [
           // WIDGETS ARE OPTIONAL - only include if the step requires interactive input beyond writing code
@@ -200,6 +424,14 @@ PEDAGOGICAL SCOPE GUARD:
 - If context says methods/functions are not in scope, DO NOT create steps that ask learners to define methods/functions.
 - If context says classes are not in scope, DO NOT create steps that ask learners to define classes/constructors.
 - In those cases, provide fixed scaffolding (if required by language/runtime) and keep learner work to statements, variables, expressions, conditionals, and loops that are already covered.
+
+DEFAULT AUTHORING SHAPE:
+- Unless the learning goal explicitly asks for methods/functions/classes, default to statement-level learner work inside provided scaffolding.
+- For Java in particular, prefer editing logic in an existing block (such as a provided main block) over asking learners to create new methods/classes.
+
+JAVA VARIETY GUARD:
+- For Java labs, do NOT default to the same arithmetic utility pattern (e.g., sum/product/difference/calculateMetrics) unless the learning goal explicitly asks for it.
+- Method names, class names, and task domain must be derived from the learning goal and context, not from canned templates.
 
 Instead, create 3-7 steps with titles that are SPECIFIC to the learning goal. Examples of good step titles:
 - For array iteration: "Write a for loop to sum array elements", "Handle empty array edge case", "Refactor using reduce()"
@@ -304,7 +536,7 @@ WIDGET CONFIGURATION DETAILS:
   Use for: 3D surfaces, parametric curves, mathematical visualizations
 
 Include 3-5 test cases with clear descriptions.
-Provide realistic starter code (5-15 lines) with function signature and helpful comments.
+Provide realistic starter code (5-15 lines) with minimal scaffolding aligned to the task. Do not force function/method signatures unless the learning goal requires them.
 
 CRITICAL - TEST CASES:
 Every step that includes a "code-editor" widget MUST have at least one corresponding test case in the "testCases" array.
@@ -322,6 +554,10 @@ For each step that involves coding, include a "skeletonCode" field with ONLY the
 - skeletonCode must be incomplete starter code (TODO placeholders), never a full solved answer
 - For a brand-new lab, first step skeleton should be minimal and should not fully complete the requested first-step objective
 - Keep each step's skeleton focused and concise
+
+CRITICAL - OPTIONAL STARTER CODE:
+- If a step needs method-level or block-level scaffolding, also include "starterCode" for that step.
+- starterCode should be short, incomplete, and specific to that step (for example: a block-level scaffold with TODO comments, or a method signature only when the goal requires method authoring).
 
 CRITICAL - STEP COUNT:
 - Choose the number of steps dynamically based on task complexity
@@ -575,36 +811,27 @@ Provide working, realistic code (10-30 lines).`,
   "estimated_duration": number (in minutes),
   "topics": string[],
   "data": {
-    "simulation": {
-      "title": "Simulation name",
-      "description": "What can be explored",
-      "scenario": "Starting scenario description"
-    },
-    "paramConfig": [
+    "parameters": [
       {
         "id": "param1",
         "label": "Parameter name",
         "min": number,
         "max": number,
-        "default": number,
+        "defaultValue": number,
         "step": number,
-        "unit": "unit",
-        "description": "What this controls"
+        "unit": "unit (optional)",
+        "hint": "What this controls"
       }
     ],
-    "hypothesis": "What learners should predict",
-    "steps": [
-      {
-        "id": "step1",
-        "title": "Exploration step",
-        "instructions": ["Do this", "Observe that"],
-        "questions": ["What happens when...", "Why does..."]
-      }
+    "guidingQuestions": [
+      "What happens when ... ?",
+      "Why does ... ?",
+      "Which parameter has the strongest effect?"
     ]
   }
 }
 CRITICAL - CREATE UNIQUE STEPS:
-Create 3-5 exploration steps with titles SPECIFIC to THIS simulation/topic. DO NOT use generic titles like "Explore Parameters" or "Observe the Results".
+Create 3-5 guiding questions SPECIFIC to THIS simulation/topic. DO NOT use generic prompts like "Explore Parameters" or "Observe the Results".
 
 Examples of good step titles based on simulation type:
 - For physics simulation: "Double the Mass and Measure Impact", "Find the Critical Velocity", "Compare Friction Coefficients"
@@ -620,31 +847,25 @@ Include 3-5 parameters with appropriate ranges for THIS specific simulation.`,
   "estimated_duration": number (in minutes),
   "topics": string[],
   "data": {
-    "writingTask": {
-      "title": "Writing task name",
-      "description": "What to write about",
-      "purpose": "Why this writing matters",
-      "audience": "Who will read this"
-    },
-    "originalDraft": "The draft text to revise (2-3 paragraphs)",
+    "initialDraft": "The draft text to revise (2-3 paragraphs)",
+    "targetAudience": "Who will read this",
+    "purpose": "Why this writing matters",
     "rubricCriteria": [
       {
         "id": "criteria1",
         "name": "Criterion name",
         "description": "What to evaluate",
-        "weight": "high" | "medium" | "low"
+        "guidanceQuestion": "What should the learner check for this criterion?",
+        "hint": "Actionable revision tip"
       }
     ],
-    "improvementAreas": [
-      {
-        "area": "Structure" | "Clarity" | "Argument" | etc,
-        "suggestions": ["suggestion1", "suggestion2"]
-      }
-    ],
+    "improvementAreas": ["Structure", "Clarity", "Evidence", ...],
     "steps": [
       {
         "id": "step1",
-        "focus": "What to revise",
+        "title": "Specific revision focus",
+        "instruction": "Clear, self-contained instruction for this step",
+        "keyQuestions": ["Question 1?", "Question 2?"],
         "prompt": "Guidance for this revision"
       }
     ]
@@ -663,41 +884,59 @@ Include a realistic draft with specific issues, 4-5 rubric criteria relevant to 
 const generateLab = async (request) => {
     const maxRetries = 2;
     let lastError;
+    const startedAt = Date.now();
+    const failureReasonCounts = {};
+    let selectedTemplateType = null;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
             if (attempt > 0) {
-                console.log(`Retrying lab generation (attempt ${attempt}/${maxRetries})...`);
+                logger_1.logger.info('lab-generation', `Retrying lab generation (attempt ${attempt + 1}/${maxRetries + 1})`, {
+                    details: {
+                        attempt: attempt + 1,
+                        max_attempts: maxRetries + 1,
+                        template_type: selectedTemplateType,
+                        failure_reason_counts: failureReasonCounts,
+                    },
+                    duration: Date.now() - startedAt,
+                });
             }
             const client = ensureClient();
             const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
             // Step 1: Select the best template
-            const selectionPrompt = `${TEMPLATE_SELECTION_PROMPT}
+            let templateType;
+            const heuristicTemplate = inferTemplateTypeFromLearningGoal(request.learningGoal);
+            if (heuristicTemplate) {
+                templateType = heuristicTemplate;
+                selectedTemplateType = heuristicTemplate;
+                logger_1.logger.info('lab-generation', 'Template selected via deterministic heuristic', {
+                    details: {
+                        template_type: templateType,
+                        learning_goal: request.learningGoal,
+                    },
+                    duration: Date.now() - startedAt,
+                });
+            }
+            else {
+                const selectionPrompt = `${TEMPLATE_SELECTION_PROMPT}
 
 Learning goal: ${request.learningGoal}
 ${request.context ? `Context: ${request.context}` : ''}
 ${request.userProfile?.level ? `User level: ${request.userProfile.level}` : ''}`;
-            const selectionCompletion = await client.chat.completions.create({
-                model,
-                messages: [
-                    { role: 'system', content: 'You are a lab template selector. Respond with JSON only.' },
-                    { role: 'user', content: selectionPrompt },
-                ],
-                temperature: 0.3,
-            });
-            const selectionText = selectionCompletion.choices[0]?.message?.content?.trim() || '';
-            const selection = tryParseJson(selectionText);
-            if (!selection || !selection.template_type) {
-                throw new Error('Failed to select template type');
-            }
-            let templateType = selection.template_type;
-            // Temporarily disable generating "revise" and "explore" labs; fall back to "build" if chosen
-            if (templateType === 'revise') {
-                console.warn('Template selector returned "revise" which is disabled; falling back to "build".');
-                templateType = 'build';
-            }
-            if (templateType === 'explore') {
-                console.warn('Template selector returned "explore" which is disabled; falling back to "build".');
-                templateType = 'build';
+                const selectionCompletion = await client.chat.completions.create({
+                    model,
+                    messages: [
+                        { role: 'system', content: 'You are a lab template selector. Respond with JSON only.' },
+                        { role: 'user', content: selectionPrompt },
+                    ],
+                    temperature: 0.3,
+                });
+                const selectionText = selectionCompletion.choices[0]?.message?.content?.trim() || '';
+                const selection = tryParseJson(selectionText);
+                if (!selection || !selection.template_type || !(0, lab_template_normalizer_1.isLabTemplateType)(selection.template_type)) {
+                    throw new Error('Failed to select template type');
+                }
+                templateType = selection.template_type;
+                selectedTemplateType = templateType;
             }
             const generatorPrompt = TEMPLATE_GENERATORS[templateType];
             if (!generatorPrompt) {
@@ -718,6 +957,10 @@ CRITICAL: If the context above includes "FUTURE MODULE CONCEPTS (DO NOT USE YET)
 
 CRITICAL: If the context includes "PROGRAMMING FEATURE GATES (STRICT)", you MUST obey those gates exactly. Do not ask learners to author methods/classes when those gates prohibit them.
 
+CRITICAL (build template only): Do not require learners to author methods/classes by default. Only require method/class authoring when the learning goal or context explicitly calls for it.
+
+CRITICAL: If covered concepts are provided in context, each step must clearly practice one of those covered concepts by name.
+
 IMPORTANT: The "topics" field must contain 2-5 specific, relevant topic tags (e.g., ["JavaScript", "Algorithms", "Data Structures"] for a coding lab, ["Statistics", "Data Visualization"] for analysis, ["Calculus", "Derivatives"] for math).
 
 Generate a complete, engaging lab. Make it practical and pedagogically sound.
@@ -734,6 +977,14 @@ Respond with valid JSON only - no markdown, no explanations.`;
             const parsed = tryParseJson(contentText);
             if (!parsed || !parsed.labTitle || !parsed.data) {
                 throw new Error('Failed to generate valid lab content');
+            }
+            if (!(0, lab_template_normalizer_1.isLabTemplateType)(templateType)) {
+                throw new Error(`Unsupported template type returned by selector: ${templateType}`);
+            }
+            const templateData = (0, lab_template_normalizer_1.normalizeTemplateData)(templateType, parsed.data);
+            const qualityIssues = validateGeneratedTemplate(templateType, templateData, request.context, request.learningGoal);
+            if (qualityIssues.length > 0) {
+                throw new Error(`Generated lab failed quality gate: ${qualityIssues.join(' | ')}`);
             }
             // Ensure topics are present and meaningful
             let topics = parsed.topics || [];
@@ -753,21 +1004,71 @@ Respond with valid JSON only - no markdown, no explanations.`;
                     topics = [templateType.charAt(0).toUpperCase() + templateType.slice(1)];
                 }
             }
+            const normalizedTopics = (0, lab_template_normalizer_1.normalizeTopics)(topics);
+            logger_1.logger.info('lab-generation', 'Lab generation succeeded', {
+                details: {
+                    attempts: attempt + 1,
+                    max_attempts: maxRetries + 1,
+                    template_type: templateType,
+                    failure_reason_counts: failureReasonCounts,
+                    topic_count: normalizedTopics.length,
+                },
+                duration: Date.now() - startedAt,
+            });
             return {
                 title: parsed.labTitle,
                 description: parsed.description || '',
                 template_type: templateType,
-                template_data: parsed.data,
-                difficulty: parsed.difficulty || 'intermediate',
-                estimated_duration: parsed.estimated_duration || 45,
-                topics,
+                template_data: templateData,
+                difficulty: (0, lab_template_normalizer_1.normalizeDifficulty)(parsed.difficulty),
+                estimated_duration: (0, lab_template_normalizer_1.normalizeEstimatedDuration)(parsed.estimated_duration),
+                topics: normalizedTopics,
                 raw: contentText,
             };
         }
         catch (error) {
             lastError = error;
-            console.error(`Attempt ${attempt + 1} failed for lab generation:`, error.message);
+            const message = error instanceof Error ? error.message : String(error);
+            const qualityIssues = parseQualityIssuesFromMessage(message);
+            if (qualityIssues.length > 0) {
+                for (const issue of qualityIssues) {
+                    const issueKey = toIssueKey(issue) || 'quality_gate_failure';
+                    failureReasonCounts[issueKey] = (failureReasonCounts[issueKey] || 0) + 1;
+                }
+                logger_1.logger.warn('lab-generation', 'Quality gate rejected generated lab', {
+                    details: {
+                        attempt: attempt + 1,
+                        max_attempts: maxRetries + 1,
+                        template_type: selectedTemplateType,
+                        quality_issues: qualityIssues,
+                        failure_reason_counts: failureReasonCounts,
+                    },
+                    duration: Date.now() - startedAt,
+                });
+            }
+            else {
+                const issueKey = toIssueKey(message) || 'generation_failure';
+                failureReasonCounts[issueKey] = (failureReasonCounts[issueKey] || 0) + 1;
+                logger_1.logger.warn('lab-generation', 'Lab generation attempt failed', {
+                    details: {
+                        attempt: attempt + 1,
+                        max_attempts: maxRetries + 1,
+                        template_type: selectedTemplateType,
+                        error: message,
+                        failure_reason_counts: failureReasonCounts,
+                    },
+                    duration: Date.now() - startedAt,
+                });
+            }
             if (attempt === maxRetries) {
+                logger_1.logger.error('lab-generation', `Lab generation failed after ${maxRetries + 1} attempts`, {
+                    details: {
+                        template_type: selectedTemplateType,
+                        failure_reason_counts: failureReasonCounts,
+                        final_error: message,
+                    },
+                    duration: Date.now() - startedAt,
+                });
                 throw error;
             }
             await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));

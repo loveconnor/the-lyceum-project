@@ -64,14 +64,43 @@ interface Step {
   id: string;
   title: string;
   status: "pending" | "current" | "completed";
+  widgets: Array<{
+    type: "editor" | "multiple-choice" | "code-editor";
+    config: any;
+  }>;
 }
 
 const INITIAL_STEPS: Step[] = [
-  { id: "question", title: "Define question", status: "current" },
-  { id: "inspect", title: "Inspect data", status: "pending" },
-  { id: "patterns", title: "Analyze patterns", status: "pending" },
-  { id: "conclusions", title: "Draw conclusions", status: "pending" },
-  { id: "limitations", title: "Consider limitations", status: "pending" },
+  {
+    id: "question",
+    title: "Define question",
+    status: "current",
+    widgets: [{ type: "editor", config: { label: "Research Question" } }]
+  },
+  {
+    id: "inspect",
+    title: "Inspect data",
+    status: "pending",
+    widgets: [{ type: "editor", config: { label: "Data Notes" } }]
+  },
+  {
+    id: "patterns",
+    title: "Analyze patterns",
+    status: "pending",
+    widgets: [{ type: "editor", config: { label: "Pattern Analysis" } }]
+  },
+  {
+    id: "conclusions",
+    title: "Draw conclusions",
+    status: "pending",
+    widgets: [{ type: "editor", config: { label: "Conclusions" } }]
+  },
+  {
+    id: "limitations",
+    title: "Consider limitations",
+    status: "pending",
+    widgets: [{ type: "editor", config: { label: "Limitations" } }]
+  },
 ];
 
 import { AnalyzeLabData } from "@/types/lab-templates";
@@ -88,6 +117,7 @@ interface AnalyzeTemplateProps {
 
 export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeTemplateProps) {
   const { labTitle, description, dataset, availableVariables, guidingQuestions } = data;
+  const onModuleComplete = moduleContext?.onComplete;
   const [steps, setSteps] = useState<Step[]>(INITIAL_STEPS);
   const [showLabOverview, setShowLabOverview] = useState(false);
   const [isLoadingProgress, setIsLoadingProgress] = useState(true);
@@ -227,13 +257,16 @@ export default function AnalyzeTemplate({ data, labId, moduleContext }: AnalyzeT
   };
 
   React.useEffect(() => {
-    if (!labId || isLoadingProgress) return;
+    if (isLoadingProgress) return;
     const allCompleted = steps.length > 0 && steps.every((step) => step.status === "completed");
     if (allCompleted && !hasMarkedComplete) {
       setHasMarkedComplete(true);
-      markLabComplete();
+      void (async () => {
+        await markLabComplete();
+        onModuleComplete?.();
+      })();
     }
-  }, [steps, labId, isLoadingProgress, hasMarkedComplete]);
+  }, [steps, labId, isLoadingProgress, hasMarkedComplete, onModuleComplete]);
 
   const goToStep = (id: string) => {
     const stepIndex = steps.findIndex(s => s.id === id);

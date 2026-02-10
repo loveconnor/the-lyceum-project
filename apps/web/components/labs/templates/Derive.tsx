@@ -13,7 +13,6 @@ import { LabStepPanel } from "@/components/labs/lab-step-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +33,8 @@ import { Markdown } from "@/components/ui/custom/prompt/markdown";
 import { EditorWidget, createEditorValue, extractPlainText } from "@/components/widgets";
 import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widget";
 import { DerivationStepsWidget, DerivationStep } from "@/components/widgets/derivation-steps-widget";
+import { CodeEditorWidget } from "@/components/widgets/code-editor-widget";
+import { LabLearningWidget, isLearnByDoingWidgetType } from "@/components/labs/lab-learning-widget";
 
 // Helper function to convert literal \n to actual newlines
 const convertNewlines = (text: string | undefined) => {
@@ -71,11 +72,39 @@ interface Step {
   id: string;
   title: string;
   status: "pending" | "current" | "completed";
-  widgets?: Array<{
-    type: "editor" | "multiple-choice" | "derivation-steps";
+  widgets: Array<{
+    type: string;
     config: any;
   }>;
 }
+
+const getDefaultDeriveWidgets = (stepId: string, stepTitle: string): Step["widgets"] => {
+  const normalized = `${stepId} ${stepTitle}`.toLowerCase();
+  if (normalized.includes("derive")) {
+    return [{ type: "derivation-steps", config: {} }];
+  }
+  return [
+    {
+      type: "editor",
+      config: {
+        label: "Your Response",
+        placeholder: "Enter your reasoning...",
+        minHeight: "200px"
+      }
+    }
+  ];
+};
+
+const ensureDeriveWidgets = (
+  stepId: string,
+  stepTitle: string,
+  widgets: Step["widgets"] | undefined
+): Step["widgets"] => {
+  if (widgets && widgets.length > 0) {
+    return widgets;
+  }
+  return getDefaultDeriveWidgets(stepId, stepTitle);
+};
 
 interface DeriveTemplateProps {
   data: DeriveLabData;
@@ -89,22 +118,52 @@ interface DeriveTemplateProps {
 
 export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTemplateProps) {
   const { labTitle, description, problemStatement, availableRules, initialStep, steps: dataSteps, conceptCheck } = data;
+  const onModuleComplete = moduleContext?.onComplete;
   
   // Initialize steps from AI-generated data or fallback to defaults
-  const initialSteps: Step[] = dataSteps && dataSteps.length > 0 
-    ? dataSteps.map((step, idx) => ({
-        id: step.id,
-        title: step.title,
-        status: idx === 0 ? "current" as const : "pending" as const,
-        widgets: step.widgets
-      }))
-    : [
-        { id: "restate", title: "Restate problem", status: "current" as const },
-        { id: "method", title: "Choose method", status: "pending" as const },
-        { id: "derive", title: "Derive solution", status: "pending" as const },
-        { id: "verify", title: "Verify", status: "pending" as const },
-        { id: "generalize", title: "Generalize", status: "pending" as const },
-      ];
+  const initialSteps = React.useMemo<Step[]>(
+    () =>
+      dataSteps && dataSteps.length > 0
+        ? dataSteps.map((step, idx) => ({
+            id: step.id,
+            title: step.title,
+            status: idx === 0 ? "current" as const : "pending" as const,
+            widgets: ensureDeriveWidgets(step.id, step.title, step.widgets as Step["widgets"] | undefined)
+          }))
+        : [
+            {
+              id: "restate",
+              title: "Restate problem",
+              status: "current" as const,
+              widgets: getDefaultDeriveWidgets("restate", "Restate problem")
+            },
+            {
+              id: "method",
+              title: "Choose method",
+              status: "pending" as const,
+              widgets: getDefaultDeriveWidgets("method", "Choose method")
+            },
+            {
+              id: "derive",
+              title: "Derive solution",
+              status: "pending" as const,
+              widgets: getDefaultDeriveWidgets("derive", "Derive solution")
+            },
+            {
+              id: "verify",
+              title: "Verify",
+              status: "pending" as const,
+              widgets: getDefaultDeriveWidgets("verify", "Verify")
+            },
+            {
+              id: "generalize",
+              title: "Generalize",
+              status: "pending" as const,
+              widgets: getDefaultDeriveWidgets("generalize", "Generalize")
+            },
+          ],
+    [dataSteps]
+  );
   
   const [steps, setSteps] = useState<Step[]>(initialSteps);
   const [selectedRule, setSelectedRule] = useState<typeof availableRules[0] | null>(null);
@@ -120,14 +179,19 @@ export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTem
 
   const currentStep = steps.find(s => s.status === "current");
 
-  const derivationSteps = React.useMemo(() => {
+  const derivationSteps = React.useMemo<DerivationStep[]>(() => {
     if (!currentStep) return [];
-    return stepResponses[`${currentStep.id}-derivation`] || [
+    const savedSteps = stepResponses[`${currentStep.id}-derivation`];
+    if (Array.isArray(savedSteps)) {
+      return savedSteps as DerivationStep[];
+    }
+    const isFirstStep = currentStep.id === initialSteps[0]?.id;
+    return [
       { 
         id: "1", 
-        expression: (currentStep.id === initialSteps[0].id ? initialStep?.expression : "") || "", 
+        expression: (isFirstStep ? initialStep?.expression : "") || "", 
         rule: "", 
-        justification: (currentStep.id === initialSteps[0].id ? initialStep?.justification : "") || (currentStep.id === initialSteps[0].id ? "Given" : "") 
+        justification: (isFirstStep ? initialStep?.justification : "") || (isFirstStep ? "Given" : "") 
       }
     ];
   }, [currentStep, stepResponses, initialStep, initialSteps]);
@@ -147,8 +211,8 @@ export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTem
         if (progress && progress.length > 0) {
           // Sort by timestamp ascending so later entries overwrite earlier ones when merged
           const sortedProgress = [...progress].sort((a, b) => {
-            const timeA = new Date(a.updated_at || a.created_at).getTime();
-            const timeB = new Date(b.updated_at || b.created_at).getTime();
+            const timeA = new Date(a.updated_at).getTime();
+            const timeB = new Date(b.updated_at).getTime();
             return timeA - timeB;
           });
 
@@ -207,21 +271,7 @@ export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTem
     loadProgress();
   }, [labId]);
 
-  // Auto-save data when it changes (debounced)
-  React.useEffect(() => {
-    if (!labId || isLoadingProgress) return;
-    
-    const currentStep = steps.find(s => s.status === "current");
-    if (!currentStep) return;
-
-    const timer = setTimeout(() => {
-      saveProgress(currentStep.id, false);
-    }, 2000); // Auto-save after 2 seconds of no typing
-
-    return () => clearTimeout(timer);
-  }, [stepResponses, labId, isLoadingProgress]);
-
-  const saveProgress = async (stepId: string, completed: boolean = false) => {
+  const saveProgress = React.useCallback(async (stepId: string, completed: boolean = false) => {
     if (!labId || !stepId) return;
     
     try {
@@ -237,9 +287,23 @@ export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTem
     } catch (error) {
       console.error("Failed to save progress:", error);
     }
-  };
+  }, [labId, stepResponses, stepFeedback]);
 
-  const markLabComplete = async () => {
+  // Auto-save data when it changes (debounced)
+  React.useEffect(() => {
+    if (isLoadingProgress) return;
+
+    const step = steps.find((s) => s.status === "current");
+    if (!step) return;
+
+    const timer = setTimeout(() => {
+      void saveProgress(step.id, false);
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [isLoadingProgress, saveProgress, steps]);
+
+  const markLabComplete = React.useCallback(async () => {
     if (!labId) return;
     try {
       const { updateLab } = await import("@/lib/api/labs");
@@ -250,62 +314,19 @@ export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTem
     } catch (error) {
       console.error("Failed to mark lab as complete:", error);
     }
-  };
+  }, [labId]);
 
   React.useEffect(() => {
-    if (!labId || isLoadingProgress) return;
+    if (isLoadingProgress) return;
     const allCompleted = steps.length > 0 && steps.every((step) => step.status === "completed");
     if (allCompleted && !hasMarkedComplete) {
       setHasMarkedComplete(true);
-      markLabComplete();
+      void (async () => {
+        await markLabComplete();
+        onModuleComplete?.();
+      })();
     }
-  }, [steps, labId, isLoadingProgress, hasMarkedComplete]);
-
-  // Helper function to auto-wrap math notation for preview
-  const previewWithMath = (text: string): string => {
-    // If already has $ signs, return as is
-    if (text.includes('$')) return text;
-    
-    // If it contains LaTeX commands or complex operators and is relatively short,
-    // treat the whole thing as a single mathematical expression.
-    const words = text.trim().split(/\s+/);
-    const hasComplexMath = /\\|[\^_{}]/.test(text);
-    if (hasComplexMath && words.length <= 5) {
-      return `$${text.trim()}$`;
-    }
-    
-    // Split by periods and newlines to handle sentences separately
-    const sentences = text.split(/([.!?\n]+)/);
-    
-    return sentences.map(sentence => {
-      // Check if this sentence/fragment contains math patterns
-      const hasMathOperators = /[\^*/+\-=\\__{}]|sin|cos|tan|log|ln|sqrt|exp|lim|int|sum|prod|alpha|beta|gamma|delta|theta|pi/i.test(sentence);
-      
-      if (hasMathOperators) {
-        // Wrap entire mathematical expressions in inline math
-        return sentence
-          // Wrap expressions with operators or LaTeX commands
-          .replace(/((?:[a-zA-Z0-9()\s\^*/+\-=\\__{}]+)?(?:sin|cos|tan|log|ln|sqrt|exp|int|sum|prod|lim|frac|partial|alpha|beta|gamma|delta|theta|pi)[a-zA-Z0-9()\s\^*/+\-=\\__{}]*)/gi, (match) => {
-            // Don't wrap if it's just plain words without operators or backslashes
-            if (/[\^*/+\-=\\__{}]/.test(match) || /sin|cos|tan|log|ln|sqrt|exp|int|sum|prod|lim|frac|partial|\\/.test(match)) {
-              // If it's just a word like "integral" or "sum" without operators, don't wrap
-              if (/^[a-zA-Z]+$/.test(match.trim()) && !/sin|cos|tan|log|ln|sqrt|exp/.test(match.trim())) {
-                return match;
-              }
-              return `$${match.trim()}$`;
-            }
-            return match;
-          })
-          // Catch remaining patterns: standalone x^2, e^x, etc.
-          .replace(/\b([a-zA-Z]+\^[a-zA-Z0-9]+)\b/g, '$$$1$$')
-          .replace(/\b([a-zA-Z]+_[a-zA-Z0-9]+)\b/g, '$$$1$$') // subscripts
-          // Clean up double wrapping
-          .replace(/\$\$+/g, '$');
-      }
-      
-      return sentence;
-    }).join('');
-  };
+  }, [steps, labId, isLoadingProgress, hasMarkedComplete, markLabComplete, onModuleComplete]);
 
   const addStep = () => {
     if (!currentStep) return;
@@ -360,9 +381,9 @@ export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTem
     // setFeedback(null);
   };
 
-  const completeStep = (id: string) => {
+  const completeStep = React.useCallback((id: string) => {
     // Save progress before completing
-    saveProgress(id, true);
+    void saveProgress(id, true);
     
     setSteps(prev => {
       const index = prev.findIndex(s => s.id === id);
@@ -381,18 +402,41 @@ export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTem
     
     // Clear feedback when moving to next step
     // setFeedback(null); // No longer needed with per-step feedback
-  };
+  }, [saveProgress]);
+
+  React.useEffect(() => {
+    if (!currentStep) return;
+    const win = window as any;
+    win.__markStepComplete = () => {
+      completeStep(currentStep.id);
+    };
+    return () => {
+      if (win.__markStepComplete) {
+        delete win.__markStepComplete;
+      }
+    };
+  }, [currentStep, completeStep]);
 
   const handleSubmit = async () => {
     const currentStep = steps.find(s => s.status === "current");
     if (!currentStep || !labId) return;
 
     const userResponse = stepResponses[currentStep.id];
+    const codeResponses = currentStep.widgets
+      .map((_, idx) => stepResponses[`${currentStep.id}-code-${idx}`])
+      .filter((value) => typeof value === "string" && value.trim().length > 0);
     const choiceResponse = stepResponses[`${currentStep.id}-choice`];
     const explainResponse = stepResponses[`${currentStep.id}-explain`];
+    const hasLearnByDoingWidget = currentStep.widgets?.some((w) => isLearnByDoingWidgetType(w.type));
     
     // Check if user has provided any response
-    const hasResponse = userResponse?.trim() || choiceResponse || explainResponse?.trim() || derivationSteps.some(s => s.expression);
+    const hasResponse =
+      userResponse?.trim() ||
+      choiceResponse ||
+      explainResponse?.trim() ||
+      codeResponses.length > 0 ||
+      hasLearnByDoingWidget ||
+      derivationSteps.some(s => s.expression);
     
     if (!hasResponse) {
       const { toast } = await import("sonner");
@@ -409,6 +453,9 @@ export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTem
     // Build context about what the student did
     let studentWork = '';
     if (userResponse) studentWork += `Text response: ${userResponse}\n`;
+    if (codeResponses.length > 0) {
+      studentWork += `Code response:\n${codeResponses.join("\n\n")}\n`;
+    }
     
     if (choiceResponse) {
       const selectedIds = choiceResponse.split(',').filter(Boolean);
@@ -426,11 +473,21 @@ export default function DeriveTemplate({ data, labId, moduleContext }: DeriveTem
     }
     
     if (explainResponse) studentWork += `Explanation: ${explainResponse}\n`;
+    if (!studentWork && hasLearnByDoingWidget) {
+      studentWork += "Completed an interactive widget activity.\n";
+    }
     if (derivationSteps.length > 0 && derivationSteps.some(s => s.expression)) {
       studentWork += `Derivation steps:\n${derivationSteps.map(s => `- ${s.expression} (${s.rule || 'no rule'}: ${s.justification || 'no justification'})`).join('\n')}`;
     }
 
-    const hasTextInput = currentStep.widgets?.some(w => w.type === 'editor' || (w.type === 'multiple-choice' && w.config.showExplanation));
+    const hasTextInput = currentStep.widgets?.some(
+      (w) =>
+        w.type === "editor" ||
+        w.type === "code-editor" ||
+        w.type === "short_answer" ||
+        w.type === "ShortAnswer" ||
+        (w.type === "multiple-choice" && w.config.showExplanation)
+    );
     
     const prompt = `You are a mathematics instructor reviewing a student's work on: ${problemStatement}
 
@@ -563,6 +620,21 @@ Approve if they show reasonable understanding and correct approach. If not appro
                               />
                             );
                           }
+
+                          if (widget.type === "code-editor") {
+                            const codeKey = `${currentStep.id}-code-${idx}`;
+                            return (
+                              <CodeEditorWidget
+                                key={idx}
+                                label={widget.config.label || "Code Workspace"}
+                                description={widget.config.description}
+                                language={widget.config.language || "javascript"}
+                                value={stepResponses[codeKey] || ""}
+                                onChange={(value) => setStepResponses({ ...stepResponses, [codeKey]: value })}
+                                readOnly={widget.config.readOnly === true}
+                              />
+                            );
+                          }
                           
                           if (widget.type === "multiple-choice") {
                             const currentFeedback = stepFeedback[currentStep.id];
@@ -597,6 +669,17 @@ Approve if they show reasonable understanding and correct approach. If not appro
                                 onRemoveStep={removeStep}
                                 onUpdateStep={updateStep}
                                 showInstructions={widget.config.showInstructions !== false}
+                              />
+                            );
+                          }
+
+                          if (isLearnByDoingWidgetType(widget.type)) {
+                            return (
+                              <LabLearningWidget
+                                key={idx}
+                                widgetType={widget.type}
+                                config={widget.config}
+                                widgetKey={`${currentStep.id}-lbd-${idx}`}
                               />
                             );
                           }

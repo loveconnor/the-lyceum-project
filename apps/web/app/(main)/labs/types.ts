@@ -5,6 +5,7 @@ export type FilterTab = "all" | LabStatus;
 export type ViewMode = "list" | "grid";
 export type Difficulty = "beginner" | "intermediate" | "advanced";
 export type LabTemplateType = "analyze" | "build" | "derive" | "explain" | "explore" | "revise";
+export type EstimatedTimeFilter = "< 30 min" | "30-60 min" | "1-2 hours" | "2+ hours";
 
 export interface Comment {
   id: string;

@@ -46,6 +46,10 @@ import { useLabAI } from "@/hooks/use-lab-ai";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import { Markdown } from "@/components/ui/custom/prompt/markdown";
+import { EditorWidget, createEditorValue, extractPlainText } from "@/components/widgets";
+import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widget";
+import { CodeEditorWidget } from "@/components/widgets/code-editor-widget";
+import { LabLearningWidget, isLearnByDoingWidgetType } from "@/components/labs/lab-learning-widget";
 
 // Helper function to convert literal \n to actual newlines
 const convertNewlines = (text: string | undefined) => {
@@ -60,7 +64,35 @@ interface Step {
   instruction?: string;
   keyQuestions?: string[];
   prompt?: string;
+  widgets: Array<{
+    type: string;
+    config: any;
+  }>;
 }
+
+const getDefaultExplainWidgets = (step: Pick<Step, "id" | "title" | "prompt" | "instruction">): Step["widgets"] => [
+  {
+    type: "editor",
+    config: {
+      label: "Your Explanation",
+      description: step.prompt || step.instruction,
+      placeholder: "Type your answer here...",
+      minHeight: "180px"
+    }
+  }
+];
+
+const ensureExplainWidgets = (
+  step: Pick<Step, "id" | "title" | "prompt" | "instruction">,
+  widgets: Step["widgets"] | undefined
+): Step["widgets"] => {
+  if (widgets && widgets.length > 0) {
+    return widgets;
+  }
+  return getDefaultExplainWidgets(step);
+};
+
+const getWidgetResponseKey = (stepId: string, index: number) => `${stepId}_widget_${index}`;
 
 interface ExplainTemplateProps {
   data: ExplainLabData;
@@ -74,6 +106,7 @@ interface ExplainTemplateProps {
 
 export default function ExplainTemplate({ data, labId, moduleContext }: ExplainTemplateProps) {
   const { theme } = useTheme();
+  const onModuleComplete = moduleContext?.onComplete;
   const { labTitle, description, artifact, steps: aiSteps } = data;
   const artifactCode = artifact?.code || "// No code provided";
   const language = artifact?.language || "javascript";
@@ -86,13 +119,42 @@ export default function ExplainTemplate({ data, labId, moduleContext }: ExplainT
         status: idx === 0 ? "current" as const : "pending" as const,
         instruction: step.instruction,
         keyQuestions: step.keyQuestions,
-        prompt: step.prompt
+        prompt: step.prompt,
+        widgets: ensureExplainWidgets(
+          {
+            id: step.id || `step-${idx}`,
+            title: step.title || `Step ${idx + 1}`,
+            instruction: step.instruction,
+            prompt: step.prompt
+          },
+          step.widgets
+        )
       }))
     : [
-        { id: "read", title: "Read / inspect", status: "current" },
-        { id: "predict", title: "Predict behavior", status: "pending" },
-        { id: "explain", title: "Explain reasoning", status: "pending" },
-        { id: "edge-cases", title: "Address edge cases", status: "pending" },
+        {
+          id: "read",
+          title: "Read / inspect",
+          status: "current",
+          widgets: getDefaultExplainWidgets({ id: "read", title: "Read / inspect" })
+        },
+        {
+          id: "predict",
+          title: "Predict behavior",
+          status: "pending",
+          widgets: getDefaultExplainWidgets({ id: "predict", title: "Predict behavior" })
+        },
+        {
+          id: "explain",
+          title: "Explain reasoning",
+          status: "pending",
+          widgets: getDefaultExplainWidgets({ id: "explain", title: "Explain reasoning" })
+        },
+        {
+          id: "edge-cases",
+          title: "Address edge cases",
+          status: "pending",
+          widgets: getDefaultExplainWidgets({ id: "edge-cases", title: "Address edge cases" })
+        },
       ];
   
   const [steps, setSteps] = useState<Step[]>(initialSteps);
@@ -104,12 +166,62 @@ export default function ExplainTemplate({ data, labId, moduleContext }: ExplainT
   const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
   const { getAssistance, loading: aiLoading } = useLabAI(labId);
 
-  // Dynamic explanations object based on step IDs
-  const [explanations, setExplanations] = useState<Record<string, string>>({});
+  // Dynamic widget response state keyed by widget response key
+  const [explanations, setExplanations] = useState<Record<string, any>>({});
   
   const currentStepIndex = steps.findIndex(s => s.status === "current");
   const currentStep = steps[currentStepIndex];
-  const currentExplanation = currentStep ? explanations[currentStep.id] || "" : "";
+
+  React.useEffect(() => {
+    if (!currentStep) return;
+    const win = window as any;
+    win.__markStepComplete = () => {
+      void completeStep(currentStep.id);
+    };
+    return () => {
+      if (win.__markStepComplete) {
+        delete win.__markStepComplete;
+      }
+    };
+  }, [currentStep?.id]);
+
+  const getStepResponseSummary = React.useCallback((step: Step) => {
+    const responseLines: string[] = [];
+
+    step.widgets.forEach((widget, idx) => {
+      const widgetKey = getWidgetResponseKey(step.id, idx);
+      const fallbackKey = idx === 0 ? step.id : "";
+      const response = explanations[widgetKey] ?? (fallbackKey ? explanations[fallbackKey] : undefined);
+
+      if (widget.type === "editor" || widget.type === "code-editor") {
+        const text = typeof response === "string" ? response : "";
+        if (text.trim()) {
+          responseLines.push(`${widget.config?.label || `Response ${idx + 1}`}: ${text}`);
+        }
+        return;
+      }
+
+      if (widget.type === "multiple-choice") {
+        const selectedIds: string[] = Array.isArray(response?.selectedIds) ? response.selectedIds : [];
+        const choices = Array.isArray(widget.config?.choices) ? (widget.config.choices as any[]) : [];
+        const selectedNames = selectedIds
+          .map((id) => choices.find((c: any) => c.id === id)?.name)
+          .filter(Boolean);
+        if (selectedNames.length > 0) {
+          responseLines.push(`${widget.config?.label || `Selection ${idx + 1}`}: ${selectedNames.join(", ")}`);
+        }
+        if (typeof response?.explanation === "string" && response.explanation.trim()) {
+          responseLines.push(`Explanation: ${response.explanation}`);
+        }
+      }
+
+      if (isLearnByDoingWidgetType(widget.type)) {
+        responseLines.push(`Completed interactive widget: ${widget.type}`);
+      }
+    });
+
+    return responseLines.join("\n");
+  }, [explanations]);
 
   // Auto-save explanations when they change (debounced)
   React.useEffect(() => {
@@ -230,13 +342,16 @@ export default function ExplainTemplate({ data, labId, moduleContext }: ExplainT
   };
 
   React.useEffect(() => {
-    if (!labId || isLoading) return;
+    if (isLoading) return;
     const allCompleted = steps.length > 0 && steps.every((step) => step.status === "completed");
     if (allCompleted && !hasMarkedComplete) {
       setHasMarkedComplete(true);
-      markLabComplete();
+      void (async () => {
+        await markLabComplete();
+        onModuleComplete?.();
+      })();
     }
-  }, [steps, labId, isLoading, hasMarkedComplete]);
+  }, [steps, labId, isLoading, hasMarkedComplete, onModuleComplete]);
 
   const completeStep = async (id: string) => {
     // Save progress before completing
@@ -261,7 +376,7 @@ export default function ExplainTemplate({ data, labId, moduleContext }: ExplainT
     const currentStep = steps.find(s => s.status === "current");
     if (!currentStep || !getAssistance) return;
 
-    const userResponse = currentExplanation;
+    const userResponse = getStepResponseSummary(currentStep);
     const stepName = currentStep.title;
 
     if (!userResponse.trim()) {
@@ -425,13 +540,103 @@ Approve if they show reasonable understanding. If not approved, explain what's m
                         </Markdown>
                       </div>
                     )}
-                    
-                    <Textarea 
-                      placeholder="Type your answer here..."
-                      className="min-h-[120px] text-sm"
-                      value={currentExplanation}
-                      onChange={(e) => setExplanations({...explanations, [currentStep.id]: e.target.value})}
-                    />
+
+                    <div className="space-y-4">
+                      {currentStep.widgets.map((widget, idx) => {
+                        const widgetKey = getWidgetResponseKey(currentStep.id, idx);
+                        const fallbackValue = idx === 0 ? explanations[currentStep.id] : undefined;
+
+                        if (widget.type === "editor") {
+                          const value = explanations[widgetKey] ?? fallbackValue ?? "";
+                          return (
+                            <EditorWidget
+                              key={widgetKey}
+                              label={widget.config.label || "Your Explanation"}
+                              description={widget.config.description}
+                              placeholder={widget.config.placeholder || "Type your answer here..."}
+                              initialValue={createEditorValue(typeof value === "string" ? value : "")}
+                              onChange={(editorValue) => {
+                                const nextText = extractPlainText(editorValue);
+                                setExplanations((prev) => ({
+                                  ...prev,
+                                  [widgetKey]: nextText,
+                                  ...(idx === 0 ? { [currentStep.id]: nextText } : {})
+                                }));
+                              }}
+                              height={widget.config.height || widget.config.minHeight || "200px"}
+                              variant={widget.config.variant || "default"}
+                              readOnly={widget.config.readOnly === true}
+                            />
+                          );
+                        }
+
+                        if (widget.type === "multiple-choice") {
+                          const response = explanations[widgetKey] || { selectedIds: [], explanation: "" };
+                          return (
+                            <MultipleChoiceWidget
+                              key={widgetKey}
+                              label={widget.config.label || "Select an option"}
+                              description={widget.config.description}
+                              choices={widget.config.choices || []}
+                              selectedIds={Array.isArray(response.selectedIds) ? response.selectedIds : []}
+                              onSelectionChange={(selectedIds) =>
+                                setExplanations((prev) => ({
+                                  ...prev,
+                                  [widgetKey]: { ...response, selectedIds }
+                                }))
+                              }
+                              multiSelect={widget.config.multiSelect !== false}
+                              showExplanation={widget.config.showExplanation === true}
+                              explanation={response.explanation || ""}
+                              onExplanationChange={(value) =>
+                                setExplanations((prev) => ({
+                                  ...prev,
+                                  [widgetKey]: { ...response, explanation: value }
+                                }))
+                              }
+                              explanationLabel={widget.config.explanationLabel}
+                              explanationPlaceholder={widget.config.explanationPlaceholder}
+                              disabled={isSubmitting || aiLoading}
+                            />
+                          );
+                        }
+
+                        if (widget.type === "code-editor") {
+                          const codeValue = explanations[widgetKey] ?? fallbackValue ?? artifactCode;
+                          return (
+                            <CodeEditorWidget
+                              key={widgetKey}
+                              label={widget.config.label || "Code Workspace"}
+                              description={widget.config.description}
+                              language={widget.config.language || language}
+                              value={typeof codeValue === "string" ? codeValue : ""}
+                              onChange={(value) =>
+                                setExplanations((prev) => ({
+                                  ...prev,
+                                  [widgetKey]: value,
+                                  ...(idx === 0 ? { [currentStep.id]: value } : {})
+                                }))
+                              }
+                              readOnly={widget.config.readOnly === true}
+                              variant="card"
+                            />
+                          );
+                        }
+
+                        if (isLearnByDoingWidgetType(widget.type)) {
+                          return (
+                            <LabLearningWidget
+                              key={widgetKey}
+                              widgetType={widget.type}
+                              config={widget.config}
+                              widgetKey={widgetKey}
+                            />
+                          );
+                        }
+
+                        return null;
+                      })}
+                    </div>
                   </div>
                 )}
 

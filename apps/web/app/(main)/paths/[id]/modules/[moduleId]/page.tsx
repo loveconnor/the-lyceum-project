@@ -214,6 +214,63 @@ const LEARN_BY_DOING_API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:3001";
 
+const asSkillString = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const collectSkillStrings = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      if (typeof entry === "string") return asSkillString(entry);
+      if (entry && typeof entry === "object") {
+        const record = entry as Record<string, unknown>;
+        return (
+          asSkillString(record.concept) ||
+          asSkillString(record.title) ||
+          asSkillString(record.name) ||
+          asSkillString(record.explanation)
+        );
+      }
+      return null;
+    })
+    .filter((entry): entry is string => Boolean(entry));
+};
+
+const uniqueSkills = (values: string[], max = 12): string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    const normalized = value.toLowerCase();
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(value);
+    if (result.length >= max) break;
+  }
+
+  return result;
+};
+
+const extractModuleSkills = (contentData: unknown): string[] => {
+  if (!contentData || typeof contentData !== "object") return [];
+  const source = contentData as Record<string, unknown>;
+
+  return uniqueSkills(
+    [
+      ...collectSkillStrings(source.learning_objectives),
+      ...collectSkillStrings(source.key_concepts),
+      ...collectSkillStrings(source.practical_exercises),
+      ...collectSkillStrings(source.sections),
+      ...collectSkillStrings(source.chapters),
+      ...collectSkillStrings(source.concepts),
+    ],
+    18
+  );
+};
+
 // --- Registry Content Helpers ---
 const estimateReadingDuration = (text: string): string => {
   const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
@@ -2825,6 +2882,31 @@ export default function ModulePage() {
   const [lab, setLab] = useState<Lab | null>(null);
   const [regeneratingLab, setRegeneratingLab] = useState(false);
   const [allModules, setAllModules] = useState<any[]>([]);
+  const moduleSkillTargets = React.useMemo(() => {
+    if (!Array.isArray(allModules) || allModules.length === 0) return [];
+
+    const currentItem = allModules.find((item: any) => item.id === moduleId);
+    const currentIndex = allModules.findIndex((item: any) => item.id === moduleId);
+    if (!currentItem || currentIndex === -1) return [];
+
+    const priorModules = allModules.filter((item: any, index: number) => {
+      if (item.item_type !== "module") return false;
+      if (
+        typeof currentItem.order_index === "number" &&
+        typeof item.order_index === "number"
+      ) {
+        return item.order_index < currentItem.order_index;
+      }
+      return index < currentIndex;
+    });
+
+    if (priorModules.length === 0) return [];
+
+    const collectedSkills = priorModules.flatMap((item: any) =>
+      extractModuleSkills(item.content_data)
+    );
+    return uniqueSkills(collectedSkills, 8);
+  }, [allModules, moduleId]);
   const [loading, setLoading] = useState(true);
   const [renderingRegistryContent, setRenderingRegistryContent] = useState(false);
   const [registryRenderError, setRegistryRenderError] = useState<string | null>(null);
@@ -3270,7 +3352,8 @@ export default function ModulePage() {
             moduleContext={{
               pathId,
               moduleId,
-              onComplete: handleContinueToNext
+              onComplete: handleContinueToNext,
+              skillTargets: moduleSkillTargets,
             }}
           />
         </div>

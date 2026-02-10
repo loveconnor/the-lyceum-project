@@ -43,6 +43,8 @@ import { Markdown } from "@/components/ui/custom/prompt/markdown";
 import { ReactFlowWidget } from "@/components/widgets/react-flow-widget";
 import { EditorWidget, createEditorValue, extractPlainText } from "@/components/widgets";
 import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widget";
+import { CodeEditorWidget } from "@/components/widgets/code-editor-widget";
+import { LabLearningWidget, isLearnByDoingWidgetType } from "@/components/labs/lab-learning-widget";
 import { useLabAI } from "@/hooks/use-lab-ai";
 import { toast } from "sonner";
 
@@ -53,18 +55,90 @@ interface Step {
   instruction?: string;
   keyQuestions?: string[];
   prompt?: string;
-  widgets?: Array<{
-    type: "text-input" | "multiple-choice";
+  widgets: Array<{
+    type: string;
     config: any;
   }>;
 }
 
+const getDefaultReviseWidgets = (step: Pick<Step, "id" | "title" | "prompt" | "instruction">): Step["widgets"] => [
+  {
+    type: "editor",
+    config: {
+      label: step.title,
+      description: step.prompt || step.instruction,
+      placeholder: "Enter your revision notes...",
+      minHeight: "200px"
+    }
+  }
+];
+
+const ensureReviseWidgets = (
+  step: Pick<Step, "id" | "title" | "prompt" | "instruction">,
+  widgets: Step["widgets"] | undefined
+): Step["widgets"] => {
+  if (widgets && widgets.length > 0) {
+    return widgets;
+  }
+  return getDefaultReviseWidgets(step);
+};
+
 const DEFAULT_STEPS: Step[] = [
-  { id: "purpose", title: "Define purpose & audience", status: "current", instruction: "Define your writing purpose and target audience" },
-  { id: "draft", title: "Draft", status: "pending", instruction: "Write or revise your draft" },
-  { id: "structure", title: "Revise structure", status: "pending", instruction: "Improve the overall structure and organization" },
-  { id: "clarity", title: "Improve clarity/style", status: "pending", instruction: "Enhance clarity, style, and readability" },
-  { id: "reflect", title: "Reflect", status: "pending", instruction: "Reflect on your revisions and improvements" },
+  {
+    id: "purpose",
+    title: "Define purpose & audience",
+    status: "current",
+    instruction: "Define your writing purpose and target audience",
+    widgets: getDefaultReviseWidgets({
+      id: "purpose",
+      title: "Define purpose & audience",
+      instruction: "Define your writing purpose and target audience"
+    })
+  },
+  {
+    id: "draft",
+    title: "Draft",
+    status: "pending",
+    instruction: "Write or revise your draft",
+    widgets: getDefaultReviseWidgets({
+      id: "draft",
+      title: "Draft",
+      instruction: "Write or revise your draft"
+    })
+  },
+  {
+    id: "structure",
+    title: "Revise structure",
+    status: "pending",
+    instruction: "Improve the overall structure and organization",
+    widgets: getDefaultReviseWidgets({
+      id: "structure",
+      title: "Revise structure",
+      instruction: "Improve the overall structure and organization"
+    })
+  },
+  {
+    id: "clarity",
+    title: "Improve clarity/style",
+    status: "pending",
+    instruction: "Enhance clarity, style, and readability",
+    widgets: getDefaultReviseWidgets({
+      id: "clarity",
+      title: "Improve clarity/style",
+      instruction: "Enhance clarity, style, and readability"
+    })
+  },
+  {
+    id: "reflect",
+    title: "Reflect",
+    status: "pending",
+    instruction: "Reflect on your revisions and improvements",
+    widgets: getDefaultReviseWidgets({
+      id: "reflect",
+      title: "Reflect",
+      instruction: "Reflect on your revisions and improvements"
+    })
+  },
 ];
 
 interface ReviseTemplateProps {
@@ -79,6 +153,7 @@ interface ReviseTemplateProps {
 
 export default function ReviseTemplate({ data, labId, moduleContext }: ReviseTemplateProps) {
   const { labTitle, description, initialDraft, targetAudience, purpose: initialPurpose, rubricCriteria, improvementAreas, visuals } = data;
+  const onModuleComplete = moduleContext?.onComplete;
   
   // Initialize steps - use AI-generated steps if available, otherwise use defaults
   const aiSteps = (data as any).steps;
@@ -92,7 +167,15 @@ export default function ReviseTemplate({ data, labId, moduleContext }: ReviseTem
         instruction: step.instruction || step.focus || step.prompt,
         keyQuestions: step.keyQuestions,
         prompt: step.prompt,
-        widgets: step.widgets
+        widgets: ensureReviseWidgets(
+          {
+            id: step.id || `step-${idx}`,
+            title: step.title || step.focus || `Step ${idx + 1}`,
+            instruction: step.instruction || step.focus || step.prompt,
+            prompt: step.prompt
+          },
+          step.widgets as Step["widgets"] | undefined
+        )
       }))
     : DEFAULT_STEPS;
 
@@ -116,6 +199,19 @@ export default function ReviseTemplate({ data, labId, moduleContext }: ReviseTem
   
   const currentStep = steps.find(s => s.status === "current");
   const currentStepIndex = steps.findIndex(s => s.status === "current");
+
+  useEffect(() => {
+    if (!currentStep) return;
+    const win = window as any;
+    win.__markStepComplete = () => {
+      void completeStep(currentStep.id);
+    };
+    return () => {
+      if (win.__markStepComplete) {
+        delete win.__markStepComplete;
+      }
+    };
+  }, [currentStep?.id]);
 
   // Load progress when component mounts
   useEffect(() => {
@@ -217,13 +313,16 @@ export default function ReviseTemplate({ data, labId, moduleContext }: ReviseTem
   };
 
   useEffect(() => {
-    if (!labId || isLoading) return;
+    if (isLoading) return;
     const allCompleted = steps.length > 0 && steps.every((step) => step.status === "completed");
     if (allCompleted && !hasMarkedComplete) {
       setHasMarkedComplete(true);
-      markLabComplete();
+      void (async () => {
+        await markLabComplete();
+        onModuleComplete?.();
+      })();
     }
-  }, [steps, labId, isLoading, hasMarkedComplete]);
+  }, [steps, labId, isLoading, hasMarkedComplete, onModuleComplete]);
 
   const goToStep = (id: string) => {
     setSteps(prev => {
@@ -296,7 +395,7 @@ Step Instruction: ${currentStep.instruction || currentStep.title}
           const widgetKey = `${stepKey}_widget_${idx}`;
           const response = widgetResponses[widgetKey];
           
-          if (widget.type === "text-input") {
+          if (widget.type === "text-input" || widget.type === "editor" || widget.type === "code-editor") {
             prompt += `\n${widget.config.label}: ${response || "(No response)"}\n`;
           } else if (widget.type === "multiple-choice") {
             const selectedChoices = response?.selectedIds || [];
@@ -308,6 +407,8 @@ Step Instruction: ${currentStep.instruction || currentStep.title}
             if (response?.explanation) {
               prompt += `Explanation: ${response.explanation}\n`;
             }
+          } else if (isLearnByDoingWidgetType(widget.type)) {
+            prompt += `\nInteractive widget completed: ${widget.type}\n`;
           }
         });
       }
@@ -402,6 +503,19 @@ Approve if they show reasonable effort and understanding. If not approved, expla
                 readOnly={widget.config.readOnly === true}
               />
             );
+          } else if (widget.type === "code-editor") {
+            return (
+              <CodeEditorWidget
+                key={widgetKey}
+                label={widget.config.label || "Code Workspace"}
+                description={widget.config.description}
+                language={widget.config.language || "javascript"}
+                value={widgetResponses[widgetKey] || ""}
+                onChange={(value) => setWidgetResponses({ ...widgetResponses, [widgetKey]: value })}
+                readOnly={widget.config.readOnly === true}
+                variant="card"
+              />
+            );
           } else if (widget.type === "multiple-choice") {
             const response = widgetResponses[widgetKey] || { selectedIds: [], explanation: "" };
             return (
@@ -429,6 +543,15 @@ Approve if they show reasonable effort and understanding. If not approved, expla
                 correctIds={feedback?.correctIds || []}
                 incorrectIds={feedback?.incorrectIds || []}
                 disabled={feedback?.approved || false}
+              />
+            );
+          } else if (isLearnByDoingWidgetType(widget.type)) {
+            return (
+              <LabLearningWidget
+                key={widgetKey}
+                widgetType={widget.type}
+                config={widget.config}
+                widgetKey={widgetKey}
               />
             );
           }

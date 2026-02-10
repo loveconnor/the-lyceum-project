@@ -50,6 +50,48 @@ export interface VisualDiagramData {
   }>;
 }
 
+// ============= SHARED STEP/WIDGET TYPES =============
+export interface LabStepWidget {
+  type:
+    | "editor"
+    | "multiple-choice"
+    | "code-editor"
+    | "derivation-steps"
+    | "text-input"
+    | "short_answer"
+    | "multiple_choice"
+    | "fill_in_the_blank"
+    | "code_fill"
+    | "true_false"
+    | "matching"
+    | "order_steps"
+    | "drag_drop"
+    | "numeric_input"
+    | "diagram_selection"
+    | "ShortAnswer"
+    | "MultipleChoice"
+    | "FillInTheBlank"
+    | "CodeFill"
+    | "TrueFalse"
+    | "Matching"
+    | "OrderSteps"
+    | "DragDrop"
+    | "NumericInput"
+    | "DiagramSelection";
+  config: Record<string, unknown>;
+}
+
+export interface LabTemplateStep {
+  id: string;
+  title: string;
+  instruction?: string;
+  keyQuestions?: string[];
+  prompt?: string;
+  skeletonCode?: string;
+  starterCode?: string;
+  widgets?: LabStepWidget[];
+}
+
 // ============= ANALYZE TEMPLATE =============
 export interface AnalyzeLabData {
   labTitle: string;
@@ -70,6 +112,7 @@ export interface AnalyzeLabData {
     conclusions: string;
     limitations: string;
   };
+  steps?: LabTemplateStep[];
   visuals?: VisualDiagramData[];
 }
 
@@ -98,17 +141,7 @@ export interface BuildLabData {
     explain: string;
   };
   // AI-generated structured steps like Explain template
-  steps?: Array<{
-    id: string;
-    title: string;
-    instruction?: string;
-    keyQuestions?: string[];
-    prompt?: string;
-    widgets?: Array<{
-      type: "editor" | "multiple-choice" | "code-editor";
-      config: Record<string, unknown>;
-    }>;
-  }>;
+  steps?: LabTemplateStep[];
   visuals?: VisualDiagramData[];
 }
 
@@ -133,14 +166,7 @@ export interface DeriveLabData {
     question: string;
     explanation?: string;
   };
-  steps?: Array<{
-    id: string;
-    title: string;
-    widgets?: Array<{
-      type: "editor" | "multiple-choice" | "derivation-steps";
-      config: Record<string, unknown>;
-    }>;
-  }>;
+  steps?: LabTemplateStep[];
   visuals?: VisualDiagramData[];
 }
 
@@ -168,13 +194,7 @@ export interface ExplainLabData {
     explain?: string[];
     edgeCases?: string[];
   };
-  steps?: Array<{
-    id: string;
-    title: string;
-    instruction?: string;
-    keyQuestions?: string[];
-    prompt?: string;
-  }>;
+  steps?: LabTemplateStep[];
   learningObjectives?: string[];
   visuals?: VisualDiagramData[];
 }
@@ -196,6 +216,7 @@ export interface ExploreLabData {
   simulationFormula?: string;
   expectedInsights: string[];
   guidingQuestions: string[];
+  steps?: LabTemplateStep[];
   visuals?: VisualDiagramData[];
 }
 
@@ -215,17 +236,7 @@ export interface ReviseLabData {
   }>;
   improvementAreas: string[];
   // AI-generated structured steps like Explain template
-  steps?: Array<{
-    id: string;
-    title: string;
-    instruction?: string;
-    keyQuestions?: string[];
-    prompt?: string;
-    widgets?: Array<{
-      type: "editor" | "multiple-choice";
-      config: Record<string, unknown>;
-    }>;
-  }>;
+  steps?: LabTemplateStep[];
   visuals?: VisualDiagramData[];
 }
 
@@ -242,11 +253,5 @@ export interface UnifiedLabData {
     topics?: string[];
   };
   // Dynamic steps for templates that support them
-  steps?: Array<{
-    id: string;
-    title: string;
-    instruction?: string;
-    keyQuestions?: string[];
-    prompt?: string;
-  }>;
+  steps?: LabTemplateStep[];
 }
