@@ -5,7 +5,15 @@ import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
-import { CodeBlock, CodeBlockCode } from "./code-block";
+import {
+  CodeBlock,
+  CodeBlockHeader,
+  CodeBlockIcon,
+  CodeBlockGroup,
+  CodeBlockContent,
+  CopyButton,
+  CodeblockShiki,
+} from "@loveui/code-blocks";
 import { ReactFlowWidget, ReactFlowWidgetData } from "@/components/widgets/react-flow-widget";
 import { ChartWidget, ChartWidgetData } from "@/components/widgets/chart-widget";
 import { Chart3DWidget, Chart3DWidgetData } from "@/components/widgets/chart3d-widget";
@@ -17,6 +25,80 @@ export type MarkdownProps = {
   className?: string;
   components?: Partial<Components>;
 };
+
+type CodeLanguage =
+  | "html"
+  | "js"
+  | "ts"
+  | "tsx"
+  | "css"
+  | "bash"
+  | "json"
+  | "mdx"
+  | "python"
+  | "java"
+  | "cpp"
+  | "go";
+
+const LANGUAGE_ALIASES: Record<string, CodeLanguage> = {
+  bash: "bash",
+  c: "cpp",
+  cxx: "cpp",
+  cpp: "cpp",
+  "c++": "cpp",
+  css: "css",
+  golang: "go",
+  go: "go",
+  html: "html",
+  javascript: "js",
+  js: "js",
+  json: "json",
+  jsx: "js",
+  md: "mdx",
+  markdown: "mdx",
+  mdx: "mdx",
+  py: "python",
+  python: "python",
+  shell: "bash",
+  sh: "bash",
+  ts: "ts",
+  tsx: "tsx",
+  typescript: "ts",
+  xml: "html",
+  zsh: "bash",
+};
+
+function normalizeCodeLanguage(language?: string | null): CodeLanguage {
+  if (!language) return "java";
+  return LANGUAGE_ALIASES[language.toLowerCase()] ?? "java";
+}
+
+function extractOptionalFilename({
+  className,
+  node,
+}: {
+  className?: string;
+  node: unknown;
+}) {
+  const n = node as any;
+  const candidates = [
+    typeof n?.data?.meta === "string" ? n.data.meta : "",
+    typeof n?.meta === "string" ? n.meta : "",
+    typeof n?.properties?.meta === "string" ? n.properties.meta : "",
+    typeof n?.properties?.metastring === "string" ? n.properties.metastring : "",
+    className ?? "",
+  ];
+
+  for (const value of candidates) {
+    if (!value) continue;
+    const match = value.match(
+      /(?:^|\s)(?:filename|file|title)=("([^"]+)"|'([^']+)'|([^\s]+))/i
+    );
+    if (match) return (match[2] || match[3] || match[4] || "").trim();
+  }
+
+  return undefined;
+}
 
 const DEFAULT_COMPONENTS: Partial<Components> = {
   h1: ({ children }) => <h1 className="text-lg font-bold mt-4 mb-3">{children}</h1>,
@@ -94,7 +176,7 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
   code: ({ className, children, node, ...props }) => {
     // In react-markdown v9+, the 'inline' prop is removed.
     // We use heuristics to determine if it should be rendered inline or as a block.
-    const match = /language-(\w+)/.exec(className || '');
+    const match = /language-([A-Za-z0-9_+-]+)/.exec(className || '');
     const isInline = !match && !String(children).includes('\n');
 
     if (isInline) {
@@ -121,34 +203,42 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
     }
 
     // Detect language if not specified
-    let language = match ? match[1] : null;
-    const code = String(children ?? "").replace(/\n$/, "");
+    const rawLanguage = match ? match[1] : null;
+    let language = normalizeCodeLanguage(rawLanguage);
+    const code = String(children ?? "").replace(/^\n+/, "").replace(/\n$/, "");
     
     // If no language specified, try to detect it from the code content
-    if (!language) {
+    if (!rawLanguage) {
       const codeStr = code.toLowerCase();
       
       // Simple heuristics to detect common languages
       if (codeStr.includes('def ') || codeStr.includes('import ') && codeStr.includes('from ')) {
-        language = "python";
+        language = normalizeCodeLanguage("python");
       } else if (codeStr.includes('function ') || codeStr.includes('const ') || codeStr.includes('let ') || codeStr.includes('=>')) {
-        language = "javascript";
+        language = normalizeCodeLanguage("javascript");
       } else if (codeStr.includes('class ') && (codeStr.includes('public ') || codeStr.includes('private ') || codeStr.includes('static '))) {
-        language = "java";
+        language = normalizeCodeLanguage("java");
       } else if (codeStr.includes('#include') || codeStr.includes('std::')) {
-        language = "cpp";
+        language = normalizeCodeLanguage("cpp");
       } else if (codeStr.includes('package ') || codeStr.includes('func ')) {
-        language = "go";
-      } else {
-        // Default to java as it's commonly used in educational content
-        language = "java";
+        language = normalizeCodeLanguage("go");
       }
     }
 
-    // Return the CodeBlock directly without wrapper to avoid nesting issues
+    const optionalFilename = extractOptionalFilename({ className, node });
+
     return (
-      <CodeBlock className={className}>
-        <CodeBlockCode code={code} language={language} />
+      <CodeBlock>
+        <CodeBlockHeader>
+          <CodeBlockGroup>
+            <CodeBlockIcon language={language} />
+            {optionalFilename ? <span>{optionalFilename}</span> : null}
+          </CodeBlockGroup>
+          <CopyButton content={code} />
+        </CodeBlockHeader>
+        <CodeBlockContent className="whitespace-normal">
+          <CodeblockShiki code={code} language={language} className="[&>pre]:m-0" />
+        </CodeBlockContent>
       </CodeBlock>
     );
   },

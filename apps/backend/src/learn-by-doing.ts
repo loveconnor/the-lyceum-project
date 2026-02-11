@@ -38,7 +38,7 @@ Actions:
 Typography:
 - Heading: { text: string, level?: 1|2|3|4 } - Heading text (h1-h4)
 - Text: { content: string, variant?: "body"|"caption"|"muted" } - Paragraph text
-- Markdown: { content: string } - Rich text using Markdown (supports lists, tables, code, math, and custom <Visual>, <Chart> tags)
+- Markdown: { content: string } - Rich text using Markdown (supports lists, tables, code, math, and custom <Visual>, <Chart> tags). For multi-line code, use fenced code blocks with explicit language tags (for example: ts, js, python, java, bash, json).
 
 Data Display:
 - Image: { src: string, alt: string, width?: number, height?: number } - Image
@@ -90,6 +90,7 @@ RULES:
 7. Use className for custom Tailwind styling when needed
 7a. ALWAYS prefer Markdown over Text for teaching content. Use Markdown for any explanatory text, examples, instructions, or multi-paragraph content. Only use Text for very short labels or captions.
 7b. Markdown content for teaching must be substantial: minimum 4-6 sentences (100-150 words). Include examples, explanations, and formatting (lists, code blocks, bold text).
+7c. In Markdown code examples, always use triple-backtick fenced code blocks with a language tag. Never use triple single quotes.
 8. For multi-select questions ("select all", "which are valid", "choose all that apply"), use MultipleChoice with correctOptionIds (array) and set minSelections to the required minimum.
 9. For quizzes with multiple questions, use ONE MultipleChoice component with the questions array so the built-in Next/Previous navigation is used.
 10. CRITICAL - Matching Component: A pair is correct ONLY when leftItems[i].id EXACTLY equals rightItems[j].id. The IDs must match, but labels should be different (left shows the question, right shows the answer).
@@ -336,7 +337,7 @@ Examples of FORBIDDEN (will be rejected):
   4. THEN IMMEDIATELY: Another interactive practice
 - Include at least 5-6 hands-on activities per module using interactive components (e.g., MultipleChoice, FillInTheBlank, CodeFill, OrderSteps, Matching).
 - VARIETY: Mix different types of widgets throughout. Don't use the same widget type consecutively.
-- Include at least two steps that use Markdown with code examples (fenced code blocks) and at least one step that uses Markdown with a table or list.
+- Include at least two steps that use Markdown with code examples (fenced code blocks with explicit language tags) and at least one step that uses Markdown with a table or list.
 - For every hands-on activity, ONLY reference concepts, terms, or examples that have already been introduced in earlier steps.
 - Ensure there are enough steps for the learner to fully understand the concept: aim for 12-15 steps for complex topics.
 - After major activities, include recap/summary steps with 5-6 sentences reviewing what was learned, THEN follow with a final mastery check widget.

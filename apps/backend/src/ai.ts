@@ -113,6 +113,7 @@ const baseSystemInstruction =
   '- Full function/class implementations\n' +
   '- Code that should be copied and run\n' +
   '- Use explicit language tags: ```python, ```javascript, ```java\n' +
+  '- Never use triple single quotes (\'\'\') as a fence delimiter\n' +
   '\n' +
   '**NEVER DO THIS:**\n' +
   '- ❌ ```\\nfor\\n``` or ```java\\nfor\\n``` for single keywords\n' +

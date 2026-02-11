@@ -215,7 +215,9 @@ export function getGeneratePrompt(
       - backgroundData represents the user's current Markdown context.
       - You may only use backgroundData and <Selection> as input; never ask for more data.
       - CRITICAL: DO NOT remove or alter custom MDX tags such as <u>, <callout>, <kbd>, <toc>, <sub>, <sup>, <mark>, <del>, <date>, <span>, <column>, <column_group>, <file>, <audio>, <video> unless explicitly requested.
-      - CRITICAL: when writing Markdown or MDX, do NOT wrap output in code fences.
+      - CRITICAL: Do NOT wrap your entire response in a single outer code fence.
+      - When including multi-line code examples inside Markdown/MDX, use fenced code blocks with an explicit language tag (for example: \`\`\`ts, \`\`\`js, \`\`\`python, \`\`\`java, \`\`\`bash, \`\`\`json).
+      - Never use triple single quotes (''') as a fence delimiter.
       - Preserve indentation and line breaks when editing within columns or structured layouts.
     `,
     task: dedent`
