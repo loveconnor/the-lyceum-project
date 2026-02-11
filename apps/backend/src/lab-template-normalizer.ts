@@ -110,61 +110,108 @@ const inferColumnType = (values: unknown[]): DatasetColumnType => {
 
 const clampDuration = (value: number): number => Math.max(10, Math.min(240, Math.round(value)));
 
-const normalizeBuildWidgets = (widgetsValue: unknown): Array<{ type: string; config: JsonRecord }> => {
+const normalizeWidgetTypeKey = (value: unknown): string => {
+  if (typeof value !== "string") return "";
+  return value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+};
+
+const WIDGET_TYPE_BY_KEY: Record<string, string> = {
+  text_input: "editor",
+  textinput: "editor",
+  editor: "editor",
+  multiple_choice: "multiple-choice",
+  multiplechoice: "multiple-choice",
+  code_editor: "code-editor",
+  codeeditor: "code-editor",
+  derivation_steps: "derivation-steps",
+  derivationsteps: "derivation-steps",
+  short_answer: "short_answer",
+  shortanswer: "short_answer",
+  fill_in_the_blank: "fill_in_the_blank",
+  fillintheblank: "fill_in_the_blank",
+  code_fill: "code_fill",
+  codefill: "code_fill",
+  true_false: "true_false",
+  truefalse: "true_false",
+  matching: "matching",
+  order_steps: "order_steps",
+  ordersteps: "order_steps",
+  drag_drop: "drag_drop",
+  dragdrop: "drag_drop",
+  numeric_input: "numeric_input",
+  numericinput: "numeric_input",
+  diagram_selection: "diagram_selection",
+  diagramselection: "diagram_selection",
+};
+
+const LEARN_BY_DOING_WIDGET_TYPES = new Set([
+  "short_answer",
+  "multiple_choice",
+  "code_fill",
+  "true_false",
+  "fill_in_the_blank",
+  "order_steps",
+  "drag_drop",
+  "numeric_input",
+  "diagram_selection",
+  "matching",
+]);
+
+const BUILD_WIDGET_TYPES = new Set<string>([
+  "editor",
+  "multiple-choice",
+  "code-editor",
+  ...LEARN_BY_DOING_WIDGET_TYPES,
+]);
+
+const DERIVE_WIDGET_TYPES = new Set<string>([
+  "editor",
+  "multiple-choice",
+  "code-editor",
+  "derivation-steps",
+  ...LEARN_BY_DOING_WIDGET_TYPES,
+]);
+
+const REVISE_WIDGET_TYPES = new Set<string>([
+  "editor",
+  "multiple-choice",
+  "code-editor",
+  ...LEARN_BY_DOING_WIDGET_TYPES,
+]);
+
+const normalizeStepWidgets = (
+  widgetsValue: unknown,
+  allowedTypes: Set<string>
+): Array<{ type: string; config: JsonRecord }> => {
   if (!Array.isArray(widgetsValue)) return [];
   return widgetsValue
     .map((widget) => {
       const source = asRecord(widget);
-      const originalType = asString(source.type).toLowerCase();
-      const mappedType =
-        originalType === "text-input"
-          ? "editor"
-          : originalType === "editor" || originalType === "multiple-choice" || originalType === "code-editor"
-            ? originalType
-            : "";
-      if (!mappedType) return null;
+      const normalizedTypeKey = normalizeWidgetTypeKey(source.type);
+      const mappedType = WIDGET_TYPE_BY_KEY[normalizedTypeKey] ?? "";
+      if (!mappedType || !allowedTypes.has(mappedType)) return null;
       return {
         type: mappedType,
         config: asRecord(source.config),
       };
     })
     .filter((entry): entry is { type: string; config: JsonRecord } => Boolean(entry));
+};
+
+const normalizeBuildWidgets = (widgetsValue: unknown): Array<{ type: string; config: JsonRecord }> => {
+  return normalizeStepWidgets(widgetsValue, BUILD_WIDGET_TYPES);
 };
 
 const normalizeDeriveWidgets = (widgetsValue: unknown): Array<{ type: string; config: JsonRecord }> => {
-  if (!Array.isArray(widgetsValue)) return [];
-  return widgetsValue
-    .map((widget) => {
-      const source = asRecord(widget);
-      const type = asString(source.type).toLowerCase();
-      if (type !== "editor" && type !== "multiple-choice" && type !== "derivation-steps") return null;
-      return {
-        type,
-        config: asRecord(source.config),
-      };
-    })
-    .filter((entry): entry is { type: string; config: JsonRecord } => Boolean(entry));
+  return normalizeStepWidgets(widgetsValue, DERIVE_WIDGET_TYPES);
 };
 
 const normalizeReviseWidgets = (widgetsValue: unknown): Array<{ type: string; config: JsonRecord }> => {
-  if (!Array.isArray(widgetsValue)) return [];
-  return widgetsValue
-    .map((widget) => {
-      const source = asRecord(widget);
-      const originalType = asString(source.type).toLowerCase();
-      const mappedType =
-        originalType === "text-input"
-          ? "editor"
-          : originalType === "editor" || originalType === "multiple-choice"
-            ? originalType
-            : "";
-      if (!mappedType) return null;
-      return {
-        type: mappedType,
-        config: asRecord(source.config),
-      };
-    })
-    .filter((entry): entry is { type: string; config: JsonRecord } => Boolean(entry));
+  return normalizeStepWidgets(widgetsValue, REVISE_WIDGET_TYPES);
 };
 
 const normalizeAnalyzeTemplate = (value: unknown): JsonRecord => {

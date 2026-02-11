@@ -4,7 +4,7 @@ import React, { useEffect } from "react";
 import { useLabStore } from "./store";
 
 import LabList from "@/components/labs/lab-list";
-import CreateLabSheet from "@/components/labs/create-lab-sheet";
+import CreateLabDialog from "@/components/labs/create-lab-dialog";
 import LabDetailSheet from "@/components/labs/lab-detail-sheet";
 
 export default function Labs() {
@@ -65,7 +65,7 @@ export default function Labs() {
         onAddTodoClick={handleAddTodoClick}
       />
 
-      <CreateLabSheet
+      <CreateLabDialog
         isOpen={isAddDialogOpen}
         onClose={handleCloseAddSheet}
         editTodoId={editTodoId}

@@ -17,6 +17,7 @@ import {
 import { ReactFlowWidget, ReactFlowWidgetData } from "@/components/widgets/react-flow-widget";
 import { ChartWidget, ChartWidgetData } from "@/components/widgets/chart-widget";
 import { Chart3DWidget, Chart3DWidgetData } from "@/components/widgets/chart3d-widget";
+import { MARKDOWN_INLINE_CODE_CLASSNAME } from "@/components/ui/inline-code-style";
 
 export type MarkdownProps = {
   children: string;
@@ -71,6 +72,70 @@ function normalizeCodeLanguage(language?: string | null): CodeLanguage {
   return LANGUAGE_ALIASES[language.toLowerCase()] ?? "java";
 }
 
+function inferCodeLanguage(rawLanguage: string | null, code: string): CodeLanguage {
+  let language = normalizeCodeLanguage(rawLanguage);
+  if (rawLanguage) return language;
+
+  const codeStr = code.toLowerCase();
+  if (codeStr.includes("def ") || (codeStr.includes("import ") && codeStr.includes("from "))) {
+    language = normalizeCodeLanguage("python");
+  } else if (
+    codeStr.includes("function ") ||
+    codeStr.includes("const ") ||
+    codeStr.includes("let ") ||
+    codeStr.includes("=>")
+  ) {
+    language = normalizeCodeLanguage("javascript");
+  } else if (
+    codeStr.includes("class ") &&
+    (codeStr.includes("public ") || codeStr.includes("private ") || codeStr.includes("static "))
+  ) {
+    language = normalizeCodeLanguage("java");
+  } else if (codeStr.includes("#include") || codeStr.includes("std::")) {
+    language = normalizeCodeLanguage("cpp");
+  } else if (codeStr.includes("package ") || codeStr.includes("func ")) {
+    language = normalizeCodeLanguage("go");
+  }
+
+  return language;
+}
+
+function extractLeadingLanguageLine(code: string): { language: CodeLanguage; code: string } | null {
+  const lines = code.split("\n");
+  if (lines.length < 2) return null;
+
+  const first = lines[0].trim().toLowerCase();
+  if (!first) return null;
+
+  const firstToken = first.replace(/[:;,-]+$/, "");
+  if (!(firstToken in LANGUAGE_ALIASES)) return null;
+
+  const rest = lines.slice(1).join("\n").replace(/^\n+/, "");
+  if (!rest.trim()) return null;
+
+  const looksLikeCode = /[{}();=<>]|^\s*(for|if|while|class|function|const|let|var|public|private|import|def)\b/m.test(rest);
+  if (!looksLikeCode) return null;
+
+  return {
+    language: normalizeCodeLanguage(firstToken),
+    code: rest,
+  };
+}
+
+function shouldPromoteInlineCodeToBlock(code: string, inTableCell: boolean): boolean {
+  if (!inTableCell) return false;
+
+  const trimmed = code.trim();
+  if (!trimmed) return false;
+
+  const tokenCount = trimmed.split(/\s+/).length;
+  const hasCodeSyntax = /[{};]|=>|::|->/.test(trimmed);
+  const hasKeyword =
+    /\b(for|while|if|switch|class|function|const|let|var|return|public|private)\b/.test(trimmed);
+
+  return tokenCount >= 5 && (hasCodeSyntax || hasKeyword);
+}
+
 function extractOptionalFilename({
   className,
   node,
@@ -98,6 +163,8 @@ function extractOptionalFilename({
   return undefined;
 }
 
+const MarkdownRenderContext = React.createContext<{ inTableCell: boolean }>({ inTableCell: false });
+
 const DEFAULT_COMPONENTS: Partial<Components> = {
   h1: ({ children }) => <h1 className="text-lg font-bold mt-4 mb-3">{children}</h1>,
   h2: ({ children }) => <h2 className="text-base font-bold mt-3 mb-2">{children}</h2>,
@@ -107,9 +174,13 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
   h6: ({ children }) => <h6 className="text-sm font-semibold mt-3 mb-2">{children}</h6>,
   strong: ({ children }) => <strong className="font-bold">{children}</strong>,
   em: ({ children }) => <em className="italic">{children}</em>,
-  ul: ({ children }) => <ul className="list-disc list-inside my-3 space-y-1">{children}</ul>,
-  ol: ({ children }) => <ol className="list-decimal list-inside my-3 space-y-1">{children}</ol>,
-  li: ({ children }) => <li className="leading-7">{children}</li>,
+  ul: ({ children }) => <ul className="my-3 list-disc list-outside space-y-1 ps-6">{children}</ul>,
+  ol: ({ children }) => <ol className="my-3 list-decimal list-outside space-y-1 ps-6">{children}</ol>,
+  li: ({ children }) => (
+    <li className="leading-7 marker:text-muted-foreground [&>h1]:mt-0 [&>h2]:mt-0 [&>h3]:mt-0 [&>h4]:mt-0 [&>h5]:mt-0 [&>h6]:mt-0 [&>p]:my-0 [&>p:empty]:hidden">
+      {children}
+    </li>
+  ),
   blockquote: ({ children }) => (
     <blockquote className="border-l-4 border-muted-foreground/20 pl-4 italic my-4">
       {children}
@@ -133,114 +204,142 @@ const DEFAULT_COMPONENTS: Partial<Components> = {
   tr: ({ children }) => <tr className="border-b border-border">{children}</tr>,
   th: ({ children }) => (
     <th className="border border-border px-4 py-2 text-left font-semibold">
-      {children}
+      <MarkdownRenderContext.Provider value={{ inTableCell: true }}>
+        {children}
+      </MarkdownRenderContext.Provider>
     </th>
   ),
   td: ({ children }) => (
     <td className="border border-border px-4 py-2">
-      {children}
+      <MarkdownRenderContext.Provider value={{ inTableCell: true }}>
+        {children}
+      </MarkdownRenderContext.Provider>
     </td>
   ),
-  p: ({ children, node }) => {
-    // Check if paragraph contains block-level elements
-    const hasBlockChild = React.Children.toArray(children).some(
-      (child) => {
-        if (!React.isValidElement(child)) return false;
-        
-        // Check if it's a code element that's not inline (block code)
-        if (child.type === 'code') {
-          const className = (child.props as any).className || '';
-          const childChildren = (child.props as any).children || '';
-          const isInline = !className.includes('language-') && !String(childChildren).includes('\n');
-          return !isInline;
-        }
-        
-        // Check for common block-level component types
-        const childType = child.type;
-        if (typeof childType === 'function') {
-          const displayName = (childType as any).displayName || childType.name || '';
-          return displayName.includes('CodeBlock') || displayName.includes('Table');
-        }
-        // Check for HTML block elements
-        return ['div', 'pre', 'table', 'blockquote', 'ul', 'ol', 'hr'].includes(String(childType));
-      }
-    );
-    
-    if (hasBlockChild) {
-      return <div className="my-2">{children}</div>;
-    }
-    return <p className="mb-2 leading-7">{children}</p>;
-  },
-  code: ({ className, children, node, ...props }) => {
-    // In react-markdown v9+, the 'inline' prop is removed.
-    // We use heuristics to determine if it should be rendered inline or as a block.
-    const match = /language-([A-Za-z0-9_+-]+)/.exec(className || '');
-    const isInline = !match && !String(children).includes('\n');
-
-    if (isInline) {
-      const content = String(children);
-      // Check if this is actually a math expression (wrapped in $ signs)
-      // These should be rendered as code but without the $ delimiters
-      const isMath = content.startsWith('$') && content.endsWith('$') && content.length > 2;
-      
-      if (isMath) {
-        // Strip the $ signs and render as code
-        const mathContent = content.slice(1, -1);
-        return (
-          <code className={cn("bg-muted/60 text-foreground rounded px-1.5 py-0.5 font-mono border border-border/50", className)}>
-            {mathContent}
-          </code>
+  p: ({ children, node }) => (
+    <MarkdownRenderContext.Consumer>
+      {({ inTableCell }) => {
+        // Check if paragraph contains block-level elements
+        const hasBlockChild = React.Children.toArray(children).some(
+          (child) => {
+            if (!React.isValidElement(child)) return false;
+            
+            // Check if it's a code element that's not inline (block code)
+            if (child.type === 'code') {
+              const className = (child.props as any).className || '';
+              const childChildren = (child.props as any).children || '';
+              const isInline = !className.includes('language-') && !String(childChildren).includes('\n');
+              return !isInline;
+            }
+            
+            // Check for common block-level component types
+            const childType = child.type;
+            if (typeof childType === 'function') {
+              const displayName = (childType as any).displayName || childType.name || '';
+              return displayName.includes('CodeBlock') || displayName.includes('Table');
+            }
+            // Check for HTML block elements
+            return ['div', 'pre', 'table', 'blockquote', 'ul', 'ol', 'hr'].includes(String(childType));
+          }
         );
-      }
-      
-      return (
-        <code className={cn("bg-muted/60 text-foreground rounded px-1.5 py-0.5 font-mono border border-border/50", className)}>
-          {children}
-        </code>
-      );
-    }
+        
+        if (hasBlockChild) {
+          return <div className={cn("my-2", inTableCell && "my-0")}>{children}</div>;
+        }
 
-    // Detect language if not specified
-    const rawLanguage = match ? match[1] : null;
-    let language = normalizeCodeLanguage(rawLanguage);
-    const code = String(children ?? "").replace(/^\n+/, "").replace(/\n$/, "");
-    
-    // If no language specified, try to detect it from the code content
-    if (!rawLanguage) {
-      const codeStr = code.toLowerCase();
-      
-      // Simple heuristics to detect common languages
-      if (codeStr.includes('def ') || codeStr.includes('import ') && codeStr.includes('from ')) {
-        language = normalizeCodeLanguage("python");
-      } else if (codeStr.includes('function ') || codeStr.includes('const ') || codeStr.includes('let ') || codeStr.includes('=>')) {
-        language = normalizeCodeLanguage("javascript");
-      } else if (codeStr.includes('class ') && (codeStr.includes('public ') || codeStr.includes('private ') || codeStr.includes('static '))) {
-        language = normalizeCodeLanguage("java");
-      } else if (codeStr.includes('#include') || codeStr.includes('std::')) {
-        language = normalizeCodeLanguage("cpp");
-      } else if (codeStr.includes('package ') || codeStr.includes('func ')) {
-        language = normalizeCodeLanguage("go");
-      }
-    }
+        if (inTableCell) {
+          return <div className="leading-7">{children}</div>;
+        }
 
-    // Return the CodeBlock directly without wrapper to avoid nesting issues
-    const optionalFilename = extractOptionalFilename({ className, node });
+        return <p className="mb-2 leading-7">{children}</p>;
+      }}
+    </MarkdownRenderContext.Consumer>
+  ),
+  code: ({ className, children, node, ...props }) => (
+    <MarkdownRenderContext.Consumer>
+      {({ inTableCell }) => {
+        // In react-markdown v9+, the 'inline' prop is removed.
+        // We use heuristics to determine if it should be rendered inline or as a block.
+        const match = /language-([A-Za-z0-9_+-]+)/.exec(className || '');
+        const isInline = !match && !String(children).includes('\n');
 
-    return (
-      <CodeBlock>
-        <CodeBlockHeader>
-          <CodeBlockGroup>
-            <CodeBlockIcon language={language} />
-            {optionalFilename ? <span>{optionalFilename}</span> : null}
-          </CodeBlockGroup>
-          <CopyButton content={code} />
-        </CodeBlockHeader>
-        <CodeBlockContent className="whitespace-normal">
-          <CodeblockShiki code={code} language={language} className="[&>pre]:m-0" />
-        </CodeBlockContent>
-      </CodeBlock>
-    );
-  },
+        if (isInline) {
+          const content = String(children);
+          // Check if this is actually a math expression (wrapped in $ signs)
+          // These should be rendered as code but without the $ delimiters
+          const isMath = content.startsWith('$') && content.endsWith('$') && content.length > 2;
+          
+          if (isMath) {
+            // Strip the $ signs and render as code
+            const mathContent = content.slice(1, -1);
+            return (
+              <code
+                className={cn(MARKDOWN_INLINE_CODE_CLASSNAME, className)}
+              >
+                {mathContent}
+              </code>
+            );
+          }
+
+          if (shouldPromoteInlineCodeToBlock(content, inTableCell)) {
+            const inlineCode = content.trim();
+            const language = inferCodeLanguage(null, inlineCode);
+            return (
+              <CodeBlock className="border-border/70 my-1 shadow-none dark:border-white/15">
+                <CodeBlockHeader className="border-b border-border/60 dark:border-white/10">
+                  <CodeBlockGroup>
+                    <CodeBlockIcon language={language} className="size-5" />
+                  </CodeBlockGroup>
+                  <CopyButton content={inlineCode} />
+                </CodeBlockHeader>
+                <CodeBlockContent className="whitespace-normal rounded-none rounded-b-lg bg-muted/50 dark:bg-black/25">
+                  <CodeblockShiki code={inlineCode} language={language} className="[&>pre]:m-0" />
+                </CodeBlockContent>
+              </CodeBlock>
+            );
+          }
+          
+          return (
+            <code
+              className={cn(MARKDOWN_INLINE_CODE_CLASSNAME, className)}
+            >
+              {children}
+            </code>
+          );
+        }
+
+        // Detect language if not specified
+        const rawLanguage = match ? match[1] : null;
+        let code = String(children ?? "").replace(/^\n+/, "").replace(/\n$/, "");
+        let language = inferCodeLanguage(rawLanguage, code);
+        if (!rawLanguage) {
+          const extracted = extractLeadingLanguageLine(code);
+          if (extracted) {
+            code = extracted.code;
+            language = extracted.language;
+          }
+        }
+
+        // Return the CodeBlock directly without wrapper to avoid nesting issues
+        const optionalFilename = extractOptionalFilename({ className, node });
+
+        return (
+          <CodeBlock className="border-border/70 shadow-none dark:border-white/15">
+            <CodeBlockHeader className="border-b border-border/60 dark:border-white/10">
+              <CodeBlockGroup>
+                <CodeBlockIcon language={language} className="size-5" />
+                {optionalFilename ? <span>{optionalFilename}</span> : null}
+              </CodeBlockGroup>
+              <CopyButton content={code} />
+            </CodeBlockHeader>
+            <CodeBlockContent className="whitespace-normal rounded-none rounded-b-lg bg-muted/50 dark:bg-black/25">
+              <CodeblockShiki code={code} language={language} className="[&>pre]:m-0" />
+            </CodeBlockContent>
+          </CodeBlock>
+        );
+      }}
+    </MarkdownRenderContext.Consumer>
+  ),
   pre: ({ children }) => <>{children}</>
 };
 
@@ -358,10 +457,9 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
     // 2. Fix \cdotp (invalid command) -> \cdot
     // 3. Fix \cdot followed by letter without space
     let processedText = sourceText
-      // Heuristic: If triple quotes/backticks are followed by text with spaces, 
+      // Heuristic: If triple quotes are followed by text with spaces,
       // it's likely meant to be a closing fence + text on new line.
       .replace(/^''' ?(.*\s.*)$/gm, '```\n$1')
-      .replace(/^``` ?(.*\s.*)$/gm, '```\n$1')
       .replace(/^'''/gm, '```') // Replace start-of-line triple quotes with backticks
       .replace(/'''$/gm, '```') // Replace end-of-line triple quotes with backticks (less common but good to catch)
       .replace(/\n'''/g, '\n```') // Replace triple quotes preceded by newline

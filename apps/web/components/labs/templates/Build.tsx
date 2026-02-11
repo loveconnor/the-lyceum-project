@@ -102,6 +102,10 @@ interface Step {
 }
 
 type StepLikeWithStarter = {
+  id?: string;
+  title?: string;
+  instruction?: string;
+  prompt?: string;
   starterCode?: string;
   skeletonCode?: string;
   widgets?: Array<{
@@ -111,6 +115,111 @@ type StepLikeWithStarter = {
 };
 
 const normalizeStarterCode = (value: string): string => value.replace(/\r\n/g, "\n");
+
+const normalizeWidgetTypeKey = (type: unknown): string => {
+  if (typeof type !== "string") return "";
+  return type
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[\s-]+/g, "_")
+    .toLowerCase();
+};
+
+const isCodeEditorWidgetType = (type: unknown): boolean =>
+  normalizeWidgetTypeKey(type) === "code_editor";
+
+const hasCodeEditorWidget = (widgets: Step["widgets"] | undefined): boolean =>
+  Array.isArray(widgets) && widgets.some((widget) => isCodeEditorWidgetType(widget?.type));
+
+const createDefaultCodeEditorWidget = (prompt?: string): Step["widgets"][number] => ({
+  type: "code-editor",
+  config: {
+    label: "Implementation",
+    description: prompt || "Write and run your solution."
+  }
+});
+
+const BUILD_CONSTRUCT_GIVEAWAY_RULES: Array<{
+  asksPattern: RegExp;
+  codePattern: RegExp;
+}> = [
+  {
+    asksPattern: /\b(write|implement|create|build|define)\b[^.\n]{0,60}\bfor\s+loop\b/i,
+    codePattern: /\bfor\s*\(/,
+  },
+  {
+    asksPattern: /\b(write|implement|create|build|define)\b[^.\n]{0,60}\bwhile\s+loop\b/i,
+    codePattern: /\bwhile\s*\(/,
+  },
+  {
+    asksPattern: /\b(write|implement|create|build|define)\b[^.\n]{0,60}\bif(?:\s*\/\s*else|\s+else|\s+statement)?\b/i,
+    codePattern: /\bif\s*\(/,
+  },
+  {
+    asksPattern: /\b(write|implement|create|build|define)\b[^.\n]{0,60}\bswitch\b/i,
+    codePattern: /\bswitch\s*\(/,
+  },
+];
+
+const getStepTeachingText = (step?: StepLikeWithStarter): string =>
+  `${step?.title ?? ""}\n${step?.instruction ?? ""}\n${step?.prompt ?? ""}`.toLowerCase();
+
+const getTriggeredGiveawayRules = (step: StepLikeWithStarter): Array<{
+  asksPattern: RegExp;
+  codePattern: RegExp;
+}> => {
+  const teachingText = getStepTeachingText(step);
+  if (!teachingText.trim()) return [];
+
+  return BUILD_CONSTRUCT_GIVEAWAY_RULES.filter(({ asksPattern }) => asksPattern.test(teachingText));
+};
+
+const stripGiveawayConstructFromCode = (
+  code: string,
+  rules: Array<{ asksPattern: RegExp; codePattern: RegExp }>
+): string => {
+  if (!code.trim() || rules.length === 0) return code;
+
+  const lines = code.split("\n");
+  const result: string[] = [];
+  let skipCommentBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const isCommentLine = trimmed.startsWith("//");
+    const hasGiveawayConstruct = rules.some(({ codePattern }) => codePattern.test(line));
+
+    if (skipCommentBlock) {
+      if (isCommentLine || trimmed.length === 0) {
+        continue;
+      }
+      skipCommentBlock = false;
+    }
+
+    if (hasGiveawayConstruct) {
+      if (isCommentLine) {
+        skipCommentBlock = true;
+      }
+      continue;
+    }
+
+    result.push(line);
+  }
+
+  return result.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd();
+};
+
+const shouldSuppressStarterCode = (step: StepLikeWithStarter, starterCode: string): boolean => {
+  const triggeredRules = getTriggeredGiveawayRules(step);
+  if (triggeredRules.length === 0) return false;
+
+  return triggeredRules.some(
+    ({ codePattern }) => codePattern.test(starterCode)
+  );
+};
+
+const sanitizeCodeForStep = (step: StepLikeWithStarter, code: string): string =>
+  stripGiveawayConstructFromCode(code, getTriggeredGiveawayRules(step));
 
 const toStarterCode = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
@@ -124,17 +233,25 @@ const getStepStarterCode = (step?: StepLikeWithStarter): string | null => {
   const directStarter =
     toStarterCode(step.starterCode) ??
     toStarterCode(step.skeletonCode);
-  if (directStarter) return directStarter;
+  if (directStarter) {
+    if (!shouldSuppressStarterCode(step, directStarter)) return directStarter;
+    const sanitized = sanitizeCodeForStep(step, directStarter);
+    return toStarterCode(sanitized);
+  }
 
   if (!Array.isArray(step.widgets)) return null;
   for (const widget of step.widgets) {
-    if (widget?.type !== "code-editor") continue;
+    if (!isCodeEditorWidgetType(widget?.type)) continue;
     const config = widget.config ?? {};
     const widgetStarter =
       toStarterCode(config.starterCode) ??
       toStarterCode(config.starter_code) ??
       toStarterCode(config.skeletonCode);
-    if (widgetStarter) return widgetStarter;
+    if (widgetStarter) {
+      if (!shouldSuppressStarterCode(step, widgetStarter)) return widgetStarter;
+      const sanitized = sanitizeCodeForStep(step, widgetStarter);
+      return toStarterCode(sanitized);
+    }
   }
 
   return null;
@@ -150,13 +267,7 @@ const getDefaultWidgetsForStep = (stepId: string, stepTitle: string, prompt?: st
 
   if (isPrimaryCodeStep || isCodeReviewStep) {
     const widgets: Step["widgets"] = [
-      {
-        type: "code-editor",
-        config: {
-          label: "Implementation",
-          description: prompt || "Write and run your solution."
-        }
-      }
+      createDefaultCodeEditorWidget(prompt)
     ];
 
     if (isCodeReviewStep) {
@@ -191,16 +302,17 @@ const ensureBuildStepWidgets = (
   widgets: Step["widgets"] | undefined,
   prompt?: string
 ): Step["widgets"] => {
-  if (widgets && widgets.length > 0) {
-    return widgets;
-  }
-  return getDefaultWidgetsForStep(stepId, stepTitle, prompt);
+  const normalizedWidgets =
+    widgets && widgets.length > 0
+      ? widgets
+      : getDefaultWidgetsForStep(stepId, stepTitle, prompt);
+  return normalizedWidgets;
 };
 
 const INITIAL_STEPS = (stepPrompts?: BuildLabData['stepPrompts'], aiSteps?: BuildLabData['steps']): Step[] => {
   // If AI-generated steps exist, use them
   if (aiSteps && aiSteps.length > 0) {
-    return aiSteps.map((step, idx) => ({
+    const normalizedAiSteps = aiSteps.map((step, idx) => ({
       id: step.id,
       title: step.title,
       status: idx === 0 ? "current" as const : "pending" as const,
@@ -210,8 +322,23 @@ const INITIAL_STEPS = (stepPrompts?: BuildLabData['stepPrompts'], aiSteps?: Buil
       requiresInput: true,
       starterCode: step.starterCode,
       skeletonCode: step.skeletonCode,
-      widgets: ensureBuildStepWidgets(step.id, step.title, step.widgets as Step["widgets"] | undefined, step.prompt)
+      widgets: ensureBuildStepWidgets(
+        step.id,
+        step.title,
+        step.widgets as Step["widgets"] | undefined,
+        step.prompt
+      )
     }));
+
+    if (normalizedAiSteps.length > 0 && !normalizedAiSteps.some((step) => hasCodeEditorWidget(step.widgets))) {
+      const firstStep = normalizedAiSteps[0];
+      normalizedAiSteps[0] = {
+        ...firstStep,
+        widgets: [...firstStep.widgets, createDefaultCodeEditorWidget(firstStep.prompt)],
+      };
+    }
+
+    return normalizedAiSteps;
   }
   
   // Otherwise use legacy format
@@ -286,13 +413,20 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
   
   // Ensure language is valid, fallback to detecting from code or default to java
   const detectedLanguage = language || 'java';
+  const initialTemplateSteps = React.useMemo(
+    () => INITIAL_STEPS(stepPrompts, aiSteps),
+    [stepPrompts, aiSteps]
+  );
   
-  const [steps, setSteps] = useState<Step[]>(() => INITIAL_STEPS(stepPrompts, aiSteps));
+  const [steps, setSteps] = useState<Step[]>(() => initialTemplateSteps);
   const [code, setCode] = useState(() => {
-    const initialSteps = INITIAL_STEPS(stepPrompts, aiSteps);
-    const firstStepStarterCode = getStepStarterCode(initialSteps[0]);
+    const firstStep = initialTemplateSteps[0];
+    const firstStepStarterCode = getStepStarterCode(firstStep);
     const normalizedInitialCode = initialCode.trim().length > 0 ? initialCode : "";
-    return firstStepStarterCode || normalizedInitialCode || getDefaultStarterCode(detectedLanguage);
+    const sanitizedInitialCode = firstStep
+      ? sanitizeCodeForStep(firstStep, normalizedInitialCode)
+      : normalizedInitialCode;
+    return firstStepStarterCode || sanitizedInitialCode || getDefaultStarterCode(detectedLanguage);
   });
   const [output, setOutput] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -489,6 +623,9 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
         
         if (progress && progress.length > 0) {
           setHasLoadedProgress(true);
+          const completedStepIds = progress.filter((p) => p.completed).map((p) => p.step_id);
+          const hasCompletedAnyStep = completedStepIds.length > 0;
+
           // Restore step feedback from all progress entries
           const feedbackMap: Record<string, StepFeedback> = {};
           progress.forEach((p) => {
@@ -515,7 +652,12 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
               setStepResponses(mostRecentData.stepResponses);
             }
             if (mostRecentData.code) {
-              setCode(mostRecentData.code);
+              const firstStep = initialTemplateSteps[0];
+              const sanitizedProgressCode =
+                !hasCompletedAnyStep && firstStep
+                  ? sanitizeCodeForStep(firstStep, mostRecentData.code)
+                  : mostRecentData.code;
+              setCode(sanitizedProgressCode);
             }
             if (mostRecentData.testResults) {
               setTestResults(mostRecentData.testResults);
@@ -529,7 +671,6 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
           }
 
           // Restore step completion status
-          const completedStepIds = progress.filter((p) => p.completed).map((p) => p.step_id);
           const stepsWithProgress = progress.map((p) => p.step_id);
           
           // Mark all steps with progress as accessed
@@ -572,7 +713,7 @@ export default function BuildTemplate({ data, labId, moduleContext }: BuildTempl
     };
 
     loadProgress();
-  }, [labId]);
+  }, [aiSteps, initialTemplateSteps, labId, stepPrompts]);
 
   // Auto-scroll to current step when it changes
   React.useEffect(() => {
@@ -1100,8 +1241,20 @@ Approve if they show reasonable understanding or selected the correct option. If
     }
   }, [aiSteps, completedStepCode, currentStep, getComposedCode, hasLoadedProgress, isLoadingProgress, steps]);
   
-  const hasCodeEditor = Boolean(currentStep?.widgets.some((w) => w.type === "code-editor"));
+  const hasCodeEditor = hasCodeEditorWidget(currentStep?.widgets);
   const isCodeEditable = hasCodeEditor;
+  const stepHasLearnByDoingWidget = Boolean(
+    currentStep?.widgets?.some((widget) => isLearnByDoingWidgetType(widget.type))
+  );
+  const hasInlineResponse = Boolean(
+    currentStep &&
+      (
+        stepResponses[currentStep.id]?.trim() ||
+        stepResponses[`${currentStep.id}-choice`]?.trim() ||
+        stepResponses[`${currentStep.id}-explain`]?.trim()
+      )
+  );
+  const canSubmitCurrentStep = !currentStep?.requiresInput || hasInlineResponse || stepHasLearnByDoingWidget;
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background text-foreground rounded-xl border shadow-sm">
@@ -1160,7 +1313,7 @@ Approve if they show reasonable understanding or selected the correct option. If
 
                         {currentStep.widgets ? (
                           <div className="space-y-6">
-                            {currentStep.widgets.filter(w => w.type !== "code-editor").map((widget, idx) => {
+                            {currentStep.widgets.filter((w) => !isCodeEditorWidgetType(w.type)).map((widget, idx) => {
                               if (widget.type === "editor") {
                                 return (
                                   <EditorWidget
@@ -1258,10 +1411,10 @@ Approve if they show reasonable understanding or selected the correct option. If
 
                         {/* Action Buttons (Non-code) */}
                         <div className="flex justify-end gap-3 pt-2">
-                          {currentStep.widgets?.some(w => w.type !== "code-editor") && (
+                          {currentStep.widgets?.some((w) => !isCodeEditorWidgetType(w.type)) && (
                             <Button 
                               onClick={handleSubmit}
-                              disabled={isSubmitting || aiLoading || (currentStep.requiresInput && !stepResponses[currentStep.id]?.trim() && !stepResponses[`${currentStep.id}-choice`]?.trim())}
+                              disabled={isSubmitting || aiLoading || !canSubmitCurrentStep}
                               size="sm"
                               className="min-w-[120px]"
                             >
@@ -1290,7 +1443,7 @@ Approve if they show reasonable understanding or selected the correct option. If
                   <ResizablePanel defaultSize={70} minSize={30}>
                 <div className="h-full w-full overflow-hidden">
                   {currentStep?.widgets ? (
-                    currentStep.widgets.filter(w => w.type === "code-editor").map((widget, idx) => (
+                    currentStep.widgets.filter((w) => isCodeEditorWidgetType(w.type)).map((widget, idx) => (
                       <CodeEditorWidget
                         key={idx}
                         label={widget.config.label}
@@ -1547,7 +1700,7 @@ Approve if they show reasonable understanding or selected the correct option. If
                     <div className="flex justify-end gap-3 pt-4">
                       <Button 
                         onClick={handleSubmit}
-                        disabled={isSubmitting || aiLoading || (currentStep.requiresInput && !stepResponses[currentStep.id]?.trim() && !stepResponses[`${currentStep.id}-choice`]?.trim())}
+                        disabled={isSubmitting || aiLoading || !canSubmitCurrentStep}
                         className="min-w-[150px]"
                       >
                         {isSubmitting || aiLoading ? (

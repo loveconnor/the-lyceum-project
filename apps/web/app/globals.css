@@ -240,7 +240,6 @@ html.light .shiki,
 html.light .shiki span,
 html:not(.dark) .shiki,
 html:not(.dark) .shiki span {
-  color: var(--shiki-light) !important;
   background-color: transparent !important;
 }
 
