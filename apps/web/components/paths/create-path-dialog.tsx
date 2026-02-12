@@ -13,6 +13,7 @@ import { parseFileContent } from "@/lib/fileParser";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Shimmer } from "@/components/ui/shimmer";
@@ -41,11 +42,28 @@ const CreatePathDialog: React.FC<CreatePathDialogProps> = ({ isOpen, onClose, ed
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [useLearnByDoing, setUseLearnByDoing] = React.useState(false);
   const [includeLabs, setIncludeLabs] = React.useState(true);
+  const [customizeStructure, setCustomizeStructure] = React.useState(false);
+  const [moduleCount, setModuleCount] = React.useState(5);
+  const [labCount, setLabCount] = React.useState(2);
   const firecrawlEnabled = process.env.NEXT_PUBLIC_USE_FIRECRAWL === "true";
   const [useWebSearch, setUseWebSearch] = React.useState(firecrawlEnabled);
   const effectiveUseWebSearch = firecrawlEnabled && useWebSearch && !useLearnByDoing;
   const [recommendedTopics, setRecommendedTopics] = React.useState<RecommendedTopic[]>([]);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = React.useState(true);
+  const maxLabCount = Math.max(moduleCount, 0);
+  const structureOptionTitle = includeLabs
+    ? "Customize Module and Lab Counts"
+    : "Customize Module Count";
+  const structureOptionDescription = includeLabs
+    ? "Off = AI decides structure. On = you choose exact counts."
+    : "Off = AI decides structure. On = you choose the number of modules.";
+  const structureOptionAriaLabel = includeLabs
+    ? "Customize module and lab counts"
+    : "Customize module count";
+
+  React.useEffect(() => {
+    setLabCount((prev) => Math.min(prev, maxLabCount));
+  }, [maxLabCount]);
 
   React.useEffect(() => {
     if (useLearnByDoing && useWebSearch) {
@@ -170,6 +188,8 @@ const CreatePathDialog: React.FC<CreatePathDialogProps> = ({ isOpen, onClose, ed
               ...pathData, 
               learnByDoing: useLearnByDoing, 
               includeLabs,
+              moduleCount: customizeStructure ? moduleCount : undefined,
+              labCount: customizeStructure && includeLabs ? labCount : undefined,
               useAiOnly: !effectiveUseWebSearch,
               useWebSearch: effectiveUseWebSearch,
               contextFiles: contextFilesData
@@ -205,6 +225,8 @@ const CreatePathDialog: React.FC<CreatePathDialogProps> = ({ isOpen, onClose, ed
             ...pathData, 
             learnByDoing: useLearnByDoing, 
             includeLabs,
+            moduleCount: customizeStructure ? moduleCount : undefined,
+            labCount: customizeStructure && includeLabs ? labCount : undefined,
             useAiOnly: !effectiveUseWebSearch,
             useWebSearch: effectiveUseWebSearch,
             contextFiles: contextFilesData
@@ -219,6 +241,9 @@ const CreatePathDialog: React.FC<CreatePathDialogProps> = ({ isOpen, onClose, ed
       setContextFiles([]);
       setUseLearnByDoing(false);
       setIncludeLabs(true);
+      setCustomizeStructure(false);
+      setModuleCount(5);
+      setLabCount(2);
       setUseWebSearch(firecrawlEnabled);
       onClose();
     } catch (error) {
@@ -378,7 +403,7 @@ const CreatePathDialog: React.FC<CreatePathDialogProps> = ({ isOpen, onClose, ed
                       <div className="space-y-1 text-left">
                         <span className="font-medium">Generation Options</span>
                         <span className="block text-xs text-muted-foreground">
-                          {`${firecrawlEnabled ? (effectiveUseWebSearch ? "Web grounded" : "Fully AI") : "AI only"} • Learn-by-doing ${useLearnByDoing ? "on" : "off"} • Labs ${includeLabs ? "on" : "off"}`}
+                          {`${firecrawlEnabled ? (effectiveUseWebSearch ? "Web grounded" : "Fully AI") : "AI only"} • Learn-by-doing ${useLearnByDoing ? "on" : "off"} • Labs ${includeLabs ? "on" : "off"} • Structure ${customizeStructure ? `${moduleCount} modules${includeLabs ? `, ${labCount} labs` : ""}` : "auto"}`}
                         </span>
                       </div>
                     </AccordionTrigger>
@@ -439,6 +464,72 @@ const CreatePathDialog: React.FC<CreatePathDialogProps> = ({ isOpen, onClose, ed
                             onCheckedChange={setIncludeLabs}
                             aria-label="Include labs in the path"
                           />
+                        </div>
+
+                        <div className="rounded-md border bg-muted/40 p-3">
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="space-y-0.5">
+                              <p className="text-sm font-medium">{structureOptionTitle}</p>
+                              <p className="text-xs text-muted-foreground">{structureOptionDescription}</p>
+                            </div>
+                            <Switch
+                              checked={customizeStructure}
+                              onCheckedChange={setCustomizeStructure}
+                              aria-label={structureOptionAriaLabel}
+                            />
+                          </div>
+
+                          {customizeStructure && (
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                              <div className="space-y-1.5">
+                                <label htmlFor="module-count" className="text-xs font-medium text-muted-foreground">
+                                  Modules
+                                </label>
+                                <Input
+                                  id="module-count"
+                                  type="number"
+                                  inputMode="numeric"
+                                  min={1}
+                                  max={12}
+                                  step={1}
+                                  value={moduleCount}
+                                  onChange={(e) => {
+                                    const parsed = Number.parseInt(e.target.value, 10);
+                                    if (Number.isNaN(parsed)) return;
+                                    setModuleCount(Math.max(1, Math.min(12, parsed)));
+                                  }}
+                                />
+                                <p className="text-[11px] text-muted-foreground">
+                                  Choose between 1 and 12 modules.
+                                </p>
+                              </div>
+
+                              {includeLabs && (
+                                <div className="space-y-1.5">
+                                  <label htmlFor="lab-count" className="text-xs font-medium text-muted-foreground">
+                                    Labs
+                                  </label>
+                                  <Input
+                                    id="lab-count"
+                                    type="number"
+                                    inputMode="numeric"
+                                    min={0}
+                                    max={maxLabCount}
+                                    step={1}
+                                    value={labCount}
+                                    onChange={(e) => {
+                                      const parsed = Number.parseInt(e.target.value, 10);
+                                      if (Number.isNaN(parsed)) return;
+                                      setLabCount(Math.max(0, Math.min(maxLabCount, parsed)));
+                                    }}
+                                  />
+                                  <p className="text-[11px] text-muted-foreground">
+                                    Choose between 0 and {maxLabCount} labs.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </AccordionContent>

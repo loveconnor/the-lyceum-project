@@ -211,6 +211,25 @@ const extractDeclaredIdentifiersFromStep = (stepText: string): Set<string> => {
     match = backtickDeclarationRegex.exec(stepText);
   }
 
+  // Treat assignment-style language as introducing/declaring a step-local identifier.
+  const assignmentIntentRegex =
+    /(?:store|save|assign|set|put|keep|track|accumulate)\b[^\n.]{0,140}\b(?:in|to|as)\s+`?([A-Za-z_][A-Za-z0-9_]*)`?/gi;
+  match = assignmentIntentRegex.exec(stepText);
+  while (match) {
+    const identifier = match[1];
+    if (identifier) declared.add(identifier.toLowerCase());
+    match = assignmentIntentRegex.exec(stepText);
+  }
+
+  const variableNamingRegex =
+    /(?:create|declare|define|initialize)\b[^\n.]{0,120}\b(?:variable|array)\s+`?([A-Za-z_][A-Za-z0-9_]*)`?/gi;
+  match = variableNamingRegex.exec(stepText);
+  while (match) {
+    const identifier = match[1];
+    if (identifier) declared.add(identifier.toLowerCase());
+    match = variableNamingRegex.exec(stepText);
+  }
+
   return declared;
 };
 
@@ -240,14 +259,6 @@ const extractExpectedExistingIdentifiers = (step: Record<string, unknown>): stri
       }
     }
     backtickMatch = backtickRegex.exec(stepText);
-  }
-
-  const arrayRegex = /\b([A-Za-z_][A-Za-z0-9_]*)\s+array\b/gi;
-  let arrayMatch: RegExpExecArray | null = arrayRegex.exec(stepText);
-  while (arrayMatch) {
-    const identifier = arrayMatch[1];
-    if (identifier) expected.add(identifier.toLowerCase());
-    arrayMatch = arrayRegex.exec(stepText);
   }
 
   return Array.from(expected).filter(
@@ -371,6 +382,138 @@ const extractCoveredConceptsFromContext = (context?: string): string[] => {
   return result;
 };
 
+const CONCEPT_STOPWORDS = new Set([
+  'the',
+  'and',
+  'or',
+  'to',
+  'a',
+  'an',
+  'of',
+  'in',
+  'with',
+  'for',
+  'from',
+  'on',
+  'by',
+  'is',
+  'it',
+  'this',
+  'that',
+  'as',
+  'at',
+  'be',
+  'are',
+  'use',
+  'using',
+  'write',
+  'create',
+  'implement',
+  'apply',
+  'define',
+  'understanding',
+  'understand',
+]);
+
+const stemConceptToken = (token: string): string => {
+  let stem = token.toLowerCase();
+  stem = stem.replace(/(?:ing|ed|ment|tion|s)$/, '');
+  return stem.length >= 4 ? stem : token.toLowerCase();
+};
+
+const extractConceptKeywords = (concept: string): string[] => {
+  const tokens = concept
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3)
+    .filter((token) => !CONCEPT_STOPWORDS.has(token))
+    .map((token) => stemConceptToken(token));
+
+  return Array.from(new Set(tokens));
+};
+
+const stepReferencesConcept = (stepText: string, concept: string): boolean => {
+  const normalizedStep = stepText.toLowerCase();
+  const normalizedConcept = concept.toLowerCase();
+  if (normalizedConcept.length >= 3 && normalizedStep.includes(normalizedConcept)) {
+    return true;
+  }
+
+  const keywords = extractConceptKeywords(concept);
+  if (keywords.length === 0) return false;
+
+  const matchCount = keywords.filter((keyword) => {
+    const pattern = new RegExp(`\\b${escapeRegExp(keyword)}[a-z0-9]*\\b`, 'i');
+    return pattern.test(normalizedStep);
+  }).length;
+
+  if (keywords.length <= 2) return matchCount === keywords.length;
+  return matchCount >= 2;
+};
+
+const scoreConceptMatch = (stepText: string, concept: string): number => {
+  const normalizedStep = stepText.toLowerCase();
+  const normalizedConcept = concept.toLowerCase();
+  if (normalizedConcept.length >= 3 && normalizedStep.includes(normalizedConcept)) {
+    return 100;
+  }
+
+  const keywords = extractConceptKeywords(concept);
+  if (keywords.length === 0) return 0;
+
+  return keywords.filter((keyword) => {
+    const pattern = new RegExp(`\\b${escapeRegExp(keyword)}[a-z0-9]*\\b`, 'i');
+    return pattern.test(normalizedStep);
+  }).length;
+};
+
+const enforceCoveredConceptReferences = (
+  templateData: unknown,
+  context?: string
+): unknown => {
+  if (!isRecord(templateData) || !Array.isArray(templateData.steps)) {
+    return templateData;
+  }
+
+  const coveredConcepts = extractCoveredConceptsFromContext(context);
+  if (coveredConcepts.length === 0) return templateData;
+
+  const patchedSteps = templateData.steps.map((rawStep, index) => {
+    if (!isRecord(rawStep)) return rawStep;
+
+    const title = asString(rawStep.title);
+    const instruction = asString(rawStep.instruction);
+    const stepText = `${title}\n${instruction}`.trim();
+    const alreadyReferences =
+      /covered\s+concept\s*:/i.test(instruction) ||
+      coveredConcepts.some((concept) => stepReferencesConcept(stepText, concept));
+
+    if (alreadyReferences) {
+      return rawStep;
+    }
+
+    const fallbackConcept = coveredConcepts[index % coveredConcepts.length];
+    const bestConcept =
+      coveredConcepts
+        .map((concept) => ({ concept, score: scoreConceptMatch(stepText, concept) }))
+        .sort((a, b) => b.score - a.score)[0]?.concept || fallbackConcept;
+
+    const addition = `Covered concept: ${bestConcept}`;
+    const nextInstruction = instruction ? `${instruction}\n\n${addition}` : addition;
+
+    return {
+      ...rawStep,
+      instruction: nextInstruction,
+    };
+  });
+
+  return {
+    ...templateData,
+    steps: patchedSteps,
+  };
+};
+
 const validateGeneratedTemplate = (
   templateType: "analyze" | "build" | "derive" | "explain" | "explore" | "revise",
   templateData: unknown,
@@ -396,13 +539,9 @@ const validateGeneratedTemplate = (
 
     const coveredConcepts = extractCoveredConceptsFromContext(context);
     if (coveredConcepts.length > 0) {
-      const alignedQuestion = guidingQuestions.some((question) => {
-        const questionText = question.toLowerCase();
-        return coveredConcepts.some((concept) => {
-          const normalized = concept.toLowerCase();
-          return normalized.length >= 3 && questionText.includes(normalized);
-        });
-      });
+      const alignedQuestion = guidingQuestions.some((question) =>
+        coveredConcepts.some((concept) => stepReferencesConcept(question, concept))
+      );
       if (!alignedQuestion) {
         issues.push('Explore guiding questions do not reference covered concepts from path context.');
       }
@@ -436,10 +575,7 @@ const validateGeneratedTemplate = (
   if (coveredConcepts.length > 0) {
     const alignedSteps = steps.filter((step) => {
       const stepText = `${step.title} ${step.instruction}`.toLowerCase();
-      return coveredConcepts.some((concept) => {
-        const normalized = concept.toLowerCase();
-        return normalized.length >= 3 && stepText.includes(normalized);
-      });
+      return coveredConcepts.some((concept) => stepReferencesConcept(stepText, concept));
     });
     if (alignedSteps.length === 0) {
       issues.push('No steps explicitly reference covered concepts from path context.');
@@ -1299,6 +1435,7 @@ export const generateLab = async (request: GenerateLabRequest): Promise<Generate
   const startedAt = Date.now();
   const failureReasonCounts: Record<string, number> = {};
   let selectedTemplateType: string | null = null;
+  let previousQualityIssues: string[] = [];
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -1365,6 +1502,27 @@ ${request.userProfile?.level ? `User level: ${request.userProfile.level}` : ''}`
       }
 
       // Step 2: Generate the lab content
+      const coveredConcepts = extractCoveredConceptsFromContext(request.context);
+      const coveredConceptsGuidance =
+        coveredConcepts.length > 0
+          ? `\n\nSTEP ALIGNMENT REQUIREMENT (MANDATORY):
+- Every step MUST include a line in "instruction" that starts with: "Covered concept: <exact phrase>".
+- The exact phrase must be copied from the allowed concept list below.
+- Do not invent new concept names.
+
+ALLOWED COVERED CONCEPTS (use only these exact phrases):
+${coveredConcepts.slice(0, 20).map((concept) => `- ${concept}`).join('\n')}`
+          : '';
+
+      const retryQualityFeedback =
+        previousQualityIssues.length > 0
+          ? `\n\nRETRY QUALITY FIXES (MANDATORY):
+Your previous attempt failed quality checks. You MUST fix every issue below:
+${previousQualityIssues.map((issue, index) => `${index + 1}. ${issue}`).join('\n')}
+
+Do not repeat these mistakes in this attempt.`
+          : '';
+
       const contentPrompt = `${generatorPrompt}
 
 Learning goal: ${request.learningGoal}
@@ -1383,7 +1541,11 @@ CRITICAL (build template only): Do not require learners to author methods/classe
 
 CRITICAL: If covered concepts are provided in context, each step must clearly practice one of those covered concepts by name.
 
+CRITICAL (build template only): If a step mentions an identifier in backticks and treats it as existing/provided, declare it in initialCode or in this/earlier step scaffold. If the identifier is newly introduced in that step, explicitly say it is being created (for example: "Create variable \`totalArea\` and store...").
+
 IMPORTANT: The "topics" field must contain 2-5 specific, relevant topic tags (e.g., ["JavaScript", "Algorithms", "Data Structures"] for a coding lab, ["Statistics", "Data Visualization"] for analysis, ["Calculus", "Derivatives"] for math).
+${coveredConceptsGuidance}
+${retryQualityFeedback}
 
 Generate a complete, engaging lab. Make it practical and pedagogically sound.
 Respond with valid JSON only - no markdown, no explanations.`;
@@ -1408,7 +1570,8 @@ Respond with valid JSON only - no markdown, no explanations.`;
         throw new Error(`Unsupported template type returned by selector: ${templateType}`);
       }
 
-      const templateData = normalizeTemplateData(templateType, parsed.data);
+      const normalizedTemplateData = normalizeTemplateData(templateType, parsed.data);
+      const templateData = enforceCoveredConceptReferences(normalizedTemplateData, request.context);
       const qualityIssues = validateGeneratedTemplate(templateType, templateData, request.context, request.learningGoal);
       if (qualityIssues.length > 0) {
         throw new Error(`Generated lab failed quality gate: ${qualityIssues.join(' | ')}`);
@@ -1463,6 +1626,7 @@ Respond with valid JSON only - no markdown, no explanations.`;
       lastError = error;
       const message = error instanceof Error ? error.message : String(error);
       const qualityIssues = parseQualityIssuesFromMessage(message);
+      previousQualityIssues = qualityIssues;
 
       if (qualityIssues.length > 0) {
         for (const issue of qualityIssues) {

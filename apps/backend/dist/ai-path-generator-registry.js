@@ -90,11 +90,11 @@ Respond with JSON only in this structure:
 }
 
 Guidelines:
-- Create 4-8 modules based on available source material
+- Create 4-8 modules based on available source material unless the user explicitly requests a different count
 - Module titles should be clear and match source terminology
 - SKIP any setup, installation, overview, or administrative sections
 - Focus ONLY on learning content modules
-- Labs are optional. Use include_lab_after only at meaningful checkpoints (not after every module).
+- Labs are optional. Use include_lab_after only at meaningful checkpoints (not after every module), unless the user requests a specific lab count.
 - Never set include_lab_after for the final module.
 - Do not create back-to-back lab checkpoints; spread them out.
 - If the user wants something not well-covered in the source, say so in description
@@ -117,12 +117,23 @@ async function generateRegistryAwarePathOutline(request, tocSummaries, assetTitl
     }).join('\n');
     const client = ensureClient();
     const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+    const moduleCountInstruction = Number.isInteger(request.module_count)
+        ? `- Return EXACTLY ${request.module_count} modules in the modules array.`
+        : `- Choose a reasonable module count based on the source material (typically 4-8).`;
+    const labCountInstruction = request.include_labs === false
+        ? `- Set include_lab_after to false for every module.`
+        : Number.isInteger(request.lab_count)
+            ? `- Set include_lab_after to true for EXACTLY ${request.lab_count} modules. Never set include_lab_after on the final module.`
+            : `- Place include_lab_after intentionally where practice checkpoints are most valuable.`;
     const userPrompt = `Create a learning path outline for:
 
 Learning Goal: ${request.description || request.title}
 ${request.title ? `Suggested Title: ${request.title}` : ''}
 Difficulty Level: ${request.difficulty}
 ${request.topics && request.topics.length > 0 ? `Focus Topics: ${request.topics.join(', ')}` : ''}
+Structure Requirements:
+${moduleCountInstruction}
+${labCountInstruction}
 
 Available Source Material from "${assetTitle}":
 ${tocFormatted}
@@ -238,14 +249,21 @@ async function generateRegistryBackedPath(request, tocSummaries, assetTitle) {
         }
         return !shouldExclude;
     });
-    // Reassign order indices after filtering
-    filteredModules.forEach((module, index) => {
+    let constrainedModules = filteredModules;
+    if (Number.isInteger(request.module_count) && request.module_count > 0) {
+        const requestedCount = request.module_count;
+        if (filteredModules.length > requestedCount) {
+            constrainedModules = filteredModules.slice(0, requestedCount);
+        }
+    }
+    // Reassign order indices after filtering/constraint
+    constrainedModules.forEach((module, index) => {
         module.order_index = index;
     });
-    if (filteredModules.length > 0) {
-        filteredModules[filteredModules.length - 1].include_lab_after = false;
+    if (constrainedModules.length > 0) {
+        constrainedModules[constrainedModules.length - 1].include_lab_after = false;
     }
-    outline.modules = filteredModules;
+    outline.modules = constrainedModules;
     logger_1.logger.info('registry-path-gen', `Path outline: ${outline.modules.length} learning modules (setup content filtered)`);
     // Pre-map suggested sections to node IDs
     const moduleNodeMappings = new Map();

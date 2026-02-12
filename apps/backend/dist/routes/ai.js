@@ -20,6 +20,8 @@ const assistantSystemPrompt = process.env.ASSISTANT_SYSTEM_PROMPT ||
         '\n' +
         'BLOCK CODE (triple backticks ```) - ONLY for complete multi-line programs. ' +
         'NEVER use triple backticks for single words, keywords, or short expressions.\n' +
+        'When you use block code, ALWAYS include an explicit language tag (for example: ```ts, ```js, ```python, ```java, ```bash, ```json).\n' +
+        'NEVER use triple single quotes (\'\'\') as a code fence.\n' +
         '\n' +
         'EXAMPLES OF CORRECT USAGE:\n' +
         '✓ "The `for` keyword starts a loop"\n' +

@@ -141,12 +141,12 @@ Respond with JSON only in this structure:
 }
 
 Guidelines:
-- Create 4-6 modules that build progressively
+- Create 4-6 modules that build progressively unless the user explicitly requests a different count.
 - Each module should take 2-4 hours to complete
 - Module titles should be clear and descriptive
 - Descriptions should explain what the learner will achieve
 - Ensure proper scaffolding between modules
-- Labs are optional checkpoints, not required after every module.
+- Labs are optional checkpoints, not required after every module, unless the user requests a specific lab count.
 - Choose lab placement intentionally using include_lab_after on modules where practice is most valuable.
 - Use fewer labs than modules (typically 1-3 labs for a 4-6 module path).
 - Never place a lab after the final module.
@@ -625,6 +625,14 @@ async function generatePathOutline(request) {
             }
             const client = ensureClient();
             const model = USE_OLLAMA ? OLLAMA_MODEL : OPENAI_MODEL;
+            const moduleCountInstruction = Number.isInteger(request.module_count)
+                ? `- Return EXACTLY ${request.module_count} modules in the modules array.`
+                : `- Choose a reasonable module count (typically 4-6).`;
+            const labCountInstruction = request.include_labs === false
+                ? `- Set include_lab_after to false for every module. No labs should be inserted.`
+                : Number.isInteger(request.lab_count)
+                    ? `- Set include_lab_after to true for EXACTLY ${request.lab_count} modules. Never set include_lab_after on the final module.`
+                    : `- Choose lab checkpoints intentionally with include_lab_after when practice is valuable.`;
             let userPrompt;
             if (request.context_files && request.context_files.length > 0) {
                 // When user provides files, those take absolute priority
@@ -649,6 +657,9 @@ Additional Context:
 - Base Topic: ${request.description || 'Create a structured learning path'}
 - Difficulty: ${request.difficulty}
 ${request.topics && request.topics.length > 0 ? `- Focus Areas: ${request.topics.join(', ')}` : ''}
+- Structure Requirements:
+${moduleCountInstruction}
+${labCountInstruction}
 
 REMEMBER: User instructions in the files above override standard curriculum design. Follow them precisely.`;
             }
@@ -665,7 +676,11 @@ Difficulty: ${request.difficulty}
 ${request.topics && request.topics.length > 0 ? `Focus Topics: ${request.topics.join(', ')}` : ''}
 
 Note: Determine an appropriate total duration (in hours) based on the content scope and difficulty level.
-Create module titles and descriptions that build on each other progressively.`;
+Create module titles and descriptions that build on each other progressively.
+
+Structure Requirements:
+${moduleCountInstruction}
+${labCountInstruction}`;
             }
             const completion = await client.chat.completions.create({
                 model,
@@ -688,9 +703,21 @@ Create module titles and descriptions that build on each other progressively.`;
             if (normalizedModules.length === 0) {
                 throw new Error('AI outline did not include usable learning modules');
             }
+            let constrainedModules = normalizedModules;
+            if (Number.isInteger(request.module_count) && request.module_count > 0) {
+                const requestedCount = request.module_count;
+                if (normalizedModules.length > requestedCount) {
+                    constrainedModules = normalizedModules
+                        .slice(0, requestedCount)
+                        .map((module, index) => ({ ...module, order_index: index }));
+                }
+            }
+            if (constrainedModules.length > 0) {
+                constrainedModules[constrainedModules.length - 1].include_lab_after = false;
+            }
             return {
                 ...parsed.path,
-                modules: normalizedModules,
+                modules: constrainedModules,
             };
         }
         catch (error) {

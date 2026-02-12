@@ -3061,7 +3061,6 @@ export default function ModulePage() {
             console.log("Starting lab regeneration...");
             labGenerationInProgress.current = true;
             setRegeneratingLab(true);
-            const toastId = toast.loading("Generating lab content...");
             
             try {
               const regeneratedLab = await generateLab({
@@ -3088,13 +3087,11 @@ export default function ModulePage() {
               setLab(regeneratedLab);
               setRegeneratingLab(false);
               labGenerationInProgress.current = false;
-              toast.dismiss(toastId);
               toast.success("Lab generated successfully!");
             } catch (genError) {
               console.error("Error regenerating lab:", genError);
               setRegeneratingLab(false);
               labGenerationInProgress.current = false;
-              toast.dismiss(toastId);
               toast.error("Failed to generate lab content");
             }
           } else if (needsRegeneration && labGenerationInProgress.current) {

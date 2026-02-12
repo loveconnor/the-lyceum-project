@@ -153,6 +153,9 @@ export interface GenerateRegistryBackedPathRequest {
   difficulty: 'intro' | 'intermediate' | 'advanced';
   estimatedDuration?: string;
   topics?: string[];
+  include_labs?: boolean;
+  module_count?: number;
+  lab_count?: number;
   source_asset_id: string; // Required - the registry asset to use
 }
 
@@ -166,4 +169,3 @@ export type ModuleGroundingError =
   | { type: 'CONTENT_RETRIEVAL_FAILED'; message: string; url?: string }
   | { type: 'CONTENT_EXTRACTION_FAILED'; message: string }
   | { type: 'AI_SYNTHESIS_FAILED'; message: string };
-

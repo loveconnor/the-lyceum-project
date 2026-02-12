@@ -64,11 +64,52 @@ const sanitizeValueForDatabase = (value) => {
 const sanitizePathItemsForInsert = (items) => {
     return items.map((item) => sanitizeValueForDatabase(item));
 };
-const shouldInsertLabAfterModule = (modules, moduleIndex, includeLabs) => {
+const clampInteger = (value, min, max) => {
+    return Math.min(max, Math.max(min, Math.round(value)));
+};
+const sanitizeRequestedCount = (value, min, max) => {
+    if (value === undefined || value === null || value === "")
+        return undefined;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed))
+        return undefined;
+    return clampInteger(parsed, min, max);
+};
+const getRequestedLabInsertionIndices = (moduleCount, requestedLabCount) => {
+    const maxPossibleLabs = Math.max(moduleCount, 0);
+    const targetLabs = clampInteger(requestedLabCount, 0, maxPossibleLabs);
+    const indices = new Set();
+    if (targetLabs === 0 || maxPossibleLabs === 0) {
+        return indices;
+    }
+    if (targetLabs === maxPossibleLabs) {
+        for (let i = 0; i < maxPossibleLabs; i++) {
+            indices.add(i);
+        }
+        return indices;
+    }
+    for (let i = 0; i < targetLabs; i++) {
+        const rawIndex = Math.round(((i + 1) * maxPossibleLabs) / (targetLabs + 1));
+        let index = Math.max(0, Math.min(maxPossibleLabs - 1, rawIndex));
+        while (indices.has(index) && index < maxPossibleLabs - 1) {
+            index += 1;
+        }
+        while (indices.has(index) && index > 0) {
+            index -= 1;
+        }
+        indices.add(index);
+    }
+    return indices;
+};
+const shouldInsertLabAfterModule = (modules, moduleIndex, includeLabs, requestedLabCount) => {
     if (!includeLabs)
         return false;
-    if (moduleIndex >= modules.length - 1)
+    const hasExplicitRequestedCount = Number.isInteger(requestedLabCount);
+    if (!hasExplicitRequestedCount && moduleIndex >= modules.length - 1)
         return false;
+    if (hasExplicitRequestedCount) {
+        return getRequestedLabInsertionIndices(modules.length, requestedLabCount).has(moduleIndex);
+    }
     const module = modules[moduleIndex];
     const hasExplicitLabPlacement = modules.some((entry) => typeof entry.include_lab_after === "boolean");
     if (hasExplicitLabPlacement) {
@@ -863,6 +904,8 @@ router.post("/generate", async (req, res) => {
         use_web_search, // Optional - use Firecrawl web search for grounding
         learn_by_doing, // Optional - generate learn-by-doing modules
         include_labs, // Optional - include labs between modules
+        module_count, // Optional - explicit module count
+        lab_count, // Optional - explicit lab count (when labs are enabled)
         context_files: context_files_input // Optional - user-uploaded reference materials
          } = req.body;
         let contextFiles = Array.isArray(context_files_input) ? [...context_files_input] : [];
@@ -894,16 +937,24 @@ router.post("/generate", async (req, res) => {
         const difficulty = experience ? (experienceMap[experience] || 'intermediate') : 'intermediate';
         const learnByDoingEnabled = Boolean(learn_by_doing);
         const shouldUseWebSearch = !learnByDoingEnabled && firecrawlEnabled && !use_ai_only && use_web_search === true;
+        const includeLabs = include_labs !== false;
+        const requestedModuleCount = sanitizeRequestedCount(module_count, 1, 12);
+        const requestedLabCount = includeLabs
+            ? sanitizeRequestedCount(lab_count, 0, requestedModuleCount ?? 12)
+            : undefined;
         console.log(`[Generate] Using difficulty level: ${difficulty}`);
         console.log(`[Generate] Description: "${description}"`);
         console.log(`[Generate] Topics: ${topics?.join(', ') || 'none'}`);
         console.log(`[Generate] Context files uploaded: ${contextFiles.length}`);
         console.log(`[Generate] Content source: ${shouldUseWebSearch ? 'web_search' : 'ai_only'}`);
+        console.log(`[Generate] Structure controls: modules=${requestedModuleCount ?? 'auto'}, labs=${includeLabs ? (requestedLabCount ?? 'auto') : 'disabled'}`);
         logger_1.logger.info('paths', 'Content source selection', {
             details: {
                 use_ai_only: Boolean(use_ai_only),
                 use_web_search: shouldUseWebSearch,
                 learn_by_doing: learnByDoingEnabled,
+                module_count: requestedModuleCount ?? null,
+                lab_count: includeLabs ? (requestedLabCount ?? null) : null,
                 firecrawl_enabled: firecrawlEnabled,
             },
         });
@@ -931,7 +982,6 @@ router.post("/generate", async (req, res) => {
                 }
             }
         }
-        const includeLabs = include_labs !== false;
         const buildLearnByDoingPrompt = (moduleOutline) => {
             const base = moduleOutline.description
                 ? `${moduleOutline.title}: ${moduleOutline.description}`
@@ -1126,6 +1176,9 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
                         difficulty,
                         estimatedDuration,
                         topics,
+                        include_labs: includeLabs,
+                        module_count: requestedModuleCount,
+                        lab_count: requestedLabCount,
                         source_asset_id: asset.id
                     }, tocSummaries, asset.title);
                     console.log(`[Generate] Outline: "${outline.title}" with ${outline.modules.length} modules`);
@@ -1298,7 +1351,7 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
                             uses_visual_aids: usesVisualAids // NEW: Flag for visual enrichment
                         });
                         // Add optional lab suggestion based on AI-selected checkpoint placement.
-                        if (shouldInsertLabAfterModule(outline.modules, moduleOutline.order_index, includeLabs) &&
+                        if (shouldInsertLabAfterModule(outline.modules, moduleOutline.order_index, includeLabs, requestedLabCount) &&
                             allPathItems[allPathItems.length - 1]?.item_type !== 'lab') {
                             allPathItems.push({
                                 path_id: newPath.id,
@@ -1442,6 +1495,9 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
             difficulty,
             estimatedDuration,
             topics,
+            include_labs: includeLabs,
+            module_count: requestedModuleCount,
+            lab_count: requestedLabCount,
             context_files: contextFiles
         });
         console.log(`[Generate] Outline: ${outline.modules.length} modules`);
@@ -1551,7 +1607,7 @@ Remember: Output MUST be valid JSONL patches only. Start with {"op":"set","path"
         let orderIndex = 0;
         for (let i = 0; i < moduleItems.length; i++) {
             allPathItems.push({ ...moduleItems[i], order_index: orderIndex++ });
-            if (shouldInsertLabAfterModule(outline.modules, i, includeLabs) &&
+            if (shouldInsertLabAfterModule(outline.modules, i, includeLabs, requestedLabCount) &&
                 allPathItems[allPathItems.length - 1]?.item_type !== 'lab') {
                 allPathItems.push({
                     path_id: newPath.id,
@@ -1630,9 +1686,15 @@ router.post("/generate-registry", async (req, res) => {
             return res.status(401).json({ error: "Unauthorized" });
         }
         const { title, description, estimatedDuration, topics, source_asset_id, // Optional - if not provided, will auto-discover from OpenStax
-        include_labs // Optional - include suggested labs
+        include_labs, // Optional - include suggested labs
+        module_count, // Optional - explicit module count
+        lab_count // Optional - explicit lab count
          } = req.body;
         const includeLabs = include_labs !== false;
+        const requestedModuleCount = sanitizeRequestedCount(module_count, 1, 12);
+        const requestedLabCount = includeLabs
+            ? sanitizeRequestedCount(lab_count, 0, requestedModuleCount ?? 12)
+            : undefined;
         if (!description || !description.trim()) {
             return res.status(400).json({ error: "Description is required" });
         }
@@ -1771,8 +1833,15 @@ router.post("/generate-registry", async (req, res) => {
         const experience = profile?.onboarding_data?.workPreferences?.experience;
         const difficulty = experience ? (experienceMap[experience] || 'intermediate') : 'intermediate';
         console.log(`[Registry] Starting path generation with ${tocSummaries.length} TOC nodes`);
+        console.log(`[Registry] Structure controls: modules=${requestedModuleCount ?? 'auto'}, labs=${includeLabs ? (requestedLabCount ?? 'auto') : 'disabled'}`);
         logger_1.logger.info('paths', `Generating registry-backed path`, {
-            details: { userId, assetId: actualAssetId, tocNodes: tocSummaries.length }
+            details: {
+                userId,
+                assetId: actualAssetId,
+                tocNodes: tocSummaries.length,
+                module_count: requestedModuleCount ?? null,
+                lab_count: includeLabs ? (requestedLabCount ?? null) : null,
+            }
         });
         if (stream) {
             res.write(`data: ${JSON.stringify({ type: 'status', message: '🤖 AI is analyzing source content and generating path outline...' })}\n\n`);
@@ -1785,6 +1854,9 @@ router.post("/generate-registry", async (req, res) => {
             difficulty,
             estimatedDuration,
             topics,
+            include_labs: includeLabs,
+            module_count: requestedModuleCount,
+            lab_count: requestedLabCount,
             source_asset_id: actualAssetId
         }, tocSummaries, asset.title);
         console.log(`[Registry] Outline generated: "${outline.title}" with ${outline.modules.length} modules`);
@@ -1927,7 +1999,7 @@ router.post("/generate-registry", async (req, res) => {
                 content_data: moduleContent
             });
             // Add optional lab suggestion based on AI-selected checkpoint placement.
-            if (shouldInsertLabAfterModule(outline.modules, moduleOutline.order_index, includeLabs) &&
+            if (shouldInsertLabAfterModule(outline.modules, moduleOutline.order_index, includeLabs, requestedLabCount) &&
                 allPathItems[allPathItems.length - 1]?.item_type !== 'lab') {
                 allPathItems.push({
                     path_id: newPath.id,

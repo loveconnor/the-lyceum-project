@@ -55,6 +55,202 @@ const toStringArray = (value) => {
         .map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
         .filter((entry) => entry.length > 0);
 };
+const BUILD_CONSTRUCT_GIVEAWAY_RULES = [
+    {
+        asksPattern: /\b(write|implement|create|build|define)\b[^.\n]{0,60}\bfor\s+loop\b/i,
+        codePattern: /\bfor\s*\(/,
+        label: 'for-loop',
+    },
+    {
+        asksPattern: /\b(write|implement|create|build|define)\b[^.\n]{0,60}\bwhile\s+loop\b/i,
+        codePattern: /\bwhile\s*\(/,
+        label: 'while-loop',
+    },
+    {
+        asksPattern: /\b(write|implement|create|build|define)\b[^.\n]{0,60}\bif(?:\s*\/\s*else|\s+else|\s+statement)?\b/i,
+        codePattern: /\bif\s*\(/,
+        label: 'if-statement',
+    },
+    {
+        asksPattern: /\b(write|implement|create|build|define)\b[^.\n]{0,60}\bswitch\b/i,
+        codePattern: /\bswitch\s*\(/,
+        label: 'switch-statement',
+    },
+];
+const getBuildStepTeachingText = (step) => `${asString(step.title)}\n${asString(step.instruction)}\n${asString(step.prompt)}`.toLowerCase();
+const getBuildStepStarterCode = (step) => {
+    const directStarter = asString(step.starterCode) || asString(step.skeletonCode);
+    if (directStarter)
+        return directStarter;
+    if (!Array.isArray(step.widgets))
+        return '';
+    for (const widget of step.widgets) {
+        if (!isRecord(widget))
+            continue;
+        const rawType = asString(widget.type)
+            .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+            .replace(/[\s-]+/g, '_')
+            .toLowerCase();
+        if (rawType !== 'code_editor')
+            continue;
+        const config = isRecord(widget.config) ? widget.config : {};
+        return asString(config.starterCode) || asString(config.starter_code) || asString(config.skeletonCode);
+    }
+    return '';
+};
+const detectBuildStarterGiveaway = (step) => {
+    const teachingText = getBuildStepTeachingText(step);
+    const starterCode = getBuildStepStarterCode(step);
+    if (!teachingText || !starterCode)
+        return null;
+    const matchedRule = BUILD_CONSTRUCT_GIVEAWAY_RULES.find(({ asksPattern, codePattern }) => asksPattern.test(teachingText) && codePattern.test(starterCode));
+    if (!matchedRule)
+        return null;
+    return matchedRule.label;
+};
+const detectBuildInstructionGiveaway = (step) => {
+    const instructionText = `${asString(step.instruction)}\n${asString(step.prompt)}`;
+    if (!instructionText.trim())
+        return null;
+    const normalizedInstruction = instructionText.toLowerCase();
+    const matchedRule = BUILD_CONSTRUCT_GIVEAWAY_RULES.find(({ asksPattern, codePattern }) => asksPattern.test(normalizedInstruction) && codePattern.test(instructionText));
+    if (!matchedRule)
+        return null;
+    return matchedRule.label;
+};
+const detectBuildInitialCodeGiveaway = (step, initialCode) => {
+    if (!initialCode.trim())
+        return null;
+    const teachingText = getBuildStepTeachingText(step);
+    if (!teachingText.trim())
+        return null;
+    const matchedRule = BUILD_CONSTRUCT_GIVEAWAY_RULES.find(({ asksPattern, codePattern }) => asksPattern.test(teachingText) && codePattern.test(initialCode));
+    if (!matchedRule)
+        return null;
+    return matchedRule.label;
+};
+const BUILD_IGNORED_IDENTIFIERS = new Set([
+    'main',
+    'system',
+    'out',
+    'println',
+    'print',
+    'length',
+    'len',
+    'sum',
+    'avg',
+    'average',
+    'min',
+    'max',
+    'count',
+    'total',
+    'result',
+    'value',
+    'temp',
+    'i',
+    'j',
+    'k',
+    'n',
+    'idx',
+    'index',
+    'arr',
+    'array',
+]);
+const BUILD_DECLARATION_TYPES = '(?:byte|short|int|long|float|double|boolean|char|string|String|var|let|const)';
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const extractDeclaredIdentifiersFromStep = (stepText) => {
+    const declared = new Set();
+    const typedDeclarationRegex = new RegExp(`\\b(?:declare|create|define|initialize|set\\s+up)\\b[^\\n.]{0,120}\\b${BUILD_DECLARATION_TYPES}\\s+([A-Za-z_][A-Za-z0-9_]*)`, 'gi');
+    let match = typedDeclarationRegex.exec(stepText);
+    while (match) {
+        const identifier = match[1];
+        if (identifier)
+            declared.add(identifier.toLowerCase());
+        match = typedDeclarationRegex.exec(stepText);
+    }
+    const backtickDeclarationRegex = /(?:declare|create|define|initialize|set\s+up)\b[^\n.]{0,120}`([A-Za-z_][A-Za-z0-9_]*)`/gi;
+    match = backtickDeclarationRegex.exec(stepText);
+    while (match) {
+        const identifier = match[1];
+        if (identifier)
+            declared.add(identifier.toLowerCase());
+        match = backtickDeclarationRegex.exec(stepText);
+    }
+    // Treat assignment-style language as introducing/declaring a step-local identifier.
+    const assignmentIntentRegex = /(?:store|save|assign|set|put|keep|track|accumulate)\b[^\n.]{0,140}\b(?:in|to|as)\s+`?([A-Za-z_][A-Za-z0-9_]*)`?/gi;
+    match = assignmentIntentRegex.exec(stepText);
+    while (match) {
+        const identifier = match[1];
+        if (identifier)
+            declared.add(identifier.toLowerCase());
+        match = assignmentIntentRegex.exec(stepText);
+    }
+    const variableNamingRegex = /(?:create|declare|define|initialize)\b[^\n.]{0,120}\b(?:variable|array)\s+`?([A-Za-z_][A-Za-z0-9_]*)`?/gi;
+    match = variableNamingRegex.exec(stepText);
+    while (match) {
+        const identifier = match[1];
+        if (identifier)
+            declared.add(identifier.toLowerCase());
+        match = variableNamingRegex.exec(stepText);
+    }
+    return declared;
+};
+const extractExpectedExistingIdentifiers = (step) => {
+    const stepText = `${asString(step.title)}\n${asString(step.instruction)}\n${asString(step.prompt)}`;
+    if (!stepText.trim())
+        return [];
+    const expected = new Set();
+    const declared = extractDeclaredIdentifiersFromStep(stepText);
+    const backtickRegex = /`([A-Za-z_][A-Za-z0-9_]*)`/g;
+    let backtickMatch = backtickRegex.exec(stepText);
+    while (backtickMatch) {
+        const identifier = backtickMatch[1];
+        if (identifier) {
+            const lowerIdentifier = identifier.toLowerCase();
+            const idx = backtickMatch.index;
+            const context = stepText
+                .slice(Math.max(0, idx - 60), Math.min(stepText.length, idx + backtickMatch[0].length + 60))
+                .toLowerCase();
+            const arrayContext = new RegExp(`\\b${escapeRegExp(lowerIdentifier)}\\s+array\\b`).test(context);
+            const providedContext = /(provided|existing|given|predefined|already|available|inside the provided|for the provided)/.test(context);
+            if (arrayContext || providedContext) {
+                expected.add(lowerIdentifier);
+            }
+        }
+        backtickMatch = backtickRegex.exec(stepText);
+    }
+    return Array.from(expected).filter((identifier) => !BUILD_IGNORED_IDENTIFIERS.has(identifier) && !declared.has(identifier));
+};
+const getBuildCodeSourcesUpToStep = (rawSteps, stepIndex, initialCode) => {
+    const sources = [];
+    if (initialCode.trim())
+        sources.push(initialCode);
+    for (let index = 0; index <= stepIndex; index++) {
+        const rawStep = rawSteps[index];
+        if (!isRecord(rawStep))
+            continue;
+        const directStarter = asString(rawStep.starterCode);
+        if (directStarter)
+            sources.push(directStarter);
+        const directSkeleton = asString(rawStep.skeletonCode);
+        if (directSkeleton)
+            sources.push(directSkeleton);
+        const widgetStarter = getBuildStepStarterCode(rawStep);
+        if (widgetStarter)
+            sources.push(widgetStarter);
+    }
+    return sources;
+};
+const detectMissingStepScaffoldIdentifiers = (step, rawSteps, stepIndex, initialCode) => {
+    const expectedIdentifiers = extractExpectedExistingIdentifiers(step);
+    if (expectedIdentifiers.length === 0)
+        return [];
+    const codeSources = getBuildCodeSourcesUpToStep(rawSteps, stepIndex, initialCode);
+    return expectedIdentifiers.filter((identifier) => {
+        const identifierRegex = new RegExp(`\\b${escapeRegExp(identifier)}\\b`);
+        return !codeSources.some((source) => identifierRegex.test(source));
+    });
+};
 const GENERIC_STEP_TITLE_PATTERNS = [
     /^step\s*\d+/i,
     /understand the problem/i,
@@ -121,6 +317,118 @@ const extractCoveredConceptsFromContext = (context) => {
     }
     return result;
 };
+const CONCEPT_STOPWORDS = new Set([
+    'the',
+    'and',
+    'or',
+    'to',
+    'a',
+    'an',
+    'of',
+    'in',
+    'with',
+    'for',
+    'from',
+    'on',
+    'by',
+    'is',
+    'it',
+    'this',
+    'that',
+    'as',
+    'at',
+    'be',
+    'are',
+    'use',
+    'using',
+    'write',
+    'create',
+    'implement',
+    'apply',
+    'define',
+    'understanding',
+    'understand',
+]);
+const stemConceptToken = (token) => {
+    let stem = token.toLowerCase();
+    stem = stem.replace(/(?:ing|ed|ment|tion|s)$/, '');
+    return stem.length >= 4 ? stem : token.toLowerCase();
+};
+const extractConceptKeywords = (concept) => {
+    const tokens = concept
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 3)
+        .filter((token) => !CONCEPT_STOPWORDS.has(token))
+        .map((token) => stemConceptToken(token));
+    return Array.from(new Set(tokens));
+};
+const stepReferencesConcept = (stepText, concept) => {
+    const normalizedStep = stepText.toLowerCase();
+    const normalizedConcept = concept.toLowerCase();
+    if (normalizedConcept.length >= 3 && normalizedStep.includes(normalizedConcept)) {
+        return true;
+    }
+    const keywords = extractConceptKeywords(concept);
+    if (keywords.length === 0)
+        return false;
+    const matchCount = keywords.filter((keyword) => {
+        const pattern = new RegExp(`\\b${escapeRegExp(keyword)}[a-z0-9]*\\b`, 'i');
+        return pattern.test(normalizedStep);
+    }).length;
+    if (keywords.length <= 2)
+        return matchCount === keywords.length;
+    return matchCount >= 2;
+};
+const scoreConceptMatch = (stepText, concept) => {
+    const normalizedStep = stepText.toLowerCase();
+    const normalizedConcept = concept.toLowerCase();
+    if (normalizedConcept.length >= 3 && normalizedStep.includes(normalizedConcept)) {
+        return 100;
+    }
+    const keywords = extractConceptKeywords(concept);
+    if (keywords.length === 0)
+        return 0;
+    return keywords.filter((keyword) => {
+        const pattern = new RegExp(`\\b${escapeRegExp(keyword)}[a-z0-9]*\\b`, 'i');
+        return pattern.test(normalizedStep);
+    }).length;
+};
+const enforceCoveredConceptReferences = (templateData, context) => {
+    if (!isRecord(templateData) || !Array.isArray(templateData.steps)) {
+        return templateData;
+    }
+    const coveredConcepts = extractCoveredConceptsFromContext(context);
+    if (coveredConcepts.length === 0)
+        return templateData;
+    const patchedSteps = templateData.steps.map((rawStep, index) => {
+        if (!isRecord(rawStep))
+            return rawStep;
+        const title = asString(rawStep.title);
+        const instruction = asString(rawStep.instruction);
+        const stepText = `${title}\n${instruction}`.trim();
+        const alreadyReferences = /covered\s+concept\s*:/i.test(instruction) ||
+            coveredConcepts.some((concept) => stepReferencesConcept(stepText, concept));
+        if (alreadyReferences) {
+            return rawStep;
+        }
+        const fallbackConcept = coveredConcepts[index % coveredConcepts.length];
+        const bestConcept = coveredConcepts
+            .map((concept) => ({ concept, score: scoreConceptMatch(stepText, concept) }))
+            .sort((a, b) => b.score - a.score)[0]?.concept || fallbackConcept;
+        const addition = `Covered concept: ${bestConcept}`;
+        const nextInstruction = instruction ? `${instruction}\n\n${addition}` : addition;
+        return {
+            ...rawStep,
+            instruction: nextInstruction,
+        };
+    });
+    return {
+        ...templateData,
+        steps: patchedSteps,
+    };
+};
 const validateGeneratedTemplate = (templateType, templateData, context, learningGoal) => {
     const issues = [];
     if (!isRecord(templateData)) {
@@ -137,13 +445,7 @@ const validateGeneratedTemplate = (templateType, templateData, context, learning
         }
         const coveredConcepts = extractCoveredConceptsFromContext(context);
         if (coveredConcepts.length > 0) {
-            const alignedQuestion = guidingQuestions.some((question) => {
-                const questionText = question.toLowerCase();
-                return coveredConcepts.some((concept) => {
-                    const normalized = concept.toLowerCase();
-                    return normalized.length >= 3 && questionText.includes(normalized);
-                });
-            });
+            const alignedQuestion = guidingQuestions.some((question) => coveredConcepts.some((concept) => stepReferencesConcept(question, concept)));
             if (!alignedQuestion) {
                 issues.push('Explore guiding questions do not reference covered concepts from path context.');
             }
@@ -171,10 +473,7 @@ const validateGeneratedTemplate = (templateType, templateData, context, learning
     if (coveredConcepts.length > 0) {
         const alignedSteps = steps.filter((step) => {
             const stepText = `${step.title} ${step.instruction}`.toLowerCase();
-            return coveredConcepts.some((concept) => {
-                const normalized = concept.toLowerCase();
-                return normalized.length >= 3 && stepText.includes(normalized);
-            });
+            return coveredConcepts.some((concept) => stepReferencesConcept(stepText, concept));
         });
         if (alignedSteps.length === 0) {
             issues.push('No steps explicitly reference covered concepts from path context.');
@@ -184,6 +483,7 @@ const validateGeneratedTemplate = (templateType, templateData, context, learning
         const goalText = (learningGoal ?? '').toLowerCase();
         const explicitlyTargetsMethodsOrClasses = /\b(method|methods|function|functions|class|classes|oop|object-oriented|constructor|constructors|api design)\b/.test(goalText);
         const normalizedTemplate = isRecord(templateData) ? templateData : {};
+        const rawSteps = Array.isArray(normalizedTemplate.steps) ? normalizedTemplate.steps : [];
         const problemText = asString(normalizedTemplate.problemStatement).toLowerCase();
         const stepText = steps
             .map((step) => `${step.title} ${step.instruction}`.toLowerCase())
@@ -193,6 +493,84 @@ const validateGeneratedTemplate = (templateType, templateData, context, learning
             /\bstatic utility methods?\b/.test(combinedText);
         if (!explicitlyTargetsMethodsOrClasses && requiresMethodOrClassAuthoring) {
             issues.push('Build lab requires learner-authored methods/classes by default; prefer statement-level scaffolding unless the learning goal explicitly targets methods/classes.');
+        }
+        if (rawSteps.length > 0) {
+            const stepsWithoutWidgets = rawSteps.filter((step) => {
+                if (!isRecord(step))
+                    return true;
+                return !Array.isArray(step.widgets) || step.widgets.length === 0;
+            });
+            if (stepsWithoutWidgets.length > 0) {
+                issues.push('Build labs must include AI-selected widgets on every step.');
+            }
+            const hasCodeEditorWidget = rawSteps.some((step) => {
+                if (!isRecord(step) || !Array.isArray(step.widgets))
+                    return false;
+                return step.widgets.some((widget) => {
+                    if (!isRecord(widget))
+                        return false;
+                    const normalizedType = asString(widget.type)
+                        .trim()
+                        .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+                        .replace(/[\s-]+/g, '_')
+                        .toLowerCase();
+                    return normalizedType === 'code_editor';
+                });
+            });
+            if (!hasCodeEditorWidget) {
+                issues.push('Build labs must include at least one code-editor widget.');
+            }
+            const giveawaySteps = rawSteps
+                .map((step, index) => {
+                if (!isRecord(step))
+                    return null;
+                const giveawayType = detectBuildStarterGiveaway(step);
+                if (!giveawayType)
+                    return null;
+                const stepTitle = asString(step.title) || `Step ${index + 1}`;
+                return `"${stepTitle}" (${giveawayType})`;
+            })
+                .filter((value) => Boolean(value));
+            if (giveawaySteps.length > 0) {
+                issues.push(`Build step starter code gives away requested construct in: ${giveawaySteps.join(', ')}. Use TODO-only or placeholder scaffolds instead.`);
+            }
+            const instructionGiveawaySteps = rawSteps
+                .map((step, index) => {
+                if (!isRecord(step))
+                    return null;
+                const giveawayType = detectBuildInstructionGiveaway(step);
+                if (!giveawayType)
+                    return null;
+                const stepTitle = asString(step.title) || `Step ${index + 1}`;
+                return `"${stepTitle}" (${giveawayType})`;
+            })
+                .filter((value) => Boolean(value));
+            if (instructionGiveawaySteps.length > 0) {
+                issues.push(`Build step instruction/prompt includes answer code for requested construct in: ${instructionGiveawaySteps.join(', ')}. Describe requirements without giving exact syntax.`);
+            }
+            const firstStep = rawSteps.find((step) => isRecord(step));
+            const initialCode = asString(normalizedTemplate.initialCode);
+            if (firstStep && initialCode) {
+                const initialCodeGiveaway = detectBuildInitialCodeGiveaway(firstStep, initialCode);
+                if (initialCodeGiveaway) {
+                    const stepTitle = asString(firstStep.title) || 'Step 1';
+                    issues.push(`Build initialCode gives away requested construct for "${stepTitle}" (${initialCodeGiveaway}). Remove exact syntax from initialCode for the first step.`);
+                }
+            }
+            const missingScaffoldContext = rawSteps
+                .map((step, index) => {
+                if (!isRecord(step))
+                    return null;
+                const missingIdentifiers = detectMissingStepScaffoldIdentifiers(step, rawSteps, index, initialCode);
+                if (missingIdentifiers.length === 0)
+                    return null;
+                const stepTitle = asString(step.title) || `Step ${index + 1}`;
+                return `"${stepTitle}" missing scaffold identifiers: ${missingIdentifiers.map((id) => `"${id}"`).join(', ')}`;
+            })
+                .filter((value) => Boolean(value));
+            if (missingScaffoldContext.length > 0) {
+                issues.push(`Build lab steps reference variables/arrays that are not provided in initialCode or prior step scaffolds: ${missingScaffoldContext.join(' | ')}.`);
+            }
         }
     }
     return issues;
@@ -361,7 +739,7 @@ Available chart types: bar, line, scatter, area, pie, histogram, heatmap.`,
   "topics": string[],
   "data": {
     "problemStatement": "Detailed description of the coding challenge (use LaTeX for math: $x^2$)",
-    "initialCode": "// Starting code template aligned to covered concepts (can be a simple statement-level scaffold; do not force method/class creation unless covered)",
+    "initialCode": "// Starting code template aligned to covered concepts (must include required pre-existing variables/arrays/data that steps reference; do not force method/class creation unless covered)",
     "language": "javascript" | "typescript" | "python" | "java" | "cpp",
     "testCases": [
       {
@@ -381,9 +759,9 @@ Available chart types: bar, line, scatter, area, pie, histogram, heatmap.`,
         "starterCode": "// Optional: step-specific starter snippet if this step needs one (e.g., method signature + TODOs)",
         "skeletonCode": "// Skeleton code for THIS STEP ONLY (minimal scaffold needed for this step)",
         "widgets": [
-          // WIDGETS ARE OPTIONAL - only include if the step requires interactive input beyond writing code
-          // Most coding steps only need the code editor and don't need additional widgets
-          // Only add widgets like text-input or multiple-choice if there's a specific conceptual question to answer
+          // WIDGETS ARE REQUIRED - every step must include at least one widget chosen by AI
+          // Include "code-editor" for coding work; at least one step in the lab MUST include "code-editor"
+          // You may also use learn-by-doing widgets: short_answer, multiple_choice, fill_in_the_blank, code_fill, true_false, matching, order_steps, drag_drop, numeric_input, diagram_selection
           {
             "type": "text-input",
             "config": {
@@ -448,8 +826,10 @@ Each step should:
    - The learner should NOT need to reference the problem statement or lab overview to complete the step
 3. Include 2-4 "keyQuestions" to guide the learner's thinking - displayed as text, not as widgets
 4. Focus on ONE small concept or coding task
-5. Only include widgets if the step requires input BEYOND just writing code (most steps won't need extra widgets)
+5. Include a non-empty "widgets" array on EVERY step, and choose widget types that best fit that step's learning action
 6. Build progressively toward the complete solution
+7. If a step references an existing identifier (especially arrays like \`numbers\`, \`values\`, \`scores\`), you MUST provide that identifier in initialCode or in this/earlier step scaffolds with concrete sample data.
+8. Every step must be completable using the provided scaffold plus learner edits; do not require hidden variables or unstated setup.
 
 EXAMPLE - Good step structure (statement-level Java, no new methods):
 {
@@ -537,6 +917,8 @@ WIDGET CONFIGURATION DETAILS:
 
 Include 3-5 test cases with clear descriptions.
 Provide realistic starter code (5-15 lines) with minimal scaffolding aligned to the task. Do not force function/method signatures unless the learning goal requires them.
+For step 1, initialCode must not include the exact syntax construct the learner is asked to write (for example, do not include \`for (...)\` if step 1 asks them to write the for loop).
+If step 1 references an array/variable by name (e.g., \`numbers\` array), initialCode MUST declare and initialize it so the learner can run tests immediately.
 
 CRITICAL - TEST CASES:
 Every step that includes a "code-editor" widget MUST have at least one corresponding test case in the "testCases" array.
@@ -546,14 +928,18 @@ CRITICAL - WIDGETS VS INSTRUCTIONS:
 - The "instruction" field contains markdown text that EXPLAINS what to do - this is ALWAYS shown as text
 - The "keyQuestions" field contains questions to guide thinking - these are ALWAYS shown as text bullets
 - Widgets are for INTERACTIVE INPUT where the learner types, selects, or constructs something
+- Every step MUST include a non-empty "widgets" array selected by AI.
+- At least one step MUST include a "code-editor" widget.
 - Do NOT create widgets that just display information that should be in "instruction" or "keyQuestions"
-- If a step only needs the learner to READ and UNDERSTAND (not input anything), you can omit the "widgets" array entirely
+- Do NOT include the exact answer code snippet in "instruction" or "prompt" for constructs the learner is asked to write.
 
 CRITICAL - SKELETON CODE PER STEP:
 For each step that involves coding, include a "skeletonCode" field with ONLY the code skeleton for that specific step.
 - skeletonCode must be incomplete starter code (TODO placeholders), never a full solved answer
 - For a brand-new lab, first step skeleton should be minimal and should not fully complete the requested first-step objective
 - Keep each step's skeleton focused and concise
+- Do NOT include the exact construct the learner is explicitly asked to write in that same step.
+  Example: if instruction says "write a for loop", skeletonCode must NOT include "for (...)". Use placeholders/TODOs instead.
 
 CRITICAL - OPTIONAL STARTER CODE:
 - If a step needs method-level or block-level scaffolding, also include "starterCode" for that step.
@@ -887,6 +1273,7 @@ const generateLab = async (request) => {
     const startedAt = Date.now();
     const failureReasonCounts = {};
     let selectedTemplateType = null;
+    let previousQualityIssues = [];
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
             if (attempt > 0) {
@@ -943,6 +1330,23 @@ ${request.userProfile?.level ? `User level: ${request.userProfile.level}` : ''}`
                 throw new Error(`Unknown template type: ${templateType}`);
             }
             // Step 2: Generate the lab content
+            const coveredConcepts = extractCoveredConceptsFromContext(request.context);
+            const coveredConceptsGuidance = coveredConcepts.length > 0
+                ? `\n\nSTEP ALIGNMENT REQUIREMENT (MANDATORY):
+- Every step MUST include a line in "instruction" that starts with: "Covered concept: <exact phrase>".
+- The exact phrase must be copied from the allowed concept list below.
+- Do not invent new concept names.
+
+ALLOWED COVERED CONCEPTS (use only these exact phrases):
+${coveredConcepts.slice(0, 20).map((concept) => `- ${concept}`).join('\n')}`
+                : '';
+            const retryQualityFeedback = previousQualityIssues.length > 0
+                ? `\n\nRETRY QUALITY FIXES (MANDATORY):
+Your previous attempt failed quality checks. You MUST fix every issue below:
+${previousQualityIssues.map((issue, index) => `${index + 1}. ${issue}`).join('\n')}
+
+Do not repeat these mistakes in this attempt.`
+                : '';
             const contentPrompt = `${generatorPrompt}
 
 Learning goal: ${request.learningGoal}
@@ -961,7 +1365,11 @@ CRITICAL (build template only): Do not require learners to author methods/classe
 
 CRITICAL: If covered concepts are provided in context, each step must clearly practice one of those covered concepts by name.
 
+CRITICAL (build template only): If a step mentions an identifier in backticks and treats it as existing/provided, declare it in initialCode or in this/earlier step scaffold. If the identifier is newly introduced in that step, explicitly say it is being created (for example: "Create variable \`totalArea\` and store...").
+
 IMPORTANT: The "topics" field must contain 2-5 specific, relevant topic tags (e.g., ["JavaScript", "Algorithms", "Data Structures"] for a coding lab, ["Statistics", "Data Visualization"] for analysis, ["Calculus", "Derivatives"] for math).
+${coveredConceptsGuidance}
+${retryQualityFeedback}
 
 Generate a complete, engaging lab. Make it practical and pedagogically sound.
 Respond with valid JSON only - no markdown, no explanations.`;
@@ -981,7 +1389,8 @@ Respond with valid JSON only - no markdown, no explanations.`;
             if (!(0, lab_template_normalizer_1.isLabTemplateType)(templateType)) {
                 throw new Error(`Unsupported template type returned by selector: ${templateType}`);
             }
-            const templateData = (0, lab_template_normalizer_1.normalizeTemplateData)(templateType, parsed.data);
+            const normalizedTemplateData = (0, lab_template_normalizer_1.normalizeTemplateData)(templateType, parsed.data);
+            const templateData = enforceCoveredConceptReferences(normalizedTemplateData, request.context);
             const qualityIssues = validateGeneratedTemplate(templateType, templateData, request.context, request.learningGoal);
             if (qualityIssues.length > 0) {
                 throw new Error(`Generated lab failed quality gate: ${qualityIssues.join(' | ')}`);
@@ -1030,6 +1439,7 @@ Respond with valid JSON only - no markdown, no explanations.`;
             lastError = error;
             const message = error instanceof Error ? error.message : String(error);
             const qualityIssues = parseQualityIssuesFromMessage(message);
+            previousQualityIssues = qualityIssues;
             if (qualityIssues.length > 0) {
                 for (const issue of qualityIssues) {
                     const issueKey = toIssueKey(issue) || 'quality_gate_failure';

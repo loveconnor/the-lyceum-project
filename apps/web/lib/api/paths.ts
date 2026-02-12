@@ -15,6 +15,8 @@ interface CreatePathPayload {
   items?: CreatePathItemPayload[];
   learn_by_doing?: boolean;
   include_labs?: boolean;
+  module_count?: number;
+  lab_count?: number;
   context_files?: Array<{
     name: string;
     content: string;
