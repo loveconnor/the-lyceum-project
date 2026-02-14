@@ -75,8 +75,6 @@ import { ShortAnswerWidget, CodeEditorWidget, MultipleChoiceWidget } from "@/com
 import { MultipleChoice } from "@/components/learning/MultipleChoice";
 import { ReflectionModal } from "@/components/reflections";
 import { shouldTriggerReflection } from "@/types/reflections";
-import { getModuleConstraint } from "@/lib/ai-constraints";
-import { AIConstraintNotice } from "@/components/ai/ai-constraint-notice";
 
 // --- Types & Constants ---
 
@@ -394,6 +392,63 @@ const normalizeRegistryContent = (
     visuals: rendered.visuals || [],
   };
 };
+
+const LEARN_BY_DOING_INTERACTIVE_TYPES = new Set([
+  "MultipleChoice",
+  "FillInTheBlank",
+  "CodeFill",
+  "TrueFalse",
+  "Matching",
+  "OrderSteps",
+  "DragDrop",
+  "NumericInput",
+  "DiagramSelection",
+]);
+
+const countInstructionalBlocks = (tree: any): number => {
+  if (!tree?.elements || typeof tree.elements !== "object") return 0;
+
+  return Object.values(tree.elements).reduce((count, element) => {
+    if (!element || typeof element !== "object") return count;
+    const typedElement = element as { type?: string; props?: Record<string, unknown> };
+    if (typedElement.type !== "Text" && typedElement.type !== "Markdown") return count;
+
+    const props = typedElement.props ?? {};
+    const content =
+      (typeof props.content === "string" && props.content) ||
+      (typeof props.text === "string" && props.text) ||
+      (typeof props.children === "string" && props.children) ||
+      "";
+    const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
+    return wordCount >= 20 ? count + 1 : count;
+  }, 0);
+};
+
+const countInteractiveBlocks = (tree: any): number => {
+  if (!tree?.elements || typeof tree.elements !== "object") return 0;
+
+  return Object.values(tree.elements).reduce((count, element) => {
+    if (!element || typeof element !== "object") return count;
+    const type = (element as { type?: string }).type;
+    return type && LEARN_BY_DOING_INTERACTIVE_TYPES.has(type) ? count + 1 : count;
+  }, 0);
+};
+
+const shouldRegenerateLearnByDoingTree = (tree: any): boolean => {
+  const interactiveCount = countInteractiveBlocks(tree);
+  if (interactiveCount === 0) return false;
+  const instructionalCount = countInstructionalBlocks(tree);
+  return instructionalCount === 0;
+};
+
+const LEARN_BY_DOING_QUALITY_SUFFIX = [
+  "Instruction quality requirements:",
+  "- Teach before checking.",
+  "- Every step must include substantive instructional Markdown or Text before any widget.",
+  "- Use concrete examples, not only outlines.",
+  "- Do not use generic prompts like 'does this intro make sense?' as standalone checks.",
+  "- For single-module lessons, explicitly cover definition, key distinctions, and one practical example before assessment.",
+].join("\n");
 
 // --- Utility Functions ---
 
@@ -3360,13 +3415,19 @@ export default function ModulePage() {
 
   if (module?.item_type === 'module' && module.content_mode === 'learn_by_doing') {
     const learnByDoingData = module.content_data as LearnByDoingContent | null;
-    const initialPrompt =
+    const basePrompt =
       learnByDoingData?.prompt ||
       (module.description ? `${module.title}: ${module.description}` : module.title);
-    const initialTree = learnByDoingData?.tree?.root ? learnByDoingData.tree : null;
+    const initialPrompt = `${basePrompt}\n\nTeach this as a real lesson, not just an outline.`;
+    const rawInitialTree = learnByDoingData?.tree?.root ? learnByDoingData.tree : null;
+    const initialTree =
+      rawInitialTree && shouldRegenerateLearnByDoingTree(rawInitialTree)
+        ? null
+        : rawInitialTree;
+    const promptSuffix = [learnByDoingData?.promptSuffix, LEARN_BY_DOING_QUALITY_SUFFIX]
+      .filter(Boolean)
+      .join("\n\n");
     const learnByDoingApi = `${LEARN_BY_DOING_API_BASE}/learn-by-doing`;
-    const moduleConstraint = getModuleConstraint(module);
-
     return (
       <div className="space-y-8">
         <div className="relative py-6">
@@ -3387,10 +3448,6 @@ export default function ModulePage() {
                 {module.description}
               </p>
             )}
-            <AIConstraintNotice
-              constraint={moduleConstraint}
-              className="w-full max-w-2xl"
-            />
           </div>
         </div>
 
@@ -3412,7 +3469,7 @@ export default function ModulePage() {
           }
           helperText={learnByDoingData?.helperText}
           promptPrefix={learnByDoingData?.promptPrefix}
-          promptSuffix={learnByDoingData?.promptSuffix}
+          promptSuffix={promptSuffix}
           simulationPrompt={learnByDoingData?.simulationPrompt}
         />
 
@@ -3465,8 +3522,6 @@ export default function ModulePage() {
   }
 
   const chapters = moduleContent.chapters;
-  const moduleConstraint = getModuleConstraint(module);
-  
   // Module is complete when: Reading is done AND (Examples OR Visuals viewed)
   const isModuleComplete = isQuizPassed && (isExamplesComplete || isVisualsComplete);
 
@@ -3521,10 +3576,6 @@ export default function ModulePage() {
               {module.description}
             </p>
           )}
-          <AIConstraintNotice
-            constraint={moduleConstraint}
-            className="w-full max-w-2xl"
-          />
         </div>
       </div>
 

@@ -291,7 +291,7 @@ export default function LabList({ activeTab, onSelectTodo, onAddTodoClick }: Lab
         <div className="flex w-full items-center gap-2 lg:w-auto">
           {/* Search input */}
           <div className="relative w-auto">
-            <Search className="absolute top-2.5 left-3 size-4 opacity-50" />
+            <Search className="pointer-events-none absolute top-2.5 left-3 z-10 size-4 opacity-50" />
             <Input
               placeholder="Search labs..."
               className="ps-10"

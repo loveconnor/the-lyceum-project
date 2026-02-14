@@ -9,11 +9,27 @@ import { cn } from "@/lib/utils";
 interface MultipleChoiceWidgetProps {
   options: string[];
   correctAnswer: string;
+  correctFeedback?: string | null;
+  incorrectFeedback?: string | null;
+  feedback?:
+    | {
+        correct?: string | null;
+        incorrect?: string | null;
+        success?: string | null;
+        error?: string | null;
+      }
+    | null;
+  correct_feedback?: string | null;
+  incorrect_feedback?: string | null;
   isCompleted: boolean;
   onComplete: () => void;
   onAttempt: () => void;
   selectedOption?: string | null;
   onOptionChange?: (option: string | null) => void;
+}
+
+function asText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 // Auto-format math expressions for rendering
@@ -44,6 +60,11 @@ const autoFormatMathExpression = (text: string): string => {
 export const MultipleChoiceWidget = ({
   options,
   correctAnswer,
+  correctFeedback,
+  incorrectFeedback,
+  feedback,
+  correct_feedback,
+  incorrect_feedback,
   isCompleted,
   onComplete,
   onAttempt,
@@ -52,6 +73,21 @@ export const MultipleChoiceWidget = ({
 }: MultipleChoiceWidgetProps) => {
   const [selectedOption, setSelectedOption] = useState<string | null>(initialSelectedOption || null);
   const [hasChecked, setHasChecked] = useState(false);
+  const normalizedCorrectAnswer = correctAnswer.trim().toLowerCase();
+  const isSelectionCorrect =
+    !!selectedOption && selectedOption.trim().toLowerCase() === normalizedCorrectAnswer;
+  const correctMessage =
+    asText(correctFeedback) ??
+    asText(correct_feedback) ??
+    asText(feedback?.correct) ??
+    asText(feedback?.success) ??
+    "Correct! Nice work.";
+  const incorrectMessage =
+    asText(incorrectFeedback) ??
+    asText(incorrect_feedback) ??
+    asText(feedback?.incorrect) ??
+    asText(feedback?.error) ??
+    "Not quite. The correct answer is highlighted above.";
   
   const handleOptionChange = (option: string) => {
     setSelectedOption(option);
@@ -67,11 +103,11 @@ export const MultipleChoiceWidget = ({
     setHasChecked(true);
     onAttempt();
     
-    const isCorrect = selectedOption.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+    const isCorrect = selectedOption.trim().toLowerCase() === normalizedCorrectAnswer;
     if (isCorrect) {
       onComplete();
     }
-  }, [selectedOption, correctAnswer, onComplete, onAttempt]);
+  }, [selectedOption, normalizedCorrectAnswer, onComplete, onAttempt]);
 
   return (
     <div className="space-y-3">
@@ -79,7 +115,7 @@ export const MultipleChoiceWidget = ({
       <div className="grid gap-2">
         {options.map((option, i) => {
           const isSelected = selectedOption === option;
-          const isCorrectOption = option.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+          const isCorrectOption = option.trim().toLowerCase() === normalizedCorrectAnswer;
           const showAsCorrect = hasChecked && isCorrectOption;
           const showAsWrong = hasChecked && isSelected && !isCorrectOption;
           
@@ -132,10 +168,17 @@ export const MultipleChoiceWidget = ({
         </Button>
       )}
       
-      {/* Feedback for incorrect */}
-      {hasChecked && !isCompleted && selectedOption !== correctAnswer && (
-        <p className="text-sm text-red-600 dark:text-red-400">
-          Not quite — the correct answer is highlighted above.
+      {/* Outcome feedback */}
+      {hasChecked && !isCompleted && selectedOption && (
+        <p
+          className={cn(
+            "text-sm",
+            isSelectionCorrect
+              ? "text-green-600 dark:text-green-400"
+              : "text-red-600 dark:text-red-400"
+          )}
+        >
+          {isSelectionCorrect ? correctMessage : incorrectMessage}
         </p>
       )}
     </div>
@@ -143,4 +186,3 @@ export const MultipleChoiceWidget = ({
 };
 
 export default MultipleChoiceWidget;
-

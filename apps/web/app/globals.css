@@ -84,7 +84,7 @@
   --muted-foreground: var(--base-400);
   --accent: var(--base-900);
   --accent-foreground: var(--base-200);
-  --destructive: oklch(0.704 0.191 22.216);
+  --destructive: oklch(0.577 0.245 27.325);
   --border: var(--base-800);
   --input: var(--base-700);
   --ring: var(--base-200);
@@ -254,4 +254,16 @@ pre.shiki span.line {
   box-sizing: border-box;
   padding-right: 1rem;
   padding-left: 1rem;
+}
+
+@theme inline {
+  --color-destructive-foreground: var(--destructive-foreground);
+}
+
+:root {
+  --destructive-foreground: oklch(0.505 0.213 27.518);
+}
+
+.dark {
+  --destructive-foreground: oklch(0.704 0.191 22.216);
 }

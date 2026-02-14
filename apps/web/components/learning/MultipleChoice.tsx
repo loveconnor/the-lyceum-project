@@ -33,6 +33,18 @@ type MultipleChoiceQuestion = {
   correctOptionIds?: string[];
   minSelections?: number;
   misconceptions?: Record<string, string> | null;
+  correctFeedback?: string | null;
+  incorrectFeedback?: string | null;
+  feedback?:
+    | {
+        correct?: string | null;
+        incorrect?: string | null;
+        success?: string | null;
+        error?: string | null;
+      }
+    | null;
+  correct_feedback?: string | null;
+  incorrect_feedback?: string | null;
 };
 
 type MultipleChoiceProps = {
@@ -43,10 +55,26 @@ type MultipleChoiceProps = {
   minSelections?: number;
   questions?: MultipleChoiceQuestion[];
   misconceptions?: Record<string, string> | null;
+  correctFeedback?: string | null;
+  incorrectFeedback?: string | null;
+  feedback?:
+    | {
+        correct?: string | null;
+        incorrect?: string | null;
+        success?: string | null;
+        error?: string | null;
+      }
+    | null;
+  correct_feedback?: string | null;
+  incorrect_feedback?: string | null;
   shuffle?: boolean;
   showFeedback?: boolean;
   className?: string[];
 };
+
+function asText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
 
 export function MultipleChoice({ element }: ComponentRenderProps) {
   const props = element.props as MultipleChoiceProps;
@@ -109,6 +137,26 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
     typeof activeQuestion?.minSelections === "number"
       ? activeQuestion.minSelections
       : minSelections;
+  const activeCorrectFeedback =
+    asText(activeQuestion?.correctFeedback) ??
+    asText(activeQuestion?.correct_feedback) ??
+    asText(activeQuestion?.feedback?.correct) ??
+    asText(activeQuestion?.feedback?.success) ??
+    asText(props.correctFeedback) ??
+    asText(props.correct_feedback) ??
+    asText(props.feedback?.correct) ??
+    asText(props.feedback?.success) ??
+    "Correct! You've grasped the concept perfectly.";
+  const activeIncorrectFeedback =
+    asText(activeQuestion?.incorrectFeedback) ??
+    asText(activeQuestion?.incorrect_feedback) ??
+    asText(activeQuestion?.feedback?.incorrect) ??
+    asText(activeQuestion?.feedback?.error) ??
+    asText(props.incorrectFeedback) ??
+    asText(props.incorrect_feedback) ??
+    asText(props.feedback?.incorrect) ??
+    asText(props.feedback?.error) ??
+    "That's not quite right. Review the concept and try again.";
   const activeMisconceptions = activeQuestion?.misconceptions ?? misconceptions;
   const selectedId = selections[activeQuestionId] ?? null;
   const status = submitted[activeQuestionId] ? "submitted" : "idle";
@@ -171,7 +219,7 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
         ...prev,
         [activeQuestionId]: {
           type: "success",
-          message: "Correct! You've grasped the concept perfectly.",
+          message: activeCorrectFeedback,
         },
       }));
       
@@ -187,7 +235,7 @@ export function MultipleChoice({ element }: ComponentRenderProps) {
               .filter(Boolean)
               .join(" ")
           : selectedId && activeMisconceptions[selectedId]) ||
-        "That's not quite right. Review the concept and try again.";
+        activeIncorrectFeedback;
       setFeedbackByQuestion((prev) => ({
         ...prev,
         [activeQuestionId]: {

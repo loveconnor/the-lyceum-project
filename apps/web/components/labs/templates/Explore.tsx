@@ -33,6 +33,21 @@ import { MultipleChoiceWidget } from "@/components/widgets/multiple-choice-widge
 import { CodeEditorWidget } from "@/components/widgets/code-editor-widget";
 import { LabLearningWidget, isLearnByDoingWidgetType } from "@/components/labs/lab-learning-widget";
 
+const SIMULATION_DURATION_SECONDS = 1.5;
+const SIMULATION_DURATION_MS = SIMULATION_DURATION_SECONDS * 1000;
+const START_X = 20;
+const GROUND_Y = 180;
+const MIN_X = 4;
+const MAX_X = 380;
+const MIN_TRAVEL_PX = 36;
+const MAX_TRAVEL_PX = 320;
+const MIN_APEX_OFFSET_PX = 24;
+const MAX_APEX_OFFSET_PX = 120;
+const PATH_SAMPLE_COUNT = 24;
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const normalizeParamKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
 interface Insight {
   id: string;
   text: string;
@@ -60,6 +75,18 @@ interface ExploreTemplateProps {
     moduleId: string;
     onComplete?: () => void;
   };
+}
+
+interface TrajectoryPoint {
+  x: number;
+  y: number;
+}
+
+interface SimulationTrajectory {
+  maxHeight: number;
+  range: number;
+  timeOfFlight: number;
+  points: TrajectoryPoint[];
 }
 
 const getDefaultExploreWidgets = (
@@ -148,9 +175,11 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
   const [parameters, setParameters] = useState(initialParams);
   const [widgetResponses, setWidgetResponses] = useState<Record<string, any>>({});
   const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationRunId, setSimulationRunId] = useState(0);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [currentReflection, setCurrentReflection] = useState("");
   const [hasMarkedComplete, setHasMarkedComplete] = useState(false);
+  const simulationTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentStep = steps.find((s) => s.status === "current");
   const currentStepIndex = steps.findIndex((s) => s.status === "current");
@@ -237,6 +266,14 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
     return () => clearTimeout(timer);
   }, [parameters, insights, currentReflection, widgetResponses, steps, labId, isLoadingProgress, currentStep?.id]);
 
+  React.useEffect(() => {
+    return () => {
+      if (simulationTimerRef.current) {
+        clearTimeout(simulationTimerRef.current);
+      }
+    };
+  }, []);
+
   const saveProgress = async (stepId: string, completed = false) => {
     if (!labId || !stepId) return;
 
@@ -303,24 +340,126 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
     moduleContext?.onComplete?.();
   };
 
-  const calculateTrajectory = () => {
-    const g = parameters[paramConfig[0]?.id]?.[0] || 9.8;
-    const v0 = parameters[paramConfig[1]?.id]?.[0] || 20;
-    const theta = ((parameters[paramConfig[2]?.id]?.[0] || 45) * Math.PI) / 180;
+  const calculateTrajectory = (): SimulationTrajectory => {
+    const readValue = (predicate: (key: string, param: ExploreLabData["parameters"][number]) => boolean, fallbackIndex: number, fallbackValue: number) => {
+      const matched = paramConfig.find((param) => {
+        const key = normalizeParamKey(`${param.id} ${param.label} ${param.unit || ""}`);
+        return predicate(key, param);
+      });
 
-    const maxHeight = (v0 * v0 * Math.sin(theta) * Math.sin(theta)) / (2 * g);
-    const range = (v0 * v0 * Math.sin(2 * theta)) / g;
-    const timeOfFlight = (2 * v0 * Math.sin(theta)) / g;
+      const id = matched?.id ?? paramConfig[fallbackIndex]?.id;
+      const value = id ? parameters[id]?.[0] : undefined;
+      return Number.isFinite(value) ? value : fallbackValue;
+    };
 
-    return { maxHeight, range, timeOfFlight };
+    const isAngleParam = (key: string, param: ExploreLabData["parameters"][number]) =>
+      key.includes("theta") || key.includes("angle") || normalizeParamKey(param.unit || "") === "deg";
+    const isTimeParam = (key: string) =>
+      key.includes("observationtime") || key.includes("duration") || key.endsWith("time") || key === "t";
+    const isPositionParam = (key: string) =>
+      key.includes("initialposition") || key.includes("position") || key === "x0" || key === "x";
+    const isVelocityParam = (key: string) =>
+      key.includes("initialvelocity") || key.includes("velocity") || key.includes("speed") || key === "v0" || key === "v";
+    const isAccelerationParam = (key: string) =>
+      key.includes("acceleration") || key.includes("gravity") || key === "a" || key === "g";
+
+    const hasAngleParam = paramConfig.some((param) =>
+      isAngleParam(normalizeParamKey(`${param.id} ${param.label} ${param.unit || ""}`), param)
+    );
+
+    if (hasAngleParam) {
+      const gravity = Math.abs(readValue(isAccelerationParam, 0, 9.8)) || 9.8;
+      const launchSpeed = readValue(isVelocityParam, 1, 20);
+      const theta = (readValue(isAngleParam, 2, 45) * Math.PI) / 180;
+      const totalTime = Math.max(Math.abs((2 * launchSpeed * Math.sin(theta)) / gravity), 0.01);
+      const range = (launchSpeed * launchSpeed * Math.sin(2 * theta)) / gravity;
+      const maxHeight = (launchSpeed * launchSpeed * Math.sin(theta) * Math.sin(theta)) / (2 * gravity);
+
+      const safeRange = Number.isFinite(range) ? range : 0;
+      const safeHeight = Number.isFinite(maxHeight) ? maxHeight : 0;
+      const direction = safeRange < 0 ? -1 : 1;
+      const travel = clamp(Math.abs(safeRange) * 20, MIN_TRAVEL_PX, MAX_TRAVEL_PX);
+      const spread = Math.max(safeHeight, 0);
+      const amplitude = spread > Number.EPSILON ? clamp(spread * 10, MIN_APEX_OFFSET_PX, MAX_APEX_OFFSET_PX) : 0;
+
+      const points: TrajectoryPoint[] = Array.from({ length: PATH_SAMPLE_COUNT + 1 }, (_, idx) => {
+        const progress = idx / PATH_SAMPLE_COUNT;
+        const t = progress * totalTime;
+        const x = clamp(START_X + direction * travel * progress, MIN_X, MAX_X);
+        const yPhysics = launchSpeed * Math.sin(theta) * t - 0.5 * gravity * t * t;
+        const normalizedHeight = spread > Number.EPSILON ? clamp(yPhysics / spread, 0, 1) : 0;
+        const y = clamp(GROUND_Y - normalizedHeight * amplitude, 20, GROUND_Y);
+        return { x, y };
+      });
+
+      return {
+        maxHeight: safeHeight,
+        range: Math.abs(safeRange),
+        timeOfFlight: totalTime,
+        points,
+      };
+    }
+
+    const x0 = readValue(isPositionParam, 0, 0);
+    const v0 = readValue(isVelocityParam, 1, 0);
+    const acceleration = readValue(isAccelerationParam, 2, -9.8);
+    const observationTime = Math.max(readValue(isTimeParam, 3, 5), 0);
+    const effectiveTime = Math.max(observationTime, 0.01);
+    const positionAt = (time: number) => x0 + v0 * time + 0.5 * acceleration * time * time;
+    const positionAtT = positionAt(observationTime);
+    const displacement = positionAtT - x0;
+
+    const sampledPositions = Array.from({ length: PATH_SAMPLE_COUNT + 1 }, (_, idx) =>
+      positionAt((idx / PATH_SAMPLE_COUNT) * effectiveTime)
+    );
+    sampledPositions.push(x0, positionAtT);
+    const minPosition = Math.min(...sampledPositions);
+    const maxPosition = Math.max(...sampledPositions);
+    const spread = maxPosition - minPosition;
+    const amplitude = spread > Number.EPSILON ? clamp(spread * 8, MIN_APEX_OFFSET_PX, MAX_APEX_OFFSET_PX) : 0;
+    const direction = displacement === 0 ? (v0 >= 0 ? 1 : -1) : Math.sign(displacement);
+    const travel =
+      observationTime > 0
+        ? clamp(Math.abs(displacement) * 12 + observationTime * 10, MIN_TRAVEL_PX, MAX_TRAVEL_PX)
+        : 0;
+
+    const points: TrajectoryPoint[] = Array.from({ length: PATH_SAMPLE_COUNT + 1 }, (_, idx) => {
+      const progress = idx / PATH_SAMPLE_COUNT;
+      const time = progress * effectiveTime;
+      const position = positionAt(time);
+      const normalizedHeight =
+        spread > Number.EPSILON ? clamp((position - minPosition) / spread, 0, 1) : 0;
+      const x = clamp(START_X + direction * travel * progress, MIN_X, MAX_X);
+      const y = clamp(GROUND_Y - normalizedHeight * amplitude, 20, GROUND_Y);
+      return { x, y };
+    });
+
+    return {
+      maxHeight: maxPosition,
+      range: Math.abs(displacement),
+      timeOfFlight: observationTime,
+      points,
+    };
   };
 
   const handleSimulate = () => {
+    if (simulationTimerRef.current) {
+      clearTimeout(simulationTimerRef.current);
+    }
+    setSimulationRunId((prev) => prev + 1);
     setIsSimulating(true);
-    setTimeout(() => setIsSimulating(false), 1600);
+    simulationTimerRef.current = setTimeout(() => {
+      setIsSimulating(false);
+      simulationTimerRef.current = null;
+    }, SIMULATION_DURATION_MS + 100);
   };
 
   const handleReset = () => {
+    if (simulationTimerRef.current) {
+      clearTimeout(simulationTimerRef.current);
+      simulationTimerRef.current = null;
+    }
+    setIsSimulating(false);
     const resetParams = paramConfig.reduce((acc, param) => {
       acc[param.id] = [param.defaultValue];
       return acc;
@@ -381,11 +520,12 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
           const widgetKey = `${currentStep.id}_widget_${idx}`;
 
           if (widget.type === "editor" || widget.type === "text-input") {
+            const showWidgetMetadata = widget.config.showMetadata === true;
             return (
               <EditorWidget
                 key={widgetKey}
-                label={widget.config.label || "Response"}
-                description={widget.config.description}
+                label={showWidgetMetadata ? widget.config.label || "Response" : undefined}
+                description={showWidgetMetadata ? widget.config.description : undefined}
                 placeholder={widget.config.placeholder || "Enter your response..."}
                 initialValue={createEditorValue(widgetResponses[widgetKey] || "")}
                 onChange={(value) =>
@@ -394,8 +534,9 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
                     [widgetKey]: extractPlainText(value),
                   }))
                 }
-                height={widget.config.height || widget.config.minHeight || "200px"}
-                variant={widget.config.variant || "default"}
+                height={widget.config.height || widget.config.minHeight || "240px"}
+                variant={widget.config.variant || "ai"}
+                editorPreset={widget.config.editorPreset || "reflection"}
                 readOnly={widget.config.readOnly === true}
               />
             );
@@ -469,6 +610,15 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
   };
 
   const trajectory = calculateTrajectory();
+  const pathPoints = trajectory.points.length > 0 ? trajectory.points : [{ x: START_X, y: GROUND_Y }];
+  const startPoint = pathPoints[0];
+  const pathD = pathPoints.reduce(
+    (acc, point, idx) => `${acc}${idx === 0 ? "M" : " L"} ${point.x} ${point.y}`,
+    ""
+  );
+  const cxValues = pathPoints.map((point) => point.x.toFixed(2)).join(";");
+  const cyValues = pathPoints.map((point) => point.y.toFixed(2)).join(";");
+  const simulationDuration = `${SIMULATION_DURATION_SECONDS}s`;
   const allStepsCompleted = steps.length > 0 && steps.every((step) => step.status === "completed");
 
   return (
@@ -488,7 +638,7 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
               <p className="text-xs text-muted-foreground mt-1">{description}</p>
             </div>
 
-            <ScrollArea className="flex-1 h-0">
+            <ScrollArea className="flex-1 h-0 overflow-x-hidden">
               <div className="p-5 space-y-6">
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
@@ -509,7 +659,12 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
                       </div>
                       <Slider
                         value={parameters[param.id] || [param.defaultValue]}
-                        onValueChange={(value) => setParameters({ ...parameters, [param.id]: value })}
+                        onValueChange={(value) =>
+                          setParameters((prev) => ({
+                            ...prev,
+                            [param.id]: value,
+                          }))
+                        }
                         min={param.min}
                         max={param.max}
                         step={param.step}
@@ -525,7 +680,7 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
                 <div className="flex gap-2">
                   <Button className="flex-1 gap-2" onClick={handleSimulate} disabled={isSimulating}>
                     <PlayCircle className="w-4 h-4" />
-                    Simulate
+                    {isSimulating ? "Simulating..." : "Simulate"}
                   </Button>
                   <Button variant="outline" size="icon" onClick={handleReset}>
                     <RotateCcw className="w-4 h-4" />
@@ -553,19 +708,19 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
                     <svg viewBox="0 0 400 200" className="w-full h-auto">
                       <line x1="0" y1="180" x2="400" y2="180" stroke="currentColor" strokeWidth="2" className="text-muted-foreground" />
                       <path
-                        d={`M 20 180 Q ${20 + trajectory.range / 4} ${180 - trajectory.maxHeight * 2} ${20 + trajectory.range * 2} 180`}
+                        d={pathD}
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="3"
                         strokeDasharray="5,5"
                         className="text-primary"
                       />
-                      <circle cx="20" cy="180" r="6" fill="currentColor" className="text-primary" />
+                      <circle cx={startPoint.x} cy={startPoint.y} r="6" fill="currentColor" className="text-primary" />
                       {isSimulating ? (
-                        <circle cx="20" cy="180" r="8" fill="currentColor" className="text-amber-500">
-                          <animate attributeName="cx" from="20" to={Math.min(20 + trajectory.range * 2, 380)} dur="1.5s" repeatCount="1" fill="freeze" />
-                          <animate attributeName="cy" values={`180;${Math.max(180 - trajectory.maxHeight * 2, 20)};180`} dur="1.5s" repeatCount="1" fill="freeze" />
-                          <animate attributeName="r" values="8;10;8" dur="1.5s" repeatCount="1" />
+                        <circle key={simulationRunId} cx={startPoint.x} cy={startPoint.y} r="8" fill="currentColor" className="text-amber-500">
+                          <animate attributeName="cx" values={cxValues} dur={simulationDuration} repeatCount="1" fill="freeze" />
+                          <animate attributeName="cy" values={cyValues} dur={simulationDuration} repeatCount="1" fill="freeze" />
+                          <animate attributeName="r" values="8;10;8" dur={simulationDuration} repeatCount="1" />
                         </circle>
                       ) : null}
                     </svg>
@@ -611,8 +766,8 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
               </h3>
             </div>
 
-            <ScrollArea className="flex-1 h-0">
-              <div className="p-5 space-y-6">
+            <ScrollArea className="flex-1 h-0 overflow-x-hidden">
+              <div className="min-w-0 p-5 space-y-6">
                 {currentStep ? (
                   <div className="space-y-4">
                     <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
@@ -651,15 +806,20 @@ export default function ExploreTemplate({ data, labId, moduleContext }: ExploreT
 
                 <Separator className="opacity-50" />
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-amber-500" />
                     <h4 className="text-sm font-semibold">Guiding Questions</h4>
                   </div>
-                  <div className="space-y-2">
+                  <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1">
                     {guidingQuestions.map((question, i) => (
-                      <div key={i} className="text-xs p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
-                        <Markdown className="text-muted-foreground">{question}</Markdown>
+                      <div
+                        key={i}
+                        className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-2.5 py-2"
+                      >
+                        <Markdown className="text-[11px] leading-4 text-muted-foreground [&_*]:m-0 [&_p]:m-0 [&_p]:leading-4 line-clamp-2">
+                          {question}
+                        </Markdown>
                       </div>
                     ))}
                   </div>

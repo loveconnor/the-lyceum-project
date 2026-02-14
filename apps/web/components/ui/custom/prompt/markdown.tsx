@@ -67,6 +67,12 @@ const LANGUAGE_ALIASES: Record<string, CodeLanguage> = {
   zsh: "bash",
 };
 
+const EM_DASH_PATTERN = /\s*—\s*/g;
+
+function normalizeEmDashes(text: string): string {
+  return text.replace(EM_DASH_PATTERN, ", ");
+}
+
 function normalizeCodeLanguage(language?: string | null): CodeLanguage {
   if (!language) return "java";
   return LANGUAGE_ALIASES[language.toLowerCase()] ?? "java";
@@ -450,13 +456,14 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
     const charts3d: Chart3DWidgetData[][] = [];
     // Ensure we always work with a string to avoid runtime errors
     const sourceText = typeof children === 'string' ? children : (children == null ? '' : String(children));
+    const normalizedSourceText = normalizeEmDashes(sourceText);
     
     // Fix common AI LaTeX typos
     // 0. Fix code block delimiters (''' -> ```) - Fix for AI sometimes using triple quotes
     // 1. Fix \cdotps -> \cdot\,\mathrm{ps} (common unit notation error)
     // 2. Fix \cdotp (invalid command) -> \cdot
     // 3. Fix \cdot followed by letter without space
-    let processedText = sourceText
+    let processedText = normalizedSourceText
       // Heuristic: If triple quotes are followed by text with spaces,
       // it's likely meant to be a closing fence + text on new line.
       .replace(/^''' ?(.*\s.*)$/gm, '```\n$1')

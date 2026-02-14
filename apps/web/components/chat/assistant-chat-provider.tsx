@@ -34,6 +34,11 @@ type Message = {
 };
 
 const AI_CONTEXT = "free_chat" as const;
+const EM_DASH_PATTERN = /\s*—\s*/g;
+
+function normalizeEmDashes(text: string): string {
+  return text.replace(EM_DASH_PATTERN, ", ");
+}
 
 type AssistantContextValue = {
   conversations: Conversation[];
@@ -169,9 +174,13 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
         }
 
         const json = await res.json();
-        setMessages(json.messages || []);
+        const normalizedMessages = (json.messages || []).map((message: Message) => ({
+          ...message,
+          content: normalizeEmDashes(message.content || "")
+        }));
+        setMessages(normalizedMessages);
         setError(null);
-        startAiSession(json.messages?.length || 0);
+        startAiSession(normalizedMessages.length || 0);
       } catch (err: any) {
         console.error("Assistant messages fetch error", err);
         setError(err?.message || "Failed to load messages");
@@ -376,7 +385,7 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
                    title = JSON.parse(title);
                 }
                 setConversations(prev => prev.map(c => 
-                  c.id === conversationId ? { ...c, title } : c
+                  c.id === conversationId ? { ...c, title: normalizeEmDashes(title) } : c
                 ));
               } catch (e) {
                 console.error("Failed to parse title update", e);
@@ -440,7 +449,8 @@ export function AssistantChatProvider({ children }: { children: React.ReactNode 
               }]);
             }
 
-            assistantText += payload;
+            const normalizedPayload = normalizeEmDashes(String(payload));
+            assistantText += normalizedPayload;
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === tempAssistantId ? { ...m, content: assistantText, visuals: messageVisuals.length > 0 ? messageVisuals : m.visuals } : m

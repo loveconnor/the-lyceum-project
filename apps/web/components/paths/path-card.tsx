@@ -215,12 +215,12 @@ const PathCard: React.FC<PathCardProps> = ({
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               onClick={(e) => {
                 e.stopPropagation();
                 if (onDelete) onDelete(path.id);
                 setIsDeleteDialogOpen(false);
               }}
-              className="bg-destructive hover:bg-destructive/90"
             >
               Delete
             </AlertDialogAction>
@@ -367,12 +367,12 @@ const PathCard: React.FC<PathCardProps> = ({
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               onClick={(e) => {
                 e.stopPropagation();
                 if (onDelete) onDelete(path.id);
                 setIsDeleteDialogOpen(false);
               }}
-              className="bg-destructive hover:bg-destructive/90"
             >
               Delete
             </AlertDialogAction>

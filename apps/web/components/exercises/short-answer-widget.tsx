@@ -91,9 +91,11 @@ export const ShortAnswerWidget = ({
           value={userAnswer}
           onChange={(e) => handleAnswerChange(e.target.value)}
           placeholder="Type your answer..."
-          className={cn(
-            "flex-1 text-lg",
+          wrapperClassName={cn(
             isCompleted && "border-green-500 bg-green-500/5"
+          )}
+          className={cn(
+            "flex-1 text-lg"
           )}
           disabled={isCompleted}
           onKeyDown={handleKeyDown}
@@ -127,4 +129,3 @@ export const ShortAnswerWidget = ({
 };
 
 export default ShortAnswerWidget;
-

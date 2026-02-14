@@ -85,7 +85,7 @@ export default function Page() {
                       </Label>
                       <FormControl>
                         <div className="relative">
-                          <MailIcon className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform opacity-30" />
+                          <MailIcon className="pointer-events-none absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2 transform opacity-30" />
                           <Input
                             {...field}
                             id="email"

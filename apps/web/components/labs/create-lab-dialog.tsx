@@ -367,7 +367,11 @@ const CreateLabDialog: React.FC<CreateLabDialogProps> = ({
                   )}
                 >
                   <Sparkles className="h-4 w-4 shrink-0" />
-                  <Shimmer className="max-w-[200px] truncate font-medium sm:max-w-none" duration={3.5}>
+                  <Shimmer
+                    as="span"
+                    className="max-w-[200px] truncate font-medium leading-none sm:max-w-none"
+                    duration={3.5}
+                  >
                     Generating your lab...
                   </Shimmer>
                 </motion.div>

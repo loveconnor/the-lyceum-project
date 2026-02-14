@@ -100,7 +100,7 @@ body:not([data-font]) {
         --muted-foreground: var(--base-300);
         --accent: var(--base-800);
         --accent-foreground: var(--base-200);
-        --destructive: oklch(0.704 0.191 22.216);
+        --destructive: oklch(0.577 0.245 27.325);
         --border: var(--base-800);
         --input: var(--base-700);
         --ring: var(--primary-700);
@@ -198,7 +198,7 @@ body:not([data-font]) {
         --muted-foreground: var(--base-400);
         --accent: var(--base-900);
         --accent-foreground: var(--base-200);
-        --destructive: oklch(0.704 0.191 22.216);
+        --destructive: oklch(0.577 0.245 27.325);
         --border: var(--base-800);
         --input: var(--base-700);
         --ring: var(--primary-600);
@@ -309,7 +309,7 @@ body:not([data-font]) {
         --muted-foreground: var(--base-300);
         --accent: var(--base-800);
         --accent-foreground: var(--base-200);
-        --destructive: oklch(0.704 0.191 22.216);
+        --destructive: oklch(0.577 0.245 27.325);
         --border: var(--base-800);
         --input: var(--base-700);
         --ring: var(--primary-400);
@@ -417,7 +417,7 @@ body:not([data-font]) {
         --muted-foreground: var(--base-400);
         --accent: var(--base-900);
         --accent-foreground: var(--base-200);
-        --destructive: oklch(0.704 0.191 22.216);
+        --destructive: oklch(0.577 0.245 27.325);
         --border: var(--base-800);
         --input: var(--base-700);
         --ring: var(--primary-600);
@@ -525,7 +525,7 @@ body:not([data-font]) {
         --muted-foreground: var(--base-300);
         --accent: var(--base-800);
         --accent-foreground: var(--base-200);
-        --destructive: oklch(0.704 0.191 22.216);
+        --destructive: oklch(0.577 0.245 27.325);
         --border: var(--base-800);
         --input: var(--base-700);
         --ring: var(--primary-700);
@@ -636,7 +636,7 @@ body:not([data-font]) {
         --muted-foreground: var(--base-400);
         --accent: var(--base-900);
         --accent-foreground: var(--base-200);
-        --destructive: oklch(0.704 0.191 22.216);
+        --destructive: oklch(0.577 0.245 27.325);
         --border: var(--base-800);
         --input: var(--base-700);
         --ring: var(--primary-600);
@@ -745,7 +745,7 @@ body:not([data-font]) {
         --muted-foreground: var(--base-300);
         --accent: var(--base-800);
         --accent-foreground: var(--base-200);
-        --destructive: oklch(0.704 0.191 22.216);
+        --destructive: oklch(0.577 0.245 27.325);
         --border: var(--base-800);
         --input: var(--base-700);
         --ring: var(--primary-600);

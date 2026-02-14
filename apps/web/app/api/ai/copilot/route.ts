@@ -3,6 +3,9 @@ import type { NextRequest } from 'next/server';
 import { generateText } from 'ai';
 import { NextResponse } from 'next/server';
 
+const NO_EM_DASH_SYSTEM_RULE =
+  'Do not use em dashes. Use commas, periods, semicolons, or parentheses instead.';
+
 export async function POST(req: NextRequest) {
   const {
     apiKey: key,
@@ -21,12 +24,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const systemWithStyleRule = system
+      ? `${system}\n\nStyle requirement: ${NO_EM_DASH_SYSTEM_RULE}`
+      : `Style requirement: ${NO_EM_DASH_SYSTEM_RULE}`;
+
     const result = await generateText({
       abortSignal: req.signal,
       maxOutputTokens: 50,
       model: `openai/${model}`,
       prompt,
-      system,
+      system: systemWithStyleRule,
       temperature: 0.7,
     });
 

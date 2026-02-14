@@ -69,6 +69,12 @@ const LANGUAGE_ALIASES: Record<string, CodeLanguage> = {
   zsh: "bash",
 };
 
+const EM_DASH_PATTERN = /\s*—\s*/g;
+
+function normalizeEmDashes(text: string): string {
+  return text.replace(EM_DASH_PATTERN, ", ");
+}
+
 function normalizeCodeLanguage(language?: string | null): CodeLanguage {
   if (!language) return "java";
   return LANGUAGE_ALIASES[language.toLowerCase()] ?? "java";
@@ -451,12 +457,13 @@ function MarkdownComponent({ children, className, components = DEFAULT_COMPONENT
     const charts3d: Chart3DWidgetData[][] = [];
     // Ensure we always work with a string to avoid runtime errors
     const sourceText = typeof children === 'string' ? children : (children == null ? '' : String(children));
+    const normalizedSourceText = normalizeEmDashes(sourceText);
     
     // Fix common AI LaTeX typos
     // 1. Fix \cdotps -> \cdot\,\mathrm{ps} (common unit notation error)
     // 2. Fix \cdotp (invalid command) -> \cdot
     // 3. Fix \cdot followed by letter without space
-    let processedText = sourceText
+    let processedText = normalizedSourceText
       .replace(/\\cdotps/g, '\\cdot\\,\\mathrm{ps}')  // Fix common unit typo
       .replace(/\\cdotp/g, '\\cdot')                    // Remove invalid 'p'
       .replace(/\\cdot([a-zA-Z])/g, '\\cdot\\,\\mathrm{$1}'); // Fix \cdot + letter

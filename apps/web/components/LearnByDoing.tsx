@@ -971,7 +971,7 @@ export function Demo({
               {isStreaming ? "generating..." : "waiting..."}
             </div>
           )}
-          {stepByStep && isTextOnlyStep && !stepHasBodyText && fallbackStepText && (
+          {stepByStep && !stepHasBodyText && fallbackStepText && (
             <div className="mt-4 rounded-lg border border-dashed border-border/70 bg-muted/30 p-4">
               <Markdown>{fallbackStepText}</Markdown>
             </div>

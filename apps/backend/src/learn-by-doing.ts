@@ -520,29 +520,74 @@ Let's begin by exploring the fundamental concepts, then we'll practice applying 
   return ensureTwoSentences(base);
 }
 
+function normalizePromptText(input: string): string {
+  return input.replace(/\s+/g, " ").trim();
+}
+
+function extractFallbackTopic(prompt: string): { topic: string; objective: string | null } {
+  const normalized = normalizePromptText(prompt);
+  if (!normalized) {
+    return { topic: "this topic", objective: null };
+  }
+
+  const explicitTopicMatch = normalized.match(
+    /create an interactive learn-by-doing lesson on:\s*(.+)$/i,
+  );
+  const rawTopic = explicitTopicMatch ? explicitTopicMatch[1] : normalized;
+
+  // If the prompt is "Title: Objective", split by the last colon only when
+  // the suffix looks instructional.
+  const delimiterMatches = [...rawTopic.matchAll(/:\s+/g)];
+  if (delimiterMatches.length > 0) {
+    const lastDelimiterIndex = delimiterMatches[delimiterMatches.length - 1].index;
+    if (typeof lastDelimiterIndex === "number") {
+      const maybeTopic = rawTopic.slice(0, lastDelimiterIndex).trim();
+      const maybeObjective = rawTopic.slice(lastDelimiterIndex + 1).trim();
+      const objectiveStartsWithVerb = /^(explore|learn|understand|discover|master|practice|build|develop|analyze|study|apply)\b/i.test(
+        maybeObjective,
+      );
+      if (maybeTopic && maybeObjective && objectiveStartsWithVerb) {
+        return { topic: maybeTopic, objective: maybeObjective };
+      }
+    }
+  }
+
+  return { topic: rawTopic, objective: null };
+}
+
 function buildFallbackTree(prompt: string, rawText: string) {
-  const heading = prompt?.trim() || "Learn by Doing";
-  const introContent = `Welcome to this interactive lesson on ${heading}. This lesson will guide you through the key concepts with explanations, examples, and hands-on practice activities.
+  const parsed = extractFallbackTopic(prompt);
+  const heading = parsed.topic || "Learn by Doing";
+  const objectiveLine = parsed.objective
+    ? `Target outcome: ${parsed.objective}.`
+    : "Target outcome: explain the concept clearly and apply it in a practical situation.";
+  const introContent = `This lesson teaches **${heading}** through explanation plus practice, not just an outline.
 
-We'll start with an introduction to the fundamental ideas, then explore them in detail with practical examples. You'll have multiple opportunities to test your understanding through interactive exercises.
+${objectiveLine}
 
-Let's begin by establishing a foundation of the core concepts.`;
-  
-  const conceptContent = `Now that we've introduced the topic, let's dive deeper into the key concepts. Understanding these fundamentals is essential for mastering ${heading}.
+Focus on three checkpoints as you progress:
+1. Define the concept in clear terms.
+2. Distinguish it from similar ideas.
+3. Apply it in a realistic scenario.`;
 
-We'll explore:
-- The main principles and how they work
-- Common patterns and best practices
-- Real-world applications and examples
-- How these concepts connect to what you already know
+  const conceptContent = `### Core idea
+Start with the central definition and identify the conditions where this concept is the right tool.
 
-Pay attention to the examples as they'll help solidify your understanding.`;
-  
-  const practiceContent = `Let's apply what you've learned so far. Practice is essential for developing intuition and mastery of ${heading}.
+### What to watch for
+- The purpose it serves
+- Common misconceptions
+- Signals that tell you when to use it
 
-In this section, you'll work through exercises that reinforce the concepts we've covered. Take your time, and don't worry about making mistakes—they're part of the learning process.
+### Practical lens
+As you read each point, connect it to a real use case so the concept becomes actionable rather than memorized.`;
 
-Ready to practice? Let's test your understanding with some interactive activities.`;
+  const applicationContent = `### Apply the concept
+Use this process when solving real problems:
+1. Identify the requirement or constraint.
+2. Map that requirement to the concept.
+3. Verify the result against expected behavior.
+
+If an approach fails, adjust your reasoning and test again. Iteration is part of mastery.`;
 
   const tree: UITree = {
     root: "container",
@@ -551,7 +596,7 @@ Ready to practice? Let's test your understanding with some interactive activitie
         key: "container",
         type: "Stack",
         props: { direction: "vertical", gap: "lg" },
-        children: ["step1", "step2", "quiz1", "step3", "practice"],
+        children: ["step1", "step2", "quiz1", "step3", "quiz2"],
       },
       step1: {
         key: "step1",
@@ -573,26 +618,46 @@ Ready to practice? Let's test your understanding with some interactive activitie
         key: "step2",
         type: "Stack",
         props: { direction: "vertical", gap: "md" },
-        children: ["title2", "concepts"],
+        children: ["title2", "concepts", "exampleNote"],
       },
       title2: {
         key: "title2",
         type: "Heading",
-        props: { text: "Key Concepts", level: 2 },
+        props: { text: "Concept Breakdown", level: 2 },
       },
       concepts: {
         key: "concepts",
         type: "Markdown",
         props: { content: conceptContent },
       },
+      exampleNote: {
+        key: "exampleNote",
+        type: "Markdown",
+        props: {
+          content:
+            "Use one short example as you study this section. Write down the input, the decision you made, and the outcome so the concept stays concrete.",
+        },
+      },
       quiz1: {
         key: "quiz1",
-        type: "TrueFalse",
+        type: "MultipleChoice",
         props: {
-          statement: `I understand the fundamental concepts of ${heading} and am ready to practice applying them.`,
-          correctAnswer: true,
-          explanation: "Great! Understanding the concepts is the first step. Let's move on to practice activities.",
-          showFeedback: true
+          question: `Which action best shows a solid understanding of ${heading}?`,
+          options: [
+            { id: "a", label: "Define it clearly and test it in a concrete scenario" },
+            { id: "b", label: "Memorize terms and skip examples" },
+            { id: "c", label: "Assume it applies in every case without checking constraints" },
+          ],
+          correctOptionId: "a",
+          correctFeedback:
+            "Correct. Clear definition plus concrete application is the fastest path to durable understanding.",
+          incorrectFeedback:
+            "Not quite. Effective learning combines a clear definition with a realistic application check.",
+          misconceptions: {
+            b: "Memorization alone breaks down when the problem context changes.",
+            c: "Most concepts are context-dependent, so constraints must be checked.",
+          },
+          showFeedback: true,
         },
       },
       step3: {
@@ -609,24 +674,28 @@ Ready to practice? Let's test your understanding with some interactive activitie
       practiceIntro: {
         key: "practiceIntro",
         type: "Markdown",
-        props: { content: practiceContent },
+        props: { content: applicationContent },
       },
-      practice: {
-        key: "practice",
+      quiz2: {
+        key: "quiz2",
         type: "MultipleChoice",
         props: {
-          question: `Which of the following best describes a key aspect of ${heading}?`,
+          question: `What is the most reliable way to validate your use of ${heading}?`,
           options: [
-            { id: "a", label: "It requires deep understanding of core concepts" },
-            { id: "b", label: "It can be mastered with a single example" },
-            { id: "c", label: "It has no practical applications" },
+            { id: "a", label: "Apply it to a realistic case and verify the outcome against requirements" },
+            { id: "b", label: "Rely on intuition only and skip verification" },
+            { id: "c", label: "Use it the same way regardless of problem constraints" },
           ],
           correctOptionId: "a",
+          correctFeedback:
+            "Exactly. Validation in context confirms both understanding and practical accuracy.",
+          incorrectFeedback:
+            "Try again. A concept is validated by applying it to constraints and checking results.",
           showFeedback: true,
           misconceptions: {
-            b: "While examples help, true mastery requires understanding multiple perspectives and applications.",
-            c: "This topic has numerous real-world applications across various domains."
-          }
+            b: "Intuition helps, but reliable decisions need explicit validation.",
+            c: "Ignoring constraints leads to brittle and often incorrect solutions.",
+          },
         },
       },
     },
@@ -645,7 +714,7 @@ Ready to practice? Let's test your understanding with some interactive activitie
     JSON.stringify({ op: "add", path: "/elements/step3", value: tree.elements.step3 }),
     JSON.stringify({ op: "add", path: "/elements/title3", value: tree.elements.title3 }),
     JSON.stringify({ op: "add", path: "/elements/practiceIntro", value: tree.elements.practiceIntro }),
-    JSON.stringify({ op: "add", path: "/elements/practice", value: tree.elements.practice }),
+    JSON.stringify({ op: "add", path: "/elements/quiz2", value: tree.elements.quiz2 }),
   ];
 
   return { tree, streamLines };

@@ -114,7 +114,7 @@ export function ReflectionsDashboard({ reflections }: ReflectionsDashboardProps)
         <div className="flex w-full items-center gap-2 lg:w-auto">
           {/* Search input */}
           <div className="relative w-auto grow lg:grow-0">
-            <Search className="absolute top-2.5 left-3 size-4 opacity-50" />
+            <Search className="pointer-events-none absolute top-2.5 left-3 z-10 size-4 opacity-50" />
             <Input
               placeholder="Search reflections..."
               className="ps-10 w-full lg:w-64"

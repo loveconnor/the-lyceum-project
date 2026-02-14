@@ -86,7 +86,7 @@ export function getCommentPrompt(
     {
       "blockId": "2",
       "content": "they may misinterpret user intent if training data is biased",
-      "comments": "Good point—expand on how bias can be detected or reduced."
+      "comments": "Good point, expand on how bias can be detected or reduced."
     }
   ]`,
 
@@ -117,7 +117,7 @@ export function getCommentPrompt(
     {
       "blockId": "5",
       "content": "replace human creativity",
-      "comments": "Overstated claim—suggest using 'assist' instead of 'replace'."
+      "comments": "Overstated claim, suggest using 'assist' instead of 'replace'."
     }
   ]`,
 
@@ -137,12 +137,12 @@ export function getCommentPrompt(
     {
       "blockId": "6",
       "content": "AI tools are valuable for summarizing information and generating drafts.",
-      "comments": "Solid statement—consider adding specific examples of tools."
+      "comments": "Solid statement, consider adding specific examples of tools."
     },
     {
       "blockId": "6",
       "content": "human review remains essential to ensure accuracy and ethical use",
-      "comments": "Good caution—explain briefly why ethics require human oversight."
+      "comments": "Good caution, explain briefly why ethics require human oversight."
     }
   ]`,
     ],
@@ -153,7 +153,7 @@ export function getCommentPrompt(
       - IMPORTANT: The **content** field must be flexible:
         - It can cover one full block, only part of a block, or multiple blocks.
         - If multiple blocks are included, separate them with two \\n\\n.
-        - Do NOT default to using the entire block—use the smallest relevant span instead.
+        - Do NOT default to using the entire block; use the smallest relevant span instead.
       - At least one comment must be provided.
       - If a <Selection> exists, Your comments should come from the <Selection>, and if the <Selection> is too long, there should be more than one comment.
     `,

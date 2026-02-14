@@ -43,6 +43,13 @@ interface AddCommentPayload {
   text: string;
 }
 
+const NO_EM_DASH_PROMPT_RULE =
+  "Do not use em dashes. Use commas, periods, semicolons, or parentheses instead.";
+
+function withNoEmDashRule(prompt: string): string {
+  return `${prompt}\n\nWriting style requirement: ${NO_EM_DASH_PROMPT_RULE}`;
+}
+
 async function getAuthHeaders(): Promise<HeadersInit> {
   // Get the auth token from Supabase client
   const { createClient } = await import("@/utils/supabase/client");
@@ -213,7 +220,7 @@ export async function getLabAIAssistance(
   const response = await fetch(`${API_BASE_URL}/labs/${labId}/ai-assist`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ prompt, context }),
+    body: JSON.stringify({ prompt: withNoEmDashRule(prompt), context }),
   });
   return handleResponse<{ assistance: string }>(response);
 }

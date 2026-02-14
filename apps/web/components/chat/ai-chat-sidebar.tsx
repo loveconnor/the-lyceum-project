@@ -72,10 +72,11 @@ export const SidebarContent = () => {
     <div className="flex h-full flex-col lg:w-72">
       <div className="border-b px-4 py-3">
         <div className="relative">
-          <Search className="text-muted-foreground absolute top-1/2 left-0 h-4 w-4 -translate-y-1/2 transform" />
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-0 z-10 h-4 w-4 -translate-y-1/2 transform" />
           <Input
             placeholder="Search chats..."
-            className="!bg-transparent border-none pl-6 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 hover:!bg-transparent"
+            wrapperClassName="border-none !bg-transparent shadow-none hover:!bg-transparent has-focus-visible:border-transparent has-focus-visible:ring-0"
+            className="pl-6 text-sm"
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
           />
@@ -192,7 +193,7 @@ export const SidebarContent = () => {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-500 hover:bg-red-600"
+              variant="destructive"
               onClick={() => {
                 if (conversationToDelete) {
                   deleteConversation(conversationToDelete);

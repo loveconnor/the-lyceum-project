@@ -639,7 +639,11 @@ const CreatePathDialog: React.FC<CreatePathDialogProps> = ({ isOpen, onClose, ed
                     )}
                   >
                     <Sparkles className="h-4 w-4 shrink-0" />
-                    <Shimmer className="font-medium truncate max-w-[200px] sm:max-w-none" duration={3.5}>
+                    <Shimmer
+                      as="span"
+                      className="font-medium leading-none truncate max-w-[200px] sm:max-w-none"
+                      duration={3.5}
+                    >
                       {generationStatus || "Generating..."}
                     </Shimmer>
                   </motion.div>

@@ -6,6 +6,9 @@ import { serializeMd } from '@platejs/markdown';
 import dedent from 'dedent';
 import { type SlateEditor, RangeApi } from 'platejs';
 
+const NO_EM_DASH_RULE =
+  'Do not use em dashes. Use commas, periods, semicolons, or parentheses instead.';
+
 /**
  * Tag content split by newlines
  *
@@ -100,6 +103,10 @@ export const buildStructuredPrompt = ({
   thinking,
   tone,
 }: StructuredPromptSections) => {
+  const mergedRules = rules
+    ? `${rules}\n- ${NO_EM_DASH_RULE}`
+    : `- ${NO_EM_DASH_RULE}`;
+
   const formattedExamples = Array.isArray(examples)
     ? examples.map((example) => tag('example', example)).join('\n')
     : examples;
@@ -115,11 +122,10 @@ export const buildStructuredPrompt = ({
               ${backgroundData}
         </backgroundData>
       `,
-    rules &&
-      dedent`
-        Here are some important rules for the interaction:
-            ${rules}
-      `,
+    dedent`
+      Here are some important rules for the interaction:
+          ${mergedRules}
+    `,
 
     formattedExamples &&
       dedent`

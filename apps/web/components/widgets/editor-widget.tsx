@@ -4,6 +4,7 @@ import { normalizeNodeId } from 'platejs';
 import { Markdown } from '@/components/ui/custom/prompt/markdown';
 
 import { EditorKit } from '@/components/widgets/editor/editor-kit';
+import { ReflectionEditorKit } from '@/components/widgets/editor/reflection-editor-kit';
 import { Editor, EditorContainer } from '@/components/ui/editor';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,9 @@ export interface EditorWidgetProps {
   
   /** Visual variant for the editor */
   variant?: 'default' | 'demo' | 'fullWidth' | 'ai' | 'aiChat' | 'comment';
+
+  /** Choose a plugin preset for toolbar/features */
+  editorPreset?: 'full' | 'reflection';
   
   /** Height of the editor container */
   height?: string;
@@ -74,6 +78,7 @@ export function EditorWidget({
   readOnly = false,
   placeholder = 'Start typing...',
   variant = 'default',
+  editorPreset = 'full',
   height,
   label,
   description,
@@ -81,15 +86,20 @@ export function EditorWidget({
   className,
   autoFocus = false,
 }: EditorWidgetProps) {
-  // Filter out toolbars when in read-only mode
+  // Pick plugin set and filter out toolbars when read-only.
   const plugins = React.useMemo(() => {
+    const basePlugins = editorPreset === 'reflection' ? ReflectionEditorKit : EditorKit;
+
     if (readOnly) {
-      return EditorKit.filter(
-        (p) => p.key !== 'fixed-toolbar' && p.key !== 'floating-toolbar'
+      return basePlugins.filter(
+        (p) =>
+          p.key !== 'fixed-toolbar' &&
+          p.key !== 'floating-toolbar' &&
+          p.key !== 'reflection-toolbar'
       );
     }
-    return EditorKit;
-  }, [readOnly]);
+    return basePlugins;
+  }, [editorPreset, readOnly]);
 
   const editor = usePlateEditor({
     plugins: plugins,
@@ -122,7 +132,7 @@ export function EditorWidget({
   const editorContent = (
     <div
       className={cn(
-        'flex flex-col',
+        'flex min-w-0 flex-col',
         height && 'overflow-hidden',
         className
       )}
@@ -147,7 +157,7 @@ export function EditorWidget({
         <EditorContainer
           variant={variant === 'demo' ? 'demo' : 'default'}
           className={cn(
-            height && 'h-full overflow-y-auto',
+            height && 'h-full overflow-x-hidden overflow-y-auto',
             readOnly && 'cursor-default'
           )}
         >

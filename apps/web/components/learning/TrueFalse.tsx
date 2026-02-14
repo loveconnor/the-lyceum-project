@@ -96,10 +96,30 @@ type TrueFalseProps = {
   statement: string;
   correctAnswer: boolean;
   explanation?: string | null;
+  correctFeedback?: string | null;
+  incorrectFeedback?: string | null;
+  explanationCorrect?: string | null;
+  explanationIncorrect?: string | null;
+  feedback?:
+    | {
+        correct?: string | null;
+        incorrect?: string | null;
+        success?: string | null;
+        error?: string | null;
+      }
+    | null;
   requireConfidence?: boolean;
   showFeedback?: boolean;
   className?: string[];
+  correct_feedback?: string | null;
+  incorrect_feedback?: string | null;
+  explanation_correct?: string | null;
+  explanation_incorrect?: string | null;
 };
+
+function asText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
 
 export function TrueFalse({ element }: ComponentRenderProps) {
   const props = element.props as TrueFalseProps;
@@ -107,6 +127,26 @@ export function TrueFalse({ element }: ComponentRenderProps) {
   const statement = props.statement ?? "";
   const correctAnswer = Boolean(props.correctAnswer);
   const explanation = props.explanation ?? null;
+  const feedback = props.feedback;
+  const correctFeedback =
+    asText(props.correctFeedback) ??
+    asText(props.correct_feedback) ??
+    asText(props.explanationCorrect) ??
+    asText(props.explanation_correct) ??
+    asText(feedback?.correct) ??
+    asText(feedback?.success) ??
+    asText(explanation) ??
+    "Correct. Nice work.";
+  const incorrectFeedback =
+    asText(props.incorrectFeedback) ??
+    asText(props.incorrect_feedback) ??
+    asText(props.explanationIncorrect) ??
+    asText(props.explanation_incorrect) ??
+    asText(feedback?.incorrect) ??
+    asText(feedback?.error) ??
+    (asText(explanation)
+      ? `Not quite. ${explanation}`
+      : `Not quite. The statement is ${correctAnswer ? "True" : "False"}.`);
   const requireConfidence = Boolean(props.requireConfidence);
   const showFeedback = props.showFeedback ?? true;
 
@@ -148,11 +188,27 @@ export function TrueFalse({ element }: ComponentRenderProps) {
     setIsSubmitted(false);
   };
 
+  const markStepComplete = () => {
+    if (typeof (window as any).__markStepComplete === "function") {
+      (window as any).__markStepComplete();
+    }
+  };
+
+  // Recover completion state for already-submitted correct answers restored from widget state.
+  useEffect(() => {
+    if (isSubmitted && answer === correctAnswer) {
+      markStepComplete();
+    }
+  }, [isSubmitted, answer, correctAnswer]);
+
   const handleSelection = (value: boolean) => {
     if (isSubmitted) return;
     setAnswer(value);
     if (!requireConfidence) {
       setIsSubmitted(true);
+      if (value === correctAnswer) {
+        markStepComplete();
+      }
     }
   };
 
@@ -162,8 +218,8 @@ export function TrueFalse({ element }: ComponentRenderProps) {
     setIsSubmitted(true);
     
     // Mark step as complete if answer is correct
-    if (answer === correctAnswer && typeof (window as any).__markStepComplete === "function") {
-      (window as any).__markStepComplete();
+    if (answer === correctAnswer) {
+      markStepComplete();
     }
   };
 
@@ -219,6 +275,8 @@ export function TrueFalse({ element }: ComponentRenderProps) {
 
   const canSubmit =
     answer !== null && (!requireConfidence || confidence !== null);
+  const isAnswerCorrect = answer === correctAnswer;
+  const feedbackText = isAnswerCorrect ? correctFeedback : incorrectFeedback;
 
   return (
     <div className={`${baseClass} ${customClass} w-full max-w-2xl mx-auto`}>
@@ -266,7 +324,7 @@ export function TrueFalse({ element }: ComponentRenderProps) {
         {showFeedback && isSubmitted && (
           <div
             className={`animate-in fade-in slide-in-from-top-2 duration-500 rounded-md p-3 mt-3 border ${
-              answer === correctAnswer
+              isAnswerCorrect
                 ? "bg-emerald-50/50 dark:bg-emerald-900/30 border-emerald-100 dark:border-emerald-800"
                 : "bg-rose-50/50 dark:bg-rose-900/30 border-rose-100 dark:border-rose-800"
             }`}
@@ -274,12 +332,12 @@ export function TrueFalse({ element }: ComponentRenderProps) {
             <div className="flex items-start gap-2">
               <div
                 className={`p-1 rounded-full shrink-0 ${
-                  answer === correctAnswer
+                  isAnswerCorrect
                     ? "bg-emerald-100 dark:bg-emerald-800 text-emerald-600 dark:text-emerald-300"
                     : "bg-rose-100 dark:bg-rose-800 text-rose-600 dark:text-rose-300"
                 }`}
               >
-                {answer === correctAnswer ? (
+                {isAnswerCorrect ? (
                   <Check className="w-4 h-4" />
                 ) : (
                   <X className="w-4 h-4" />
@@ -288,22 +346,16 @@ export function TrueFalse({ element }: ComponentRenderProps) {
               <div>
                 <div
                   className={`font-semibold text-xs ${
-                    answer === correctAnswer
+                    isAnswerCorrect
                       ? "text-emerald-700 dark:text-emerald-300"
                       : "text-rose-700 dark:text-rose-300"
                   }`}
                 >
-                  {answer === correctAnswer ? "Correct!" : "Incorrect"}
+                  {isAnswerCorrect ? "Correct!" : "Incorrect"}
                 </div>
-                {explanation ? (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    <Markdown>{explanation}</Markdown>
-                  </div>
-                ) : (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    The statement is {correctAnswer ? "True" : "False"}.
-                  </div>
-                )}
+                <div className="text-xs text-muted-foreground mt-1">
+                  <Markdown>{feedbackText}</Markdown>
+                </div>
               </div>
             </div>
             <div className="flex justify-end mt-2">
